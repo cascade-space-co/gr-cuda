@@ -76,8 +76,8 @@ if(${CMAKE_VERSION} VERSION_LESS "3.18")
     # target_compile_options(gnuradio-myoot-cu PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-gencode arch=compute_80,code=sm_80>")
     # target_compile_options(gnuradio-myoot-cu PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-gencode arch=compute_86,code=sm_86>")
 else()
-    set_target_properties(gnuradio-cuda-cu PROPERTIES CUDA_ARCHITECTURES "60;61;62;70;72;75")
-    set_target_properties(gnuradio-cuda PROPERTIES CUDA_ARCHITECTURES "60;61;62;70;72;75")
+    set_target_properties(gnuradio-cuda-cu PROPERTIES CUDA_ARCHITECTURES "121")
+    set_target_properties(gnuradio-cuda PROPERTIES CUDA_ARCHITECTURES "121")
 endif()
 
 ########################################################################
