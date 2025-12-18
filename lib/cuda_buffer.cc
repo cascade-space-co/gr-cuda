@@ -46,22 +46,28 @@ void* cuda_buffer::cuda_memmove(void* dest, const void* src, std::size_t count)
     // Would a kernel that checks for overlap and then copies front-to-back or
     // back-to-front be faster than using cudaMemcpy with a temp buffer?
 
-    // Allocate temp buffer
-    void* tempBuffer = nullptr;
     cudaError_t rc = cudaSuccess;
-    rc = cudaMalloc((void**)&tempBuffer, count);
-    if (rc) {
-        std::ostringstream msg;
-        msg << "Error allocating device buffer: " << cudaGetErrorName(rc) << " -- "
-            << cudaGetErrorString(rc);
-        throw std::runtime_error(msg.str());
+
+    // Allocate temp buffer if needed
+    if (count > d_temp_buffer_size) {
+        if (d_temp_buffer != nullptr) {
+            cudaFree(d_temp_buffer);
+        }
+        rc = cudaMalloc((void**)&d_temp_buffer, count);
+        if (rc) {
+            std::ostringstream msg;
+            msg << "Error allocating device temp buffer: " << cudaGetErrorName(rc) << " -- "
+                << cudaGetErrorString(rc);
+            throw std::runtime_error(msg.str());
+        }
+        d_temp_buffer_size = count;
     }
 
     // First copy data from source to temp buffer
 #if STREAM_COPY
-    rc = cudaMemcpyAsync(tempBuffer, src, count, cudaMemcpyDeviceToDevice, d_stream);
+    rc = cudaMemcpyAsync(d_temp_buffer, src, count, cudaMemcpyDeviceToDevice, d_stream);
 #else
-    rc = cudaMemcpy(tempBuffer, src, count, cudaMemcpyDeviceToDevice);
+    rc = cudaMemcpy(d_temp_buffer, src, count, cudaMemcpyDeviceToDevice);
 #endif
     
     if (rc) {
@@ -73,9 +79,9 @@ void* cuda_buffer::cuda_memmove(void* dest, const void* src, std::size_t count)
 
     // Then copy data from temp buffer to destination to avoid overlap
 #if STREAM_COPY
-    rc = cudaMemcpyAsync(dest, tempBuffer, count, cudaMemcpyDeviceToDevice, d_stream);
+    rc = cudaMemcpyAsync(dest, d_temp_buffer, count, cudaMemcpyDeviceToDevice, d_stream);
 #else
-    rc = cudaMemcpy(dest, tempBuffer, count, cudaMemcpyDeviceToDevice);
+    rc = cudaMemcpy(dest, d_temp_buffer, count, cudaMemcpyDeviceToDevice);
 #endif
     
     if (rc) {
@@ -84,11 +90,6 @@ void* cuda_buffer::cuda_memmove(void* dest, const void* src, std::size_t count)
             << cudaGetErrorString(rc);
         throw std::runtime_error(msg.str());
     }
-#if STREAM_COPY
-    cudaStreamSynchronize(d_stream);
-#endif
-
-    cudaFree(tempBuffer);
 
     return dest;
 }
@@ -101,7 +102,9 @@ cuda_buffer::cuda_buffer(int nitems,
                          block_sptr buf_owner)
     : buffer_single_mapped(nitems, sizeof_item, downstream_lcm_nitems, 
                            downstream_max_out_mult, link, buf_owner),
-      d_cuda_buf(nullptr)
+      d_cuda_buf(nullptr),
+      d_temp_buffer(nullptr),
+      d_temp_buffer_size(0)
 {
     gr::configure_default_loggers(d_logger, d_debug_logger, "cuda");
     if (!allocate_buffer(nitems))
@@ -124,6 +127,12 @@ cuda_buffer::~cuda_buffer()
     if (d_cuda_buf != nullptr) {
         cudaFree(d_cuda_buf);
         d_cuda_buf = nullptr;
+    }
+
+    // Free scratch buffer
+    if (d_temp_buffer != nullptr) {
+        cudaFree(d_temp_buffer);
+        d_temp_buffer = nullptr;
     }
 }
 
@@ -151,7 +160,6 @@ void cuda_buffer::post_work(int nitems)
         #if STREAM_COPY
         rc = cudaMemcpyAsync(
             dest_ptr, write_pointer(), nitems * d_sizeof_item, cudaMemcpyHostToDevice, d_stream);
-        cudaStreamSynchronize(d_stream);
         #else
         rc = cudaMemcpy(
             dest_ptr, write_pointer(), nitems * d_sizeof_item, cudaMemcpyHostToDevice);
@@ -172,7 +180,6 @@ void cuda_buffer::post_work(int nitems)
         #if STREAM_COPY
         rc = cudaMemcpyAsync(
             dest_ptr, write_pointer(), nitems * d_sizeof_item, cudaMemcpyDeviceToHost, d_stream);
-        cudaStreamSynchronize(d_stream);
         #else
         rc = cudaMemcpy(
             dest_ptr, write_pointer(), nitems * d_sizeof_item, cudaMemcpyDeviceToHost);

@@ -87,7 +87,6 @@ int load_impl::work(int noutput_items,
     }
 
 
-    cudaStreamSynchronize(d_stream);
 
     // Tell runtime system how many output items we produced.
     return noutput_items;

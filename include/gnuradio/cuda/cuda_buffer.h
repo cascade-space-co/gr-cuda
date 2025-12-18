@@ -105,6 +105,12 @@ private:
     cudaStream_t d_stream;
     char* d_cuda_buf; // CUDA buffer
 
+    // Scratch buffer management for internal copies
+    // Used in cuda_memmove to handle overlapping memory regions safely.
+    // We persist this buffer to avoid expensive cudaMalloc/Free calls on every move.
+    void* d_temp_buffer;
+    size_t d_temp_buffer_size;
+
     /*!
      * \brief constructor is private.  Use gr_make_buffer to create instances.
      *

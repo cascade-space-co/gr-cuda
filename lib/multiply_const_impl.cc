@@ -60,7 +60,6 @@ int multiply_const_impl<T>::work(int noutput_items,
                                   noutput_items,
                                   d_stream);
     
-    cudaStreamSynchronize(d_stream);
 
     // Tell runtime system how many output items we produced.
     return noutput_items;
