@@ -113,10 +113,16 @@ cuda_buffer::cuda_buffer(int nitems,
     f_cuda_memcpy = [this](void* dest, const void* src, std::size_t count){ return this->cuda_memcpy(dest, src, count); };
     f_cuda_memmove = [this](void* dest, const void* src, std::size_t count){ return this->cuda_memmove(dest, src, count); };
     cudaStreamCreate(&d_stream);
+    cudaEventCreateWithFlags(&d_dev_ready_evt, cudaEventDisableTiming);
+    cudaEventCreateWithFlags(&d_host_ready_evt, cudaEventDisableTiming);
 }
 
 cuda_buffer::~cuda_buffer()
 {
+    // Free events
+    cudaEventDestroy(d_dev_ready_evt);
+    cudaEventDestroy(d_host_ready_evt);
+
     // Free host buffer
     if (d_base != nullptr) {
         cudaFreeHost(d_base);
@@ -171,10 +177,15 @@ void cuda_buffer::post_work(int nitems)
             GR_LOG_ERROR(d_logger, msg.str());
             throw std::runtime_error(msg.str());
         }
+
+        mark_device_ready(d_stream);
         
     } break;
 
     case transfer_type::DEVICE_TO_HOST: {
+        // Ensure producing GPU work is complete before copying
+        wait_device_ready(d_stream);
+
         // Copy data from device buffer to host buffer
         void* dest_ptr = &d_base[d_write_index * d_sizeof_item];
         #if STREAM_COPY
@@ -192,6 +203,8 @@ void cuda_buffer::post_work(int nitems)
             throw std::runtime_error(msg.str());
         }
         
+        mark_host_ready(d_stream);
+
     } break;
 
     case transfer_type::DEVICE_TO_DEVICE:
@@ -282,6 +295,7 @@ const void* cuda_buffer::_read_pointer(unsigned int read_index)
 
     case transfer_type::DEVICE_TO_HOST:
         // Read from host buffer
+        wait_host_ready();
         ptr = &d_base[read_index * d_sizeof_item];
         break;
 
@@ -305,6 +319,10 @@ bool cuda_buffer::input_blocked_callback(int items_required,
         << "cuda [" << d_transfer_type << "] -- input_blocked_callback";
     GR_LOG_DEBUG(d_logger, msg.str());
 #endif
+
+    // Safety sync: Ensure all outstanding GPU work is done before realignment
+    cudaEventSynchronize(d_dev_ready_evt);
+    cudaStreamSynchronize(d_stream);
 
     bool rc = false;
     switch (d_transfer_type) {
@@ -344,6 +362,10 @@ bool cuda_buffer::output_blocked_callback(int output_multiple, bool force)
     GR_LOG_DEBUG(d_logger, msg.str());
 #endif
 
+    // Safety sync: Ensure all outstanding GPU work is done before realignment
+    cudaEventSynchronize(d_dev_ready_evt);
+    cudaStreamSynchronize(d_stream);
+
     bool rc = false;
     switch (d_transfer_type) {
     case transfer_type::HOST_TO_DEVICE:
@@ -366,6 +388,26 @@ bool cuda_buffer::output_blocked_callback(int output_multiple, bool force)
     }
 
     return rc;
+}
+
+void cuda_buffer::mark_device_ready(cudaStream_t producer_stream)
+{
+    cudaEventRecord(d_dev_ready_evt, producer_stream);
+}
+
+void cuda_buffer::wait_device_ready(cudaStream_t consumer_stream)
+{
+    cudaStreamWaitEvent(consumer_stream, d_dev_ready_evt, 0);
+}
+
+void cuda_buffer::mark_host_ready(cudaStream_t copy_stream)
+{
+    cudaEventRecord(d_host_ready_evt, copy_stream);
+}
+
+void cuda_buffer::wait_host_ready()
+{
+    cudaEventSynchronize(d_host_ready_evt);
 }
 
 buffer_sptr cuda_buffer::make_buffer(int nitems,

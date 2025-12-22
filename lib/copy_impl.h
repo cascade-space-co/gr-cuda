@@ -13,6 +13,7 @@
 #define INCLUDED_CUDA_COPY_IMPL_H
 
 #include <gnuradio/cuda/copy.h>
+#include <cuda_runtime.h>
 
 namespace gr {
 namespace cuda {
@@ -20,6 +21,7 @@ namespace cuda {
 class copy_impl : public copy {
 private:
   size_t d_itemsize;
+  cudaStream_t d_stream;
 
 public:
   copy_impl(size_t itemsize);

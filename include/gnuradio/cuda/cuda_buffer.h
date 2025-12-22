@@ -55,6 +55,29 @@ public:
     virtual void post_work(int nitems);
 
     /*!
+     * \brief Mark the device buffer as ready (producer done)
+     * \param producer_stream Stream that produced the data
+     */
+    void mark_device_ready(cudaStream_t producer_stream);
+
+    /*!
+     * \brief Wait for the device buffer to be ready (consumer waits)
+     * \param consumer_stream Stream that will consume the data
+     */
+    void wait_device_ready(cudaStream_t consumer_stream);
+
+    /*!
+     * \brief Mark the host buffer as ready (copy done)
+     * \param copy_stream Stream that performed the copy
+     */
+    void mark_host_ready(cudaStream_t copy_stream);
+
+    /*!
+     * \brief Wait for the host buffer to be ready (host reads)
+     */
+    void wait_host_ready();
+
+    /*!
      * \brief Do actual buffer allocation. Inherited from buffer_single_mapped.
      */
     bool do_allocate_buffer(size_t final_nitems, size_t sizeof_item);
@@ -103,6 +126,8 @@ public:
 
 private:
     cudaStream_t d_stream;
+    cudaEvent_t d_dev_ready_evt;
+    cudaEvent_t d_host_ready_evt;
     char* d_cuda_buf; // CUDA buffer
 
     // Scratch buffer management for internal copies
