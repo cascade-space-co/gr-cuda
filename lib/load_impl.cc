@@ -9,6 +9,7 @@
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/io_signature.h>
 #include <gnuradio/block_detail.h>
+#include <gnuradio/cuda/cuda_block_helper.h>
 
 #include "load.cuh"
 
@@ -53,13 +54,7 @@ int load_impl::work(int noutput_items,
     auto out = static_cast<uint8_t*>(output_items[0]);
 
     // 1. Wait on inputs
-    for (size_t i = 0; i < input_items.size(); i++) {
-        auto buf = detail()->input(i)->buffer();
-        auto cuda_buf = std::dynamic_pointer_cast<gr::cuda_buffer>(buf);
-        if (cuda_buf) {
-            cuda_buf->wait_device_ready(d_stream);
-        }
-    }
+    gr::cuda::wait_for_inputs(detail(), d_stream);
 
     int gridSize = (noutput_items * d_itemsize + d_block_size - 1) / d_block_size;
 
@@ -97,13 +92,7 @@ int load_impl::work(int noutput_items,
     }
 
     // 2. Mark outputs
-    for (size_t i = 0; i < output_items.size(); i++) {
-        auto buf = detail()->output(i);
-        auto cuda_buf = std::dynamic_pointer_cast<gr::cuda_buffer>(buf);
-        if (cuda_buf) {
-            cuda_buf->mark_device_ready(d_stream);
-        }
-    }
+    gr::cuda::mark_outputs_ready(detail(), d_stream);
 
     // Tell runtime system how many output items we produced.
     return noutput_items;
