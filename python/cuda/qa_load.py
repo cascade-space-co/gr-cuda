@@ -26,8 +26,7 @@ class qa_load(gr_unittest.TestCase):
         self.tb = None
 
     def test_instance(self):
-        # FIXME: Test will fail until you pass sensible arguments to the constructor
-        instance = load()
+        instance = load(100, 4, True)
 
     def test_001_descriptive_test_name(self):
         # set up fg
