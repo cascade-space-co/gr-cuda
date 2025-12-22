@@ -13,7 +13,7 @@ install(FILES
     api.h
     cuda_error.h
     cuda_buffer.h
-    cuda_block.h
+    cuda_block_helper.h
     copy.h
     multiply_const.h
     load.h DESTINATION include/gnuradio/cuda
