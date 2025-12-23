@@ -1,0 +1,46 @@
+id: cuda_multiply_const_py
+label: Multiply Const (CuPy)
+flags: [ python ]
+category: '[CUDA]'
+
+parameters:
+-   id: type
+    label: IO Type
+    dtype: enum
+    options: [complex, float, int, short]
+    option_attributes:
+        np_dtype: [np.complex64, np.float32, np.int32, np.int16]
+    hide: part
+-   id: const
+    label: Constant
+    dtype: ${ type }
+    default: '0'
+-   id: vlen
+    label: Vector Length
+    dtype: int
+    default: '1'
+    hide: ${ 'part' if vlen == 1 else 'none' }
+
+inputs:
+-   domain: cuda
+    dtype: ${ type }
+    vlen: ${ vlen }
+
+outputs:
+-   domain: cuda
+    dtype: ${ type }
+    vlen: ${ vlen }
+
+asserts:
+- ${ vlen > 0 }
+
+templates:
+    imports: |-
+        from gnuradio import cuda
+        import numpy as np
+    make: cuda.multiply_const_py(${const}, dtype=${type.np_dtype}, vlen=${vlen})
+    callbacks:
+    - set_k(${const})
+
+file_format: 1
+

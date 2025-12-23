@@ -20,9 +20,9 @@ try:
 except ModuleNotFoundError:
     pass
 
-# import pure python helpers
-try:
-    from .utils import as_cupy, io_signature_make
-except ImportError:
-    pass
+# import python helpers
+from .utils import as_cupy, io_signature_make
+
+# import python blocks
+from .multiply_const_py import multiply_const_py
 
