@@ -47,3 +47,6 @@ add_custom_target(
 
 GR_ADD_TEST(qa_load ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_load.py)
 GR_ADD_TEST(qa_custom_gpu_block ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_custom_gpu_block.py)
+GR_ADD_TEST(qa_stress_sync ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_stress_sync.py)
+GR_ADD_TEST(qa_parallel_sync ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_parallel_sync.py)
+GR_ADD_TEST(qa_fanin_sync ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_fanin_sync.py)
