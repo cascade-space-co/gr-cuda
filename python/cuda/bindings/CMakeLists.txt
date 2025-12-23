@@ -31,7 +31,9 @@ include(GrPybind)
 list(APPEND cuda_python_files
     copy_python.cc
     multiply_const_python.cc
-    load_python.cc python_bindings.cc)
+    load_python.cc
+    cuda_helpers_python.cc
+    python_bindings.cc)
 
 GR_PYBIND_MAKE_OOT(cuda 
    ../../..

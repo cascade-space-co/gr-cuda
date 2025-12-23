@@ -43,3 +43,4 @@ add_custom_target(
 )
 
 GR_ADD_TEST(qa_load ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_load.py)
+GR_ADD_TEST(qa_custom_gpu_block ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_custom_gpu_block.py)
