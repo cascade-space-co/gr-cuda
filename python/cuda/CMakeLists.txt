@@ -24,6 +24,7 @@ GR_PYTHON_INSTALL(
     __init__.py
     utils.py
     multiply_const_py.py
+    add_py.py
     DESTINATION ${GR_PYTHON_DIR}/gnuradio/cuda
 )
 
@@ -36,6 +37,7 @@ set(GR_TEST_TARGET_DEPS gnuradio-cuda)
 GR_ADD_TEST(qa_copy ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_copy.py)
 GR_ADD_TEST(qa_multiply_const ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_multiply_const.py)
 GR_ADD_TEST(qa_multiply_const_py ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_multiply_const_py.py)
+GR_ADD_TEST(qa_add_py ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_add_py.py)
 
 # Create a package directory that tests can import. It includes everything
 # from `python/`.
