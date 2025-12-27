@@ -46,10 +46,6 @@ class add_py(gr.sync_block):
         n_out = len(output_items[0])
         
         if n_out > 0:
-            # DEBUG: Print to stderr to confirm work is called
-            import sys
-            print(f"add_py work: n_out={n_out}", file=sys.stderr)
-            
             with self.stream:
                 # Get output buffer
                 d_out = cuda.as_cupy(output_items[0])
