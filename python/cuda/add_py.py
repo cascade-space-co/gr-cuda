@@ -50,18 +50,11 @@ class add_py(gr.sync_block):
                 # Get output buffer
                 d_out = cuda.as_cupy(output_items[0])
                 
-                # Get first input and copy to output (or just wrap it)
-                # We can do out = in0 + in1 + ...
+                # Wrap all input buffers as CuPy arrays
+                d_inputs = [cuda.as_cupy(input_items[i]) for i in range(self.num_inputs)]
                 
-                # Optimization: copy first input to output, then add others in place
-                d_in0 = cuda.as_cupy(input_items[0])
-                cp.copyto(d_out, d_in0)
-                
-                # Add remaining inputs
-                for i in range(1, self.num_inputs):
-                    d_in = cuda.as_cupy(input_items[i])
-                    # In-place add: out += in
-                    d_out += d_in
+                # Sum all inputs - CuPy will fuse this into an efficient kernel
+                d_out[:] = sum(d_inputs)
                     
         # Synchronization
         cuda.mark_outputs_ready(self.gateway, self.stream.ptr)
