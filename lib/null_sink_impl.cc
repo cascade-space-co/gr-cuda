@@ -1,0 +1,52 @@
+/* -*- c++ -*- */
+/*
+ * Copyright 2025
+ *
+ * This file is part of GNU Radio
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ */
+
+#include "null_sink_impl.h"
+#include <gnuradio/cuda/cuda_buffer.h>
+#include <gnuradio/cuda/cuda_block_helper.h>
+#include <gnuradio/io_signature.h>
+
+namespace gr {
+namespace cuda {
+
+null_sink::sptr null_sink::make(size_t sizeof_stream_item)
+{
+    return gnuradio::make_block_sptr<null_sink_impl>(sizeof_stream_item);
+}
+
+null_sink_impl::null_sink_impl(size_t sizeof_stream_item)
+    : sync_block("null_sink",
+                 io_signature::make(1, 1, sizeof_stream_item, cuda_buffer::type),
+                 io_signature::make(0, 0, 0)),
+      d_itemsize(sizeof_stream_item)
+{
+    cudaStreamCreate(&d_stream);
+}
+
+null_sink_impl::~null_sink_impl()
+{
+    cudaStreamDestroy(d_stream);
+}
+
+int null_sink_impl::work(int noutput_items,
+                        gr_vector_const_void_star& input_items,
+                        gr_vector_void_star& output_items)
+{
+    // Wait for inputs to be ready
+    gr::cuda::wait_for_inputs(detail(), d_stream);
+
+    // Do nothing - just consume the data (mimics GNU Radio's null_sink)
+    return noutput_items;
+}
+
+} /* namespace cuda */
+} /* namespace gr */
+
+

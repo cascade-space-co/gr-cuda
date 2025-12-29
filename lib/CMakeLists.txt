@@ -36,6 +36,8 @@ list(APPEND cuda_sources
     copy_impl.cc
     multiply_const_impl.cc
     load_impl.cc
+    null_source_impl.cc
+    null_sink_impl.cc
 )
 
 set(cuda_sources "${cuda_sources}" PARENT_SCOPE)

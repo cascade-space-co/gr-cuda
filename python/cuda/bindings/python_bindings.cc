@@ -26,6 +26,8 @@ void bind_copy(py::module &m);
     void bind_multiply_const(py::module& m);
     void bind_load(py::module& m);
     void bind_cuda_helpers(py::module& m);
+    void bind_null_source(py::module& m);
+    void bind_null_sink(py::module& m);
 // ) END BINDING_FUNCTION_PROTOTYPES
 
 
@@ -67,5 +69,7 @@ PYBIND11_MODULE(cuda_python, m)
     bind_multiply_const(m);
     bind_load(m);
     bind_cuda_helpers(m);
+    bind_null_source(m);
+    bind_null_sink(m);
     // ) END BINDING_FUNCTION_CALLS
 }
