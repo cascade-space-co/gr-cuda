@@ -20,7 +20,7 @@ class qa_stress_sync(gr_unittest.TestCase):
         works correctly.
         """
         # Parameters
-        chain_length = 20
+        chain_length = 100
         N = 100000 # Large enough to likely trigger multiple work calls and buffer wraps
         
         # Generate random complex data

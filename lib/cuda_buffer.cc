@@ -392,6 +392,12 @@ bool cuda_buffer::output_blocked_callback(int output_multiple, bool force)
 
 void cuda_buffer::mark_device_ready(cudaStream_t producer_stream)
 {
+    // Synchronize the producer stream to ensure GPU work completes before recording the event.
+    // This is required because tracking individual write events correctly requires knowing
+    // which data each reader is consuming, which is complex in GNU Radio's buffer model.
+    // Without this sync, events can be overwritten before consumers finish waiting.
+    // TODO: Implement proper per-write-position event tracking with reader consumption tracking.
+    cudaStreamSynchronize(producer_stream);
     cudaEventRecord(d_dev_ready_evt, producer_stream);
 }
 
