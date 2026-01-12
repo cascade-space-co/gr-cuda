@@ -18,5 +18,6 @@ install(FILES
     multiply_const.h
     load.h
     null_source.h
-    null_sink.h DESTINATION include/gnuradio/cuda
+    null_sink.h
+    probe_rate.h DESTINATION include/gnuradio/cuda
 )

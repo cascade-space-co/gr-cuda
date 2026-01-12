@@ -14,5 +14,6 @@ install(FILES
     cuda_add_py.block.yml
     cuda_load.block.yml
     cuda_null_source.block.yml
-    cuda_null_sink.block.yml DESTINATION share/gnuradio/grc/blocks
+    cuda_null_sink.block.yml
+    cuda_probe_rate.block.yml DESTINATION share/gnuradio/grc/blocks
 )
