@@ -20,10 +20,11 @@ namespace cuda {
 class null_sink_impl : public null_sink {
 private:
   size_t d_itemsize;
+  size_t d_num_inputs;
   cudaStream_t d_stream;
 
 public:
-  null_sink_impl(size_t sizeof_stream_item);
+  null_sink_impl(size_t sizeof_stream_item, size_t num_inputs);
   ~null_sink_impl() override;
 
   int work(int noutput_items, gr_vector_const_void_star &input_items,

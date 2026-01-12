@@ -4,7 +4,7 @@ category: '[CUDA]'
 
 templates:
   imports: from gnuradio import cuda
-  make: cuda.null_source(${type.size}*${vlen})
+  make: cuda.null_source(${type.size}*${vlen}, ${num_outputs})
 
 parameters:
 - id: type
@@ -19,12 +19,18 @@ parameters:
   dtype: int
   default: '1'
   hide: ${ 'part' if vlen == 1 else 'none' }
+- id: num_outputs
+  label: Num Outputs
+  dtype: int
+  default: '1'
+  hide: ${ 'part' if num_outputs == 1 else 'none' }
 
 outputs:
 - label: out
   domain: cuda
   dtype: ${type}
   vlen: ${vlen}
+  multiplicity: ${num_outputs}
 
 file_format: 1
 

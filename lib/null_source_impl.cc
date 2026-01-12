@@ -16,16 +16,17 @@
 namespace gr {
 namespace cuda {
 
-null_source::sptr null_source::make(size_t sizeof_stream_item)
+null_source::sptr null_source::make(size_t sizeof_stream_item, size_t num_outputs)
 {
-    return gnuradio::make_block_sptr<null_source_impl>(sizeof_stream_item);
+    return gnuradio::make_block_sptr<null_source_impl>(sizeof_stream_item, num_outputs);
 }
 
-null_source_impl::null_source_impl(size_t sizeof_stream_item)
+null_source_impl::null_source_impl(size_t sizeof_stream_item, size_t num_outputs)
     : sync_block("null_source",
                  io_signature::make(0, 0, 0),
-                 io_signature::make(1, 1, sizeof_stream_item, cuda_buffer::type)),
-      d_itemsize(sizeof_stream_item)
+                 io_signature::make(num_outputs, num_outputs, sizeof_stream_item, cuda_buffer::type)),
+      d_itemsize(sizeof_stream_item),
+      d_num_outputs(num_outputs)
 {
     cudaStreamCreate(&d_stream);
 }

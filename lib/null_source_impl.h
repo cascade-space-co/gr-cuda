@@ -20,10 +20,11 @@ namespace cuda {
 class null_source_impl : public null_source {
 private:
   size_t d_itemsize;
+  size_t d_num_outputs;
   cudaStream_t d_stream;
 
 public:
-  null_source_impl(size_t sizeof_stream_item);
+  null_source_impl(size_t sizeof_stream_item, size_t num_outputs);
   ~null_source_impl() override;
 
   int work(int noutput_items, gr_vector_const_void_star &input_items,

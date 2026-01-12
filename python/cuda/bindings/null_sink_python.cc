@@ -22,7 +22,9 @@ void bind_null_sink(py::module &m) {
   py::class_<null_sink, gr::sync_block, gr::block, gr::basic_block,
              std::shared_ptr<null_sink>>(m, "null_sink")
 
-      .def(py::init(&null_sink::make), py::arg("sizeof_stream_item"))
+      .def(py::init(&null_sink::make), 
+           py::arg("sizeof_stream_item"),
+           py::arg("num_inputs") = 1)
 
       ;
 }

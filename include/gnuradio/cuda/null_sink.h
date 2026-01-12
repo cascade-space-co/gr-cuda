@@ -35,8 +35,11 @@ public:
    * constructor is in a private implementation
    * class. cuda::null_sink::make is the public interface for
    * creating new instances.
+   *
+   * \param sizeof_stream_item Size of a stream item in bytes
+   * \param num_inputs Number of input ports (default: 1)
    */
-  static sptr make(size_t sizeof_stream_item);
+  static sptr make(size_t sizeof_stream_item, size_t num_inputs = 1);
 };
 
 } // namespace cuda
