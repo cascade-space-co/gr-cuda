@@ -32,7 +32,7 @@ copy_impl::copy_impl(size_t itemsize)
                      gr::io_signature::make(1, 1, itemsize, cuda_buffer::type)),
       d_itemsize(itemsize)
 {
-    cudaStreamCreate(&d_stream);
+    cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking);
 }
 
 /*

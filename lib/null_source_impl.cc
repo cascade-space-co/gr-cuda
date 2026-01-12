@@ -28,7 +28,7 @@ null_source_impl::null_source_impl(size_t sizeof_stream_item, size_t num_outputs
       d_itemsize(sizeof_stream_item),
       d_num_outputs(num_outputs)
 {
-    cudaStreamCreate(&d_stream);
+    cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking);
 }
 
 null_source_impl::~null_source_impl()

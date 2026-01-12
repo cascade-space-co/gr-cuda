@@ -112,7 +112,7 @@ cuda_buffer::cuda_buffer(int nitems,
     
     f_cuda_memcpy = [this](void* dest, const void* src, std::size_t count){ return this->cuda_memcpy(dest, src, count); };
     f_cuda_memmove = [this](void* dest, const void* src, std::size_t count){ return this->cuda_memmove(dest, src, count); };
-    cudaStreamCreate(&d_stream);
+    cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking);
     cudaEventCreateWithFlags(&d_dev_ready_evt, cudaEventDisableTiming);
     cudaEventCreateWithFlags(&d_host_ready_evt, cudaEventDisableTiming);
 }

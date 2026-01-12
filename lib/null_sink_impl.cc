@@ -28,7 +28,7 @@ null_sink_impl::null_sink_impl(size_t sizeof_stream_item, size_t num_inputs)
       d_itemsize(sizeof_stream_item),
       d_num_inputs(num_inputs)
 {
-    cudaStreamCreate(&d_stream);
+    cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking);
 }
 
 null_sink_impl::~null_sink_impl()

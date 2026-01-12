@@ -43,7 +43,7 @@ multiply_const_impl<T>::multiply_const_impl(T k, size_t vlen)
       d_vlen(vlen)
 {
     get_block_and_grid<T>(&d_min_grid_size, &d_block_size);
-    check_cuda_errors(cudaStreamCreate(&d_stream));
+    check_cuda_errors(cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking));
 }
 
 template <class T>

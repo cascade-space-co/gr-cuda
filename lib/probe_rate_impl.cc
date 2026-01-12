@@ -38,7 +38,7 @@ probe_rate_impl::probe_rate_impl(size_t itemsize, double update_rate_ms,
       d_port(pmt::mp("rate")),
       d_dict_avg(pmt::mp("rate_avg")),
       d_dict_now(pmt::mp("rate_now")) {
-  cudaStreamCreate(&d_stream);
+  cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking);
   message_port_register_out(d_port);
   set_name(name);
 }

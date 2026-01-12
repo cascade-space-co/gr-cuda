@@ -35,7 +35,7 @@ load_impl::load_impl(size_t iterations, size_t itemsize, bool use_cb)
 {
     load_cu::get_block_and_grid(&d_min_grid_size, &d_block_size);
     d_logger->info("minGrid: {}, blockSize: {}", d_min_grid_size, d_block_size);
-    cudaStreamCreate(&d_stream);
+    cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking);
 
     if (use_cb) {
         set_input_signature(gr::io_signature::make(1, 1, itemsize, cuda_buffer::type));
