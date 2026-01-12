@@ -52,3 +52,4 @@ GR_ADD_TEST(qa_custom_gpu_block ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}
 GR_ADD_TEST(qa_stress_sync ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_stress_sync.py)
 GR_ADD_TEST(qa_parallel_sync ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_parallel_sync.py)
 GR_ADD_TEST(qa_fanin_sync ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_fanin_sync.py)
+GR_ADD_TEST(qa_throttle ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_throttle.py)

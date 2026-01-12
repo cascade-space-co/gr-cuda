@@ -39,6 +39,7 @@ list(APPEND cuda_sources
     null_source_impl.cc
     null_sink_impl.cc
     probe_rate_impl.cc
+    throttle_impl.cc
 )
 
 set(cuda_sources "${cuda_sources}" PARENT_SCOPE)

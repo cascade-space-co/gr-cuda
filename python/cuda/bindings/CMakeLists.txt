@@ -36,6 +36,7 @@ list(APPEND cuda_python_files
     null_source_python.cc
     null_sink_python.cc
     probe_rate_python.cc
+    throttle_python.cc
     python_bindings.cc)
 
 GR_PYBIND_MAKE_OOT(cuda 
