@@ -14,6 +14,10 @@ install(FILES
     cuda_add_py.block.yml
     cuda_add.block.yml
     cuda_load.block.yml
+    cuda_stream_to_vector.block.yml
+    cuda_vector_to_stream.block.yml
+    cuda_streams_to_vector.block.yml
+    cuda_vector_to_streams.block.yml
     cuda_null_source.block.yml
     cuda_null_sink.block.yml
     cuda_probe_rate.block.yml

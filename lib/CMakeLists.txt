@@ -20,6 +20,7 @@ add_library(gnuradio-cuda-cu STATIC
     multiply_const.cu
     load.cu
     add.cu
+    interleave.cu
 )
 set_target_properties(gnuradio-cuda-cu PROPERTIES 
     POSITION_INDEPENDENT_CODE ON
@@ -38,6 +39,10 @@ list(APPEND cuda_sources
     multiply_const_impl.cc
     load_impl.cc
     add_impl.cc
+    stream_to_vector_impl.cc
+    vector_to_stream_impl.cc
+    streams_to_vector_impl.cc
+    vector_to_streams_impl.cc
     null_source_impl.cc
     null_sink_impl.cc
     probe_rate_impl.cc

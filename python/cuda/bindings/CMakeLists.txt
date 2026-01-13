@@ -38,6 +38,10 @@ list(APPEND cuda_python_files
     null_sink_python.cc
     probe_rate_python.cc
     throttle_python.cc
+    stream_to_vector_python.cc
+    vector_to_stream_python.cc
+    streams_to_vector_python.cc
+    vector_to_streams_python.cc
     python_bindings.cc)
 
 GR_PYBIND_MAKE_OOT(cuda 
