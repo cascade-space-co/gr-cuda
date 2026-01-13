@@ -80,9 +80,6 @@ class qa_fanin_sync(gr_unittest.TestCase):
         
         src = blocks.vector_source_c(src_data, False)
         
-        # Move to GPU
-        to_dev = cuda.copy(np.dtype(np.complex64).itemsize)
-        
         # Branch 1: Multiply by 2.0
         # This will run on its own stream
         mult1 = multiply_const_py(2.0, dtype=np.complex64)
@@ -95,24 +92,20 @@ class qa_fanin_sync(gr_unittest.TestCase):
         # This runs on yet another stream and must wait for both mult1 and mult2
         add_blk = add_block_py(dtype=np.complex64)
         
-        # Move from GPU
-        from_dev = cuda.copy(np.dtype(np.complex64).itemsize)
         snk = blocks.vector_sink_c()
         
         # Connect
-        # src -> to_dev -> mult1 -> add_blk -> from_dev -> snk
-        #               -> mult2 -> (port 1 of add_blk)
+        # src -> mult1 -> add_blk -> snk
+        #     -> mult2 -> (port 1 of add_blk)
+        # Implicit copies src->mult1, src->mult2, add_blk->snk
         
-        self.tb.connect(src, to_dev)
-        
-        self.tb.connect(to_dev, mult1)
-        self.tb.connect(to_dev, mult2)
+        self.tb.connect(src, mult1)
+        self.tb.connect(src, mult2)
         
         self.tb.connect(mult1, (add_blk, 0))
         self.tb.connect(mult2, (add_blk, 1))
         
-        self.tb.connect(add_blk, from_dev)
-        self.tb.connect(from_dev, snk)
+        self.tb.connect(add_blk, snk)
         
         # Run
         self.tb.run()
@@ -125,4 +118,3 @@ class qa_fanin_sync(gr_unittest.TestCase):
 
 if __name__ == '__main__':
     gr_unittest.run(qa_fanin_sync)
-

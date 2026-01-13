@@ -29,21 +29,14 @@ class qa_add_py(gr_unittest.TestCase):
         src1 = blocks.vector_source_f(src_data1, False)
         src2 = blocks.vector_source_f(src_data2, False)
         
-        to_dev1 = cuda.copy(4)
-        to_dev2 = cuda.copy(4)
-        
         dut = add_py(num_inputs=2, dtype=np.float32)
         
-        from_dev = cuda.copy(4)
         snk = blocks.vector_sink_f()
         
-        self.tb.connect(src1, to_dev1)
-        self.tb.connect(src2, to_dev2)
-        
-        self.tb.connect(to_dev1, (dut, 0))
-        self.tb.connect(to_dev2, (dut, 1))
-        
-        self.tb.connect(dut, from_dev, snk)
+        # Connect: src -> dut -> snk (Implicit copies)
+        self.tb.connect(src1, (dut, 0))
+        self.tb.connect(src2, (dut, 1))
+        self.tb.connect(dut, snk)
         
         self.tb.run()
         
@@ -65,24 +58,16 @@ class qa_add_py(gr_unittest.TestCase):
         src2 = blocks.vector_source_c(src_data2, False)
         src3 = blocks.vector_source_c(src_data3, False)
         
-        to_dev1 = cuda.copy(8)
-        to_dev2 = cuda.copy(8)
-        to_dev3 = cuda.copy(8)
-        
         dut = add_py(num_inputs=3, dtype=np.complex64)
         
-        from_dev = cuda.copy(8)
         snk = blocks.vector_sink_c()
         
-        self.tb.connect(src1, to_dev1)
-        self.tb.connect(src2, to_dev2)
-        self.tb.connect(src3, to_dev3)
+        # Connect: src -> dut -> snk (Implicit copies)
+        self.tb.connect(src1, (dut, 0))
+        self.tb.connect(src2, (dut, 1))
+        self.tb.connect(src3, (dut, 2))
         
-        self.tb.connect(to_dev1, (dut, 0))
-        self.tb.connect(to_dev2, (dut, 1))
-        self.tb.connect(to_dev3, (dut, 2))
-        
-        self.tb.connect(dut, from_dev, snk)
+        self.tb.connect(dut, snk)
         
         self.tb.run()
         
@@ -93,6 +78,3 @@ class qa_add_py(gr_unittest.TestCase):
 
 if __name__ == '__main__':
     gr_unittest.run(qa_add_py)
-
-
-

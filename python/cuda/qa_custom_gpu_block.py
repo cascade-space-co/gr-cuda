@@ -35,16 +35,12 @@ class qa_custom_gpu_block(gr_unittest.TestCase):
         src_data = np.array([1+1j, 2+2j, 3+3j], dtype=np.complex64)
         src = blocks.vector_source_c(src_data, False)
         
-        # CPU -> GPU
-        to_dev = cuda.copy(8) 
-        # GPU -> CPU
-        from_dev = cuda.copy(8)
-        
         dut = my_gpu_block()
         
         snk = blocks.vector_sink_c()
         
-        self.tb.connect(src, to_dev, dut, from_dev, snk)
+        # Connect: src -> dut -> snk (Implicit copies)
+        self.tb.connect(src, dut, snk)
         self.tb.run()
         
         result = snk.data()
@@ -54,4 +50,3 @@ class qa_custom_gpu_block(gr_unittest.TestCase):
 
 if __name__ == '__main__':
     gr_unittest.run(qa_custom_gpu_block)
-

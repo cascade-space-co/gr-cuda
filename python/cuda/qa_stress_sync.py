@@ -30,6 +30,9 @@ class qa_stress_sync(gr_unittest.TestCase):
         src = blocks.vector_source_c(src_data, False)
         
         # Move to GPU
+        # Note: We use explicit cuda.copy here to verify explicit buffer management.
+        # It is not strictly needed; connecting src -> chain[0] directly would also work 
+        # (implicit copy handled by the runtime).
         to_dev = cuda.copy(np.dtype(np.complex64).itemsize)
         
         # Move from GPU
@@ -70,4 +73,3 @@ class qa_stress_sync(gr_unittest.TestCase):
 
 if __name__ == '__main__':
     gr_unittest.run(qa_stress_sync)
-

@@ -25,17 +25,13 @@ class qa_multiply_const_py(gr_unittest.TestCase):
         
         src = blocks.vector_source_c(src_data, False)
         
-        # CPU -> GPU
-        to_dev = cuda.copy(np.dtype(np.complex64).itemsize) 
-        # GPU -> CPU
-        from_dev = cuda.copy(np.dtype(np.complex64).itemsize)
-        
         # DUT
         dut = multiply_const_py(k, dtype=np.complex64)
         
         snk = blocks.vector_sink_c()
         
-        self.tb.connect(src, to_dev, dut, from_dev, snk)
+        # Connect: src -> dut -> snk (Implicit copies)
+        self.tb.connect(src, dut, snk)
         self.tb.run()
         
         result = snk.data()
@@ -53,17 +49,13 @@ class qa_multiply_const_py(gr_unittest.TestCase):
         
         src = blocks.vector_source_f(src_data, False)
         
-        # CPU -> GPU
-        to_dev = cuda.copy(np.dtype(np.float32).itemsize) 
-        # GPU -> CPU
-        from_dev = cuda.copy(np.dtype(np.float32).itemsize)
-        
         # DUT
         dut = multiply_const_py(k, dtype=np.float32)
         
         snk = blocks.vector_sink_f()
         
-        self.tb.connect(src, to_dev, dut, from_dev, snk)
+        # Connect: src -> dut -> snk (Implicit copies)
+        self.tb.connect(src, dut, snk)
         self.tb.run()
         
         result = snk.data()
@@ -73,4 +65,3 @@ class qa_multiply_const_py(gr_unittest.TestCase):
 
 if __name__ == '__main__':
     gr_unittest.run(qa_multiply_const_py)
-
