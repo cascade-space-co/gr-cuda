@@ -38,6 +38,7 @@ GR_ADD_TEST(qa_copy ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_copy.py)
 GR_ADD_TEST(qa_multiply_const ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_multiply_const.py)
 GR_ADD_TEST(qa_multiply_const_py ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_multiply_const_py.py)
 GR_ADD_TEST(qa_add_py ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_add_py.py)
+GR_ADD_TEST(qa_add ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_add.py)
 
 # Create a package directory that tests can import. It includes everything
 # from `python/`.

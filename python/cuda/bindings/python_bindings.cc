@@ -22,7 +22,8 @@ namespace py = pybind11;
 // Please do not delete
 /**************************************/
 // BINDING_FUNCTION_PROTOTYPES(
-void bind_copy(py::module &m);
+    void bind_add(py::module& m);
+    void bind_copy(py::module &m);
     void bind_multiply_const(py::module& m);
     void bind_load(py::module& m);
     void bind_cuda_helpers(py::module& m);
@@ -67,6 +68,7 @@ PYBIND11_MODULE(cuda_python, m)
     // Please do not delete
     /**************************************/
     // BINDING_FUNCTION_CALLS(
+    bind_add(m);
     bind_copy(m);
     bind_multiply_const(m);
     bind_load(m);

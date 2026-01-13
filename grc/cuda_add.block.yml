@@ -1,0 +1,42 @@
+id: cuda_add
+label: Add (CUDA)
+category: '[CUDA]'
+flags: [ python ]
+
+parameters:
+-   id: type
+    label: Type
+    dtype: enum
+    options: [complex, float, int, short]
+    option_attributes:
+        fcn: [cc, ff, ii, ss]
+    hide: part
+-   id: num_inputs
+    label: Num Inputs
+    dtype: int
+    default: '2'
+-   id: vlen
+    label: Vector Length
+    dtype: int
+    default: '1'
+    hide: ${ 'part' if vlen == 1 else 'none' }
+
+inputs:
+-   domain: cuda
+    dtype: ${ type }
+    vlen: ${ vlen }
+    multiplicity: ${ num_inputs }
+
+outputs:
+-   domain: cuda
+    dtype: ${ type }
+    vlen: ${ vlen }
+
+templates:
+    imports: from gnuradio import cuda
+    make: cuda.add_${type.fcn}(${num_inputs}, ${vlen})
+
+file_format: 1
+
+
+
