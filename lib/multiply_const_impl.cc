@@ -9,6 +9,7 @@
 #include <gnuradio/io_signature.h>
 #include <gnuradio/cuda/cuda_error.h>
 #include <gnuradio/cuda/cuda_buffer.h>
+#include <gnuradio/cuda/cuda_block_helper.h>
 
 template <typename T>
 void exec_kernel_multiply_const(const T* in,
@@ -49,6 +50,8 @@ int multiply_const_impl<T>::work(int noutput_items,
                                  gr_vector_const_void_star& input_items,
                                  gr_vector_void_star& output_items)
 {
+    // Ensure upstream GPU work is complete before reading inputs.
+    gr::cuda::wait_for_inputs(this->detail(), d_stream);
     auto in = static_cast<const T*>(input_items[0]);
     auto out = static_cast<T*>(output_items[0]);
     int gridSize = (noutput_items + d_block_size - 1) / d_block_size;
@@ -62,6 +65,8 @@ int multiply_const_impl<T>::work(int noutput_items,
     
     // cudaStreamSynchronize(d_stream);
 
+    // Notify downstream CUDA buffers that output is ready.
+    gr::cuda::mark_outputs_ready(this->detail(), d_stream);
     // Tell runtime system how many output items we produced.
     return noutput_items;
 }
