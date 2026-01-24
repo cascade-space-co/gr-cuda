@@ -1,0 +1,27 @@
+id: cuda_fft_shift
+label: FFT Shift (CUDA)
+category: '[CUDA]'
+flags: [ python ]
+
+parameters:
+-   id: fft_size
+    label: FFT Size
+    dtype: int
+    default: '1024'
+
+inputs:
+-   domain: cuda
+    dtype: complex
+    vlen: ${ fft_size }
+
+outputs:
+-   domain: cuda
+    dtype: complex
+    vlen: ${ fft_size }
+
+templates:
+    imports: |-
+        from gnuradio import cuda
+    make: cuda.fft_shift(${fft_size})
+
+file_format: 1

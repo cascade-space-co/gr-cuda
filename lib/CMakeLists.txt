@@ -11,6 +11,7 @@
 ########################################################################
 include(GrPlatform) #define LIB_SUFFIX
 find_package(CUDA)
+find_package(CUDAToolkit REQUIRED)
 
 ###############################################################################
 # CUDA Dependency is required
@@ -21,6 +22,7 @@ add_library(gnuradio-cuda-cu STATIC
     load.cu
     add.cu
     interleave.cu
+    fft.cu
 )
 set_target_properties(gnuradio-cuda-cu PROPERTIES 
     POSITION_INDEPENDENT_CODE ON
@@ -39,6 +41,8 @@ list(APPEND cuda_sources
     multiply_const_impl.cc
     load_impl.cc
     add_impl.cc
+    fft_impl.cc
+    fft_shift_impl.cc
     stream_to_vector_impl.cc
     vector_to_stream_impl.cc
     streams_to_vector_impl.cc
@@ -56,9 +60,15 @@ if(NOT cuda_sources)
 endif(NOT cuda_sources)
 
 add_library(gnuradio-cuda SHARED ${cuda_sources})
+if(TARGET CUDA::cufft)
+    set(CUDA_CUFFT_TARGET CUDA::cufft)
+endif()
+
 target_link_libraries(gnuradio-cuda PUBLIC
     gnuradio::gnuradio-runtime
-    ${CUDA_CUDART_LIBRARY}  
+    ${CUDA_CUDART_LIBRARY}
+    ${CUDA_CUFFT_LIBRARY}
+    ${CUDA_CUFFT_TARGET}
     )
 target_link_libraries(gnuradio-cuda PRIVATE gnuradio-cuda-cu)
 

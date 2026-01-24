@@ -26,4 +26,5 @@ from .utils import as_cupy, io_signature_make
 # import python blocks
 from .multiply_const_py import multiply_const_py
 from .add_py import add_py
+from .fft_cupy import fft_cupy
 

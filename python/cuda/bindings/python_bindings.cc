@@ -23,6 +23,8 @@ namespace py = pybind11;
 /**************************************/
 // BINDING_FUNCTION_PROTOTYPES(
     void bind_add(py::module& m);
+    void bind_fft(py::module& m);
+    void bind_fft_shift(py::module& m);
     void bind_stream_to_vector(py::module& m);
     void bind_vector_to_stream(py::module& m);
     void bind_streams_to_vector(py::module& m);
@@ -73,6 +75,8 @@ PYBIND11_MODULE(cuda_python, m)
     /**************************************/
     // BINDING_FUNCTION_CALLS(
     bind_add(m);
+    bind_fft(m);
+    bind_fft_shift(m);
     bind_stream_to_vector(m);
     bind_vector_to_stream(m);
     bind_streams_to_vector(m);

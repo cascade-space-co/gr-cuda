@@ -15,6 +15,8 @@ install(FILES
     cuda_buffer.h
     cuda_block_helper.h
     copy.h
+    fft.h
+    fft_shift.h
     multiply_const.h
     load.h
     null_source.h

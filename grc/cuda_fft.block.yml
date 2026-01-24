@@ -1,0 +1,53 @@
+id: cuda_fft
+label: FFT (CUDA)
+category: '[CUDA]'
+flags: [ python ]
+
+parameters:
+-   id: input_type
+    label: Input Type
+    dtype: enum
+    default: complex
+    hide: part
+    options: [ complex, float ]
+    option_labels: [ Complex, Float ]
+    option_attributes:
+        is_real: [ False, True ]
+-   id: fft_size
+    label: FFT Size
+    dtype: int
+    default: '1024'
+-   id: forward
+    label: Forward/Reverse
+    dtype: enum
+    default: 'True'
+    options: ['True', 'False']
+    option_labels: [Forward, Reverse]
+-   id: window
+    label: Window
+    dtype: float_vector
+    default: '[]'
+-   id: shift
+    label: Shift
+    dtype: enum
+    default: 'False'
+    options: ['True', 'False']
+    option_labels: ['Yes', 'No']
+
+
+inputs:
+-   domain: cuda
+    dtype: ${ input_type }
+    vlen: ${ fft_size }
+
+outputs:
+-   domain: cuda
+    dtype: complex
+    vlen: ${ fft_size }
+
+templates:
+    imports: |-
+        from gnuradio import cuda
+    make: cuda.fft(${fft_size}, forward=${forward}, window=${window}, shift=${shift}, real_input=${input_type.is_real})
+
+file_format: 1

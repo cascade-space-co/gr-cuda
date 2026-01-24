@@ -9,6 +9,9 @@
 install(FILES
     cuda.domain.yml
     cuda_copy.block.yml
+    cuda_fft_cupy.block.yml
+    cuda_fft.block.yml
+    cuda_fft_shift.block.yml
     cuda_multiply_const_xx.block.yml
     cuda_multiply_const_py.block.yml
     cuda_add_py.block.yml
