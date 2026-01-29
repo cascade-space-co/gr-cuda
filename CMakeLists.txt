@@ -9,7 +9,7 @@
 ########################################################################
 # Project setup
 ########################################################################
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.18)
 project(gr-cuda CXX C CUDA)
 enable_testing()
 

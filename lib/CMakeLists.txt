@@ -10,38 +10,24 @@
 # Setup library
 ########################################################################
 include(GrPlatform) #define LIB_SUFFIX
-find_package(CUDA)
 find_package(CUDAToolkit REQUIRED)
 
 ###############################################################################
-# CUDA Dependency is required
+# CUDA Dependency is required - compile all sources directly into shared lib
 ###############################################################################
-add_library(gnuradio-cuda-cu STATIC 
-    cuda_error.cc
-    multiply_const.cu
-    load.cu
-    add.cu
-    interleave.cu
-    fft.cu
-)
-set_target_properties(gnuradio-cuda-cu PROPERTIES 
-    POSITION_INDEPENDENT_CODE ON
-    CUDA_VISIBILITY_PRESET "hidden"
-    CUDA_SEPARABLE_COMPILATION ON
-)
-target_include_directories(gnuradio-cuda-cu
-    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
-    PUBLIC $<INSTALL_INTERFACE:include>
-    ${CUDA_INCLUDE_DIRS} 
-  )
-
 list(APPEND cuda_sources
+    cuda_error.cc
     cuda_buffer.cc
     copy_impl.cc
     multiply_const_impl.cc
+    multiply_const.cu
     load_impl.cc
+    load.cu
     add_impl.cc
+    add.cu
+    interleave.cu
     fft_impl.cc
+    fft.cu
     fft_shift_impl.cc
     stream_to_vector_impl.cc
     vector_to_stream_impl.cc
@@ -60,22 +46,16 @@ if(NOT cuda_sources)
 endif(NOT cuda_sources)
 
 add_library(gnuradio-cuda SHARED ${cuda_sources})
-if(TARGET CUDA::cufft)
-    set(CUDA_CUFFT_TARGET CUDA::cufft)
-endif()
 
 target_link_libraries(gnuradio-cuda PUBLIC
     gnuradio::gnuradio-runtime
-    ${CUDA_CUDART_LIBRARY}
-    ${CUDA_CUFFT_LIBRARY}
-    ${CUDA_CUFFT_TARGET}
+    CUDA::cudart
+    CUDA::cufft
     )
-target_link_libraries(gnuradio-cuda PRIVATE gnuradio-cuda-cu)
 
 target_include_directories(gnuradio-cuda
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
     PUBLIC $<INSTALL_INTERFACE:include>
-    ${CUDA_INCLUDE_DIRS} 
   )
 set_target_properties(gnuradio-cuda PROPERTIES DEFINE_SYMBOL "gnuradio_cuda_EXPORTS")
 
@@ -85,21 +65,13 @@ if(APPLE)
     )
 endif(APPLE)
 
-# Make a fat binary for supported architectures
-if(${CMAKE_VERSION} VERSION_LESS "3.18") 
-    # Compile for supported archs; CMake workaround, see: https://stackoverflow.com/a/54505975/73878
-    target_compile_options(gnuradio-cuda-cu PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-gencode arch=compute_60,code=sm_60>")
-    target_compile_options(gnuradio-cuda-cu PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-gencode arch=compute_61,code=sm_61>")
-    target_compile_options(gnuradio-cuda-cu PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-gencode arch=compute_62,code=sm_62>")
-    target_compile_options(gnuradio-cuda-cu PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-gencode arch=compute_70,code=sm_70>")
-    target_compile_options(gnuradio-cuda-cu PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-gencode arch=compute_72,code=sm_72>")
-    target_compile_options(gnuradio-cuda-cu PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-gencode arch=compute_75,code=sm_75>")
-    # target_compile_options(gnuradio-myoot-cu PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-gencode arch=compute_80,code=sm_80>")
-    # target_compile_options(gnuradio-myoot-cu PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-gencode arch=compute_86,code=sm_86>")
-else()
-    set_target_properties(gnuradio-cuda-cu PROPERTIES CUDA_ARCHITECTURES "121")
-    set_target_properties(gnuradio-cuda PROPERTIES CUDA_ARCHITECTURES "121")
+# Configure CUDA architectures
+if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES OR CMAKE_CUDA_ARCHITECTURES STREQUAL "")
+    # If no architecture specified, let CMake detect from the build machine
+    # Users can override with -DCMAKE_CUDA_ARCHITECTURES="native" or specific values
+    set(CMAKE_CUDA_ARCHITECTURES "native")
 endif()
+set_target_properties(gnuradio-cuda PROPERTIES CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}")
 
 ########################################################################
 # Install built library files
