@@ -21,10 +21,11 @@ namespace cuda {
 class copy_impl : public copy {
 private:
   size_t d_itemsize;
+  bool d_passthrough;
   cudaStream_t d_stream;
 
 public:
-  copy_impl(size_t itemsize);
+  copy_impl(size_t itemsize, bool passthrough);
   ~copy_impl();
 
   // Where all the action really happens

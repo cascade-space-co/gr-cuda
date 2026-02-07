@@ -4,7 +4,7 @@ category: '[CUDA]'
 
 templates:
   imports: from gnuradio import cuda
-  make: cuda.copy(${type.size}*${vlen})
+  make: cuda.copy(${type.size}*${vlen}, ${passthrough})
 parameters:
 -   id: type
     label: Type
@@ -19,6 +19,13 @@ parameters:
     dtype: int
     default: '1'
     hide: ${ 'part' if vlen == 1 else 'none' }
+-   id: passthrough
+    label: Passthrough Mode
+    dtype: enum
+    default: 'False'
+    options: ['False', 'True']
+    option_labels: ['Copy (cudaMemcpy)', 'Passthrough (no copy)']
+    hide: part
 inputs:
 - label: in
   domain: cuda

@@ -33,8 +33,11 @@ public:
    * constructor is in a private implementation
    * class. cuda::copy::make is the public interface for
    * creating new instances.
+   *
+   * \param itemsize Size of a stream item in bytes
+   * \param passthrough If true, skip memcpy and just pass through (for benchmarking)
    */
-  static sptr make(size_t itemsize);
+  static sptr make(size_t itemsize, bool passthrough = false);
 };
 
 } // namespace cuda
