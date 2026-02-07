@@ -16,37 +16,24 @@
 #include <sstream>
 #include <stdexcept>
 
-#define STREAM_COPY 1   // enabled by default
-
 namespace gr {
 
 buffer_type cuda_buffer::type(buftype<cuda_buffer, cuda_buffer>{});
 
 void* cuda_buffer::cuda_memcpy(void* dest, const void* src, std::size_t count)
 {
-    cudaError_t rc = cudaSuccess;
-#if STREAM_COPY
-    rc = cudaMemcpyAsync(dest, src, count, cudaMemcpyDeviceToDevice, d_stream);
+    cudaError_t rc =
+        cudaMemcpyAsync(dest, src, count, cudaMemcpyDeviceToDevice, d_stream);
     cudaStreamSynchronize(d_stream);
-#else
-    rc = cudaMemcpy(dest, src, count, cudaMemcpyDeviceToDevice);
-#endif
-    if (rc) {
-        std::ostringstream msg;
-        msg << "Error performing cudaMemcpy: " << cudaGetErrorName(rc) << " -- "
-            << cudaGetErrorString(rc);
-        throw std::runtime_error(msg.str());
-    }
-    
+    if (rc)
+        throw_cuda_error("Error performing cudaMemcpy", rc);
+
     return dest;
 }
 
 void* cuda_buffer::cuda_memmove(void* dest, const void* src, std::size_t count)
 {
-    // Would a kernel that checks for overlap and then copies front-to-back or
-    // back-to-front be faster than using cudaMemcpy with a temp buffer?
-
-    cudaError_t rc = cudaSuccess;
+    cudaError_t rc;
 
     // Allocate temp buffer if needed
     if (count > d_temp_buffer_size) {
@@ -54,42 +41,22 @@ void* cuda_buffer::cuda_memmove(void* dest, const void* src, std::size_t count)
             cudaFree(d_temp_buffer);
         }
         rc = cudaMalloc((void**)&d_temp_buffer, count);
-        if (rc) {
-            std::ostringstream msg;
-            msg << "Error allocating device temp buffer: " << cudaGetErrorName(rc) << " -- "
-                << cudaGetErrorString(rc);
-            throw std::runtime_error(msg.str());
-        }
+        if (rc)
+            throw_cuda_error("Error allocating device temp buffer", rc);
         d_temp_buffer_size = count;
     }
 
     // First copy data from source to temp buffer
-#if STREAM_COPY
     rc = cudaMemcpyAsync(d_temp_buffer, src, count, cudaMemcpyDeviceToDevice, d_stream);
-#else
-    rc = cudaMemcpy(d_temp_buffer, src, count, cudaMemcpyDeviceToDevice);
-#endif
-    
-    if (rc) {
-        std::ostringstream msg;
-        msg << "Error performing cudaMemcpy: " << cudaGetErrorName(rc) << " -- "
-            << cudaGetErrorString(rc);
-        throw std::runtime_error(msg.str());
-    }
+
+    if (rc)
+        throw_cuda_error("Error performing cudaMemcpy", rc);
 
     // Then copy data from temp buffer to destination to avoid overlap
-#if STREAM_COPY
     rc = cudaMemcpyAsync(dest, d_temp_buffer, count, cudaMemcpyDeviceToDevice, d_stream);
-#else
-    rc = cudaMemcpy(dest, d_temp_buffer, count, cudaMemcpyDeviceToDevice);
-#endif
-    
-    if (rc) {
-        std::ostringstream msg;
-        msg << "Error performing cudaMemcpy: " << cudaGetErrorName(rc) << " -- "
-            << cudaGetErrorString(rc);
-        throw std::runtime_error(msg.str());
-    }
+
+    if (rc)
+        throw_cuda_error("Error performing cudaMemcpy", rc);
 
     return dest;
 }
@@ -100,28 +67,36 @@ cuda_buffer::cuda_buffer(int nitems,
                          uint32_t downstream_max_out_mult,
                          block_sptr link,
                          block_sptr buf_owner)
-    : buffer_single_mapped(nitems, sizeof_item, downstream_lcm_nitems, 
+    : buffer_single_mapped(nitems, sizeof_item, downstream_lcm_nitems,
                            downstream_max_out_mult, link, buf_owner),
       d_cuda_buf(nullptr),
+      d_half_nitems(0),
       d_temp_buffer(nullptr),
       d_temp_buffer_size(0)
 {
     gr::configure_default_loggers(d_logger, d_debug_logger, "cuda");
     if (!allocate_buffer(nitems))
         throw std::bad_alloc();
-    
+
     f_cuda_memcpy = [this](void* dest, const void* src, std::size_t count){ return this->cuda_memcpy(dest, src, count); };
     f_cuda_memmove = [this](void* dest, const void* src, std::size_t count){ return this->cuda_memmove(dest, src, count); };
     cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking);
-    cudaEventCreateWithFlags(&d_dev_ready_evt, cudaEventDisableTiming);
-    cudaEventCreateWithFlags(&d_host_ready_evt, cudaEventDisableTiming);
+    for (int i = 0; i < NUM_HALF_EVENTS; i++) {
+        cudaEventCreateWithFlags(&d_dev_ready_evt[i], cudaEventDisableTiming);
+        cudaEventCreateWithFlags(&d_host_ready_evt[i], cudaEventDisableTiming);
+    }
+    cudaEventCreateWithFlags(&d_read_done_evt, cudaEventDisableTiming);
 }
 
 cuda_buffer::~cuda_buffer()
 {
-    // Free events
-    cudaEventDestroy(d_dev_ready_evt);
-    cudaEventDestroy(d_host_ready_evt);
+    // Free stream and events
+    cudaStreamDestroy(d_stream);
+    for (int i = 0; i < NUM_HALF_EVENTS; i++) {
+        cudaEventDestroy(d_dev_ready_evt[i]);
+        cudaEventDestroy(d_host_ready_evt[i]);
+    }
+    cudaEventDestroy(d_read_done_evt);
 
     // Free host buffer
     if (d_base != nullptr) {
@@ -155,31 +130,25 @@ void cuda_buffer::post_work(int nitems)
         return;
     }
 
-    cudaError_t rc = cudaSuccess;
+    cudaError_t rc;
 
     // NOTE: when this function is called the write pointer has not yet been
     // advanced so it can be used directly as the source ptr
     switch (d_transfer_type) {
     case transfer_type::HOST_TO_DEVICE: {
+        // Ensure all consumers have finished reading from the device buffer
+        // before the H2D copy overwrites it.  GPU-side wait — does not block CPU.
+        cudaStreamWaitEvent(d_stream, d_read_done_evt, 0);
+
         // Copy data from host buffer to device buffer
         void* dest_ptr = &d_cuda_buf[d_write_index * d_sizeof_item];
-        #if STREAM_COPY
         rc = cudaMemcpyAsync(
             dest_ptr, write_pointer(), nitems * d_sizeof_item, cudaMemcpyHostToDevice, d_stream);
-        #else
-        rc = cudaMemcpy(
-            dest_ptr, write_pointer(), nitems * d_sizeof_item, cudaMemcpyHostToDevice);
-        #endif
-        if (rc) {
-            std::ostringstream msg;
-            msg << "Error performing cudaMemcpy: " << cudaGetErrorName(rc) << " -- "
-                << cudaGetErrorString(rc);
-            GR_LOG_ERROR(d_logger, msg.str());
-            throw std::runtime_error(msg.str());
-        }
+        if (rc)
+            throw_cuda_error("Error performing cudaMemcpy", rc);
 
         mark_device_ready(d_stream);
-        
+
     } break;
 
     case transfer_type::DEVICE_TO_HOST: {
@@ -188,22 +157,18 @@ void cuda_buffer::post_work(int nitems)
 
         // Copy data from device buffer to host buffer
         void* dest_ptr = &d_base[d_write_index * d_sizeof_item];
-        #if STREAM_COPY
         rc = cudaMemcpyAsync(
             dest_ptr, write_pointer(), nitems * d_sizeof_item, cudaMemcpyDeviceToHost, d_stream);
-        #else
-        rc = cudaMemcpy(
-            dest_ptr, write_pointer(), nitems * d_sizeof_item, cudaMemcpyDeviceToHost);
-        #endif
-        if (rc) {
-            std::ostringstream msg;
-            msg << "Error performing cudaMemcpy: " << cudaGetErrorName(rc) << " -- "
-                << cudaGetErrorString(rc);
-            GR_LOG_ERROR(d_logger, msg.str());
-            throw std::runtime_error(msg.str());
-        }
-        
+        if (rc)
+            throw_cuda_error("Error performing cudaMemcpy", rc);
+
         mark_host_ready(d_stream);
+
+        // Signal that the D2H copy is done reading from the device buffer.
+        // write_pointer() synchronizes on this event before giving the upstream
+        // producer a new device-side write address, preventing a race between
+        // the async D2H copy and the next producer write to the same region.
+        cudaEventRecord(d_read_done_evt, d_stream);
 
     } break;
 
@@ -212,13 +177,8 @@ void cuda_buffer::post_work(int nitems)
         break;
 
     default:
-        std::ostringstream msg;
-        msg << "Unexpected context for cuda: " << d_transfer_type;
-        GR_LOG_ERROR(d_logger, msg.str());
-        throw std::runtime_error(msg.str());
+        throw_unexpected_transfer_type();
     }
-
-    return;
 }
 
 bool cuda_buffer::do_allocate_buffer(size_t final_nitems, size_t sizeof_item)
@@ -232,28 +192,18 @@ bool cuda_buffer::do_allocate_buffer(size_t final_nitems, size_t sizeof_item)
     }
 #endif
 
-    // This is the pinned host buffer
-    // Can a CUDA buffer even use std::unique_ptr ?
-    //    d_buffer.reset(new char[final_nitems * sizeof_item]);
-    cudaError_t rc = cudaSuccess;
-    rc = cudaMallocHost((void**)&d_base, final_nitems * sizeof_item);
-    if (rc) {
-        std::ostringstream msg;
-        msg << "Error allocating pinned host buffer: " << cudaGetErrorName(rc) << " -- "
-            << cudaGetErrorString(rc);
-        GR_LOG_ERROR(d_logger, msg.str());
-        throw std::runtime_error(msg.str());
-    }
+    // Store half-buffer boundary for double-buffered event selection
+    d_half_nitems = final_nitems / 2;
 
-    // This is the CUDA device buffer
+    // Pinned host buffer
+    cudaError_t rc = cudaMallocHost((void**)&d_base, final_nitems * sizeof_item);
+    if (rc)
+        throw_cuda_error("Error allocating pinned host buffer", rc);
+
+    // Device buffer
     rc = cudaMalloc((void**)&d_cuda_buf, final_nitems * sizeof_item);
-    if (rc) {
-        std::ostringstream msg;
-        msg << "Error allocating device buffer: " << cudaGetErrorName(rc) << " -- "
-            << cudaGetErrorString(rc);
-        GR_LOG_ERROR(d_logger, msg.str());
-        throw std::runtime_error(msg.str());
-    }
+    if (rc)
+        throw_cuda_error("Error allocating device buffer", rc);
 
     return true;
 }
@@ -269,15 +219,16 @@ void* cuda_buffer::write_pointer()
 
     case transfer_type::DEVICE_TO_HOST:
     case transfer_type::DEVICE_TO_DEVICE:
+        // Ensure all consumers have finished reading from the device buffer
+        // before providing a write pointer.  Without this, an async consumer
+        // kernel could still be reading while the producer overwrites the data.
+        cudaEventSynchronize(d_read_done_evt);
         // Write into CUDA device buffer
         ptr = &d_cuda_buf[d_write_index * d_sizeof_item];
         break;
 
     default:
-        std::ostringstream msg;
-        msg << "Unexpected context for cuda: " << d_transfer_type;
-        GR_LOG_ERROR(d_logger, msg.str());
-        throw std::runtime_error(msg.str());
+        throw_unexpected_transfer_type();
     }
 
     return ptr;
@@ -300,10 +251,7 @@ const void* cuda_buffer::_read_pointer(unsigned int read_index)
         break;
 
     default:
-        std::ostringstream msg;
-        msg << "Unexpected context for cuda: " << d_transfer_type;
-        GR_LOG_ERROR(d_logger, msg.str());
-        throw std::runtime_error(msg.str());
+        throw_unexpected_transfer_type();
     }
 
     return ptr;
@@ -320,9 +268,7 @@ bool cuda_buffer::input_blocked_callback(int items_required,
     GR_LOG_DEBUG(d_logger, msg.str());
 #endif
 
-    // Safety sync: Ensure all outstanding GPU work is done before realignment
-    cudaEventSynchronize(d_dev_ready_evt);
-    cudaStreamSynchronize(d_stream);
+    sync_all_gpu_work();
 
     bool rc = false;
     switch (d_transfer_type) {
@@ -344,10 +290,7 @@ bool cuda_buffer::input_blocked_callback(int items_required,
         break;
 
     default:
-        std::ostringstream msg;
-        msg << "Unexpected context for cuda: " << d_transfer_type;
-        GR_LOG_ERROR(d_logger, msg.str());
-        throw std::runtime_error(msg.str());
+        throw_unexpected_transfer_type();
     }
 
     return rc;
@@ -358,13 +301,11 @@ bool cuda_buffer::output_blocked_callback(int output_multiple, bool force)
 #ifdef BUFFER_DEBUG
     std::ostringstream msg;
     msg << "[" << this << "] "
-        << "host_buffer [" << d_transfer_type << "] -- output_blocked_callback";
+        << "cuda [" << d_transfer_type << "] -- output_blocked_callback";
     GR_LOG_DEBUG(d_logger, msg.str());
 #endif
 
-    // Safety sync: Ensure all outstanding GPU work is done before realignment
-    cudaEventSynchronize(d_dev_ready_evt);
-    cudaStreamSynchronize(d_stream);
+    sync_all_gpu_work();
 
     bool rc = false;
     switch (d_transfer_type) {
@@ -381,39 +322,90 @@ bool cuda_buffer::output_blocked_callback(int output_multiple, bool force)
         break;
 
     default:
-        std::ostringstream msg;
-        msg << "Unexpected context for cuda: " << d_transfer_type;
-        GR_LOG_ERROR(d_logger, msg.str());
-        throw std::runtime_error(msg.str());
+        throw_unexpected_transfer_type();
     }
 
     return rc;
 }
 
+void cuda_buffer::sync_all_gpu_work()
+{
+    for (int i = 0; i < NUM_HALF_EVENTS; i++) {
+        cudaEventSynchronize(d_dev_ready_evt[i]);
+    }
+    cudaEventSynchronize(d_read_done_evt);
+    cudaStreamSynchronize(d_stream);
+}
+
+void cuda_buffer::throw_cuda_error(const char* context, cudaError_t rc)
+{
+    std::ostringstream msg;
+    msg << context << ": " << cudaGetErrorName(rc) << " -- " << cudaGetErrorString(rc);
+    GR_LOG_ERROR(d_logger, msg.str());
+    throw std::runtime_error(msg.str());
+}
+
+void cuda_buffer::throw_unexpected_transfer_type()
+{
+    std::ostringstream msg;
+    msg << "Unexpected context for cuda: " << d_transfer_type;
+    GR_LOG_ERROR(d_logger, msg.str());
+    throw std::runtime_error(msg.str());
+}
+
 void cuda_buffer::mark_device_ready(cudaStream_t producer_stream)
 {
-    // Synchronize the producer stream to ensure GPU work completes before recording the event.
-    // This is required because tracking individual write events correctly requires knowing
-    // which data each reader is consuming, which is complex in GNU Radio's buffer model.
-    // Without this sync, events can be overwritten before consumers finish waiting.
-    // TODO: Implement proper per-write-position event tracking with reader consumption tracking.
-    cudaStreamSynchronize(producer_stream);
-    cudaEventRecord(d_dev_ready_evt, producer_stream);
+    // Double-buffered events: record on the event for the current buffer half.
+    // Before re-recording, wait for the previous recording of this half's event
+    // to complete.  This provides essential CPU-side backpressure: without it
+    // the producer's CPU code can race far ahead, re-recording events before
+    // the GPU processes the earlier recording.
+    //
+    // Consumer-to-producer data-hazard safety (preventing overwrite of data
+    // still being read by an async consumer kernel) is handled separately by
+    // d_read_done_evt in write_pointer() / post_work().
+    int half = (d_write_index >= d_half_nitems) ? 1 : 0;
+    cudaEventSynchronize(d_dev_ready_evt[half]);
+    cudaEventRecord(d_dev_ready_evt[half], producer_stream);
+}
+
+void cuda_buffer::mark_read_done(cudaStream_t consumer_stream)
+{
+    // Chain: make this stream depend on any previous consumer's read-done,
+    // then record our own.  Because the wait is enqueued AFTER the consumer's
+    // kernel, the kernels themselves run in parallel — only the event-record
+    // ordering is serialized.  The final recording of d_read_done_evt therefore
+    // captures MAX(all consumers') completion time.
+    cudaStreamWaitEvent(consumer_stream, d_read_done_evt, 0);
+    cudaEventRecord(d_read_done_evt, consumer_stream);
 }
 
 void cuda_buffer::wait_device_ready(cudaStream_t consumer_stream)
 {
-    cudaStreamWaitEvent(consumer_stream, d_dev_ready_evt, 0);
+    // Wait on both half-events.  A targeted single-half wait is possible but
+    // not worthwhile: cudaStreamWaitEvent is a GPU-side dependency that never
+    // blocks the CPU, and an already-completed event resolves instantly on the
+    // GPU.  Waiting on both also avoids the cross-boundary bug that a
+    // single-half strategy would reintroduce (a producer write that spans the
+    // half-boundary only records one half's event).
+    cudaStreamWaitEvent(consumer_stream, d_dev_ready_evt[0], 0);
+    cudaStreamWaitEvent(consumer_stream, d_dev_ready_evt[1], 0);
 }
 
 void cuda_buffer::mark_host_ready(cudaStream_t copy_stream)
 {
-    cudaEventRecord(d_host_ready_evt, copy_stream);
+    int half = (d_write_index >= d_half_nitems) ? 1 : 0;
+    cudaEventRecord(d_host_ready_evt[half], copy_stream);
 }
 
 void cuda_buffer::wait_host_ready()
 {
-    cudaEventSynchronize(d_host_ready_evt);
+    // Wait on both halves (CPU-blocking).  Both halves are needed because
+    // a single D2H copy can span the half-boundary while mark_host_ready()
+    // only records on the starting half.  Since both events are on d_stream,
+    // the later one subsumes the earlier, so the effective cost is one sync.
+    cudaEventSynchronize(d_host_ready_evt[0]);
+    cudaEventSynchronize(d_host_ready_evt[1]);
 }
 
 buffer_sptr cuda_buffer::make_buffer(int nitems,
@@ -423,7 +415,7 @@ buffer_sptr cuda_buffer::make_buffer(int nitems,
                                      block_sptr link,
                                      block_sptr buf_owner)
 {
-    return buffer_sptr(new cuda_buffer(nitems, sizeof_item, downstream_lcm_nitems, 
+    return buffer_sptr(new cuda_buffer(nitems, sizeof_item, downstream_lcm_nitems,
                                        downstream_max_out_mult, link, buf_owner));
 }
 
