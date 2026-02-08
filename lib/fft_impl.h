@@ -9,7 +9,7 @@
 #define INCLUDED_CUDA_FFT_IMPL_H
 
 #include <gnuradio/cuda/fft.h>
-#include <cuda_runtime_api.h>
+#include <gnuradio/cuda/cuda_block.h>
 #include <cufft.h>
 #include <mutex>
 #include <unordered_map>
@@ -17,7 +17,7 @@
 namespace gr {
 namespace cuda {
 
-class fft_impl : public fft
+class fft_impl : public fft, public cuda_block
 {
 public:
     fft_impl(size_t fft_size,
@@ -40,8 +40,6 @@ private:
     const bool d_shift;
     const bool d_has_window;
     const bool d_real_input;
-
-    cudaStream_t d_stream;
 
     float* d_window_dev;
     size_t d_window_size;

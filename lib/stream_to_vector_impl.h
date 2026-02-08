@@ -22,7 +22,7 @@ private:
 
 public:
     stream_to_vector_impl(size_t itemsize, size_t vlen);
-    ~stream_to_vector_impl() override;
+    ~stream_to_vector_impl() override = default;
 
     int work(int noutput_items,
              gr_vector_const_void_star& input_items,

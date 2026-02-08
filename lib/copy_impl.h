@@ -13,20 +13,19 @@
 #define INCLUDED_CUDA_COPY_IMPL_H
 
 #include <gnuradio/cuda/copy.h>
-#include <cuda_runtime.h>
+#include <gnuradio/cuda/cuda_block.h>
 
 namespace gr {
 namespace cuda {
 
-class copy_impl : public copy {
+class copy_impl : public copy, public cuda_block {
 private:
   size_t d_itemsize;
   bool d_passthrough;
-  cudaStream_t d_stream;
 
 public:
   copy_impl(size_t itemsize, bool passthrough);
-  ~copy_impl();
+  ~copy_impl() override = default;
 
   // Where all the action really happens
   int work(int noutput_items, gr_vector_const_void_star &input_items,

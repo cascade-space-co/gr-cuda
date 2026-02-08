@@ -40,14 +40,12 @@ streams_to_vector_impl::streams_to_vector_impl(size_t itemsize, size_t num_strea
       d_num_streams(num_streams)
 {
     get_interleave_block_and_grid(&d_min_grid_size, &d_block_size);
-    check_cuda_errors(cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking));
     check_cuda_errors(cudaMalloc((void**)&d_input_ptrs_dev, sizeof(void*) * d_num_streams));
 }
 
 streams_to_vector_impl::~streams_to_vector_impl()
 {
     if (d_input_ptrs_dev) cudaFree(d_input_ptrs_dev);
-    check_cuda_errors(cudaStreamDestroy(d_stream));
 }
 
 int streams_to_vector_impl::work(int noutput_items,

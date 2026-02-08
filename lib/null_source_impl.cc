@@ -28,12 +28,6 @@ null_source_impl::null_source_impl(size_t sizeof_stream_item, size_t num_outputs
       d_itemsize(sizeof_stream_item),
       d_num_outputs(num_outputs)
 {
-    cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking);
-}
-
-null_source_impl::~null_source_impl()
-{
-    cudaStreamDestroy(d_stream);
 }
 
 int null_source_impl::work(int noutput_items,

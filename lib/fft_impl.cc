@@ -98,7 +98,6 @@ fft_impl::fft_impl(size_t fft_size,
       d_shift(shift),
       d_has_window(!window.empty()),
       d_real_input(real_input),
-      d_stream(nullptr),
       d_window_dev(nullptr),
       d_window_size(0),
       d_work_dev(nullptr),
@@ -107,8 +106,6 @@ fft_impl::fft_impl(size_t fft_size,
     if (d_fft_size == 0) {
         throw std::invalid_argument("fft_size must be > 0");
     }
-
-    check_cuda_errors(cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking));
 
     if (d_has_window) {
         if (window.size() != d_fft_size) {
@@ -134,9 +131,6 @@ fft_impl::~fft_impl()
     }
     if (d_work_dev) {
         cudaFree(d_work_dev);
-    }
-    if (d_stream) {
-        cudaStreamDestroy(d_stream);
     }
 }
 

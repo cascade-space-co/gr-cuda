@@ -12,7 +12,7 @@
 #define INCLUDED_CUDA_PROBE_RATE_IMPL_H
 
 #include <gnuradio/cuda/probe_rate.h>
-#include <cuda_runtime.h>
+#include <gnuradio/cuda/cuda_block.h>
 #include <pmt/pmt.h>
 #include <chrono>
 #include <map>
@@ -21,10 +21,9 @@
 namespace gr {
 namespace cuda {
 
-class probe_rate_impl : public probe_rate {
+class probe_rate_impl : public probe_rate, public cuda_block {
 private:
   size_t d_itemsize;
-  cudaStream_t d_stream;
   
   double d_alpha, d_beta, d_avg;
   const double d_min_update_time;
@@ -39,7 +38,7 @@ private:
 public:
   probe_rate_impl(size_t itemsize, double update_rate_ms, double alpha = 0.0001,
                   std::string_view name = "");
-  ~probe_rate_impl() override;
+  ~probe_rate_impl() override = default;
 
   void set_alpha(double alpha) override;
   void set_name(std::string_view name) override;

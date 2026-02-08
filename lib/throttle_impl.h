@@ -12,7 +12,7 @@
 #define INCLUDED_CUDA_THROTTLE_IMPL_H
 
 #include <gnuradio/cuda/throttle.h>
-#include <cuda_runtime.h>
+#include <gnuradio/cuda/cuda_block.h>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -21,11 +21,10 @@
 namespace gr {
 namespace cuda {
 
-class throttle_impl : public throttle {
+class throttle_impl : public throttle, public cuda_block {
 private:
   size_t d_itemsize;
   std::atomic<double> d_sample_rate;
-  cudaStream_t d_stream;
 
   mutable std::mutex d_mutex;
   std::chrono::steady_clock::time_point d_start_time;
@@ -33,7 +32,7 @@ private:
 
 public:
   throttle_impl(size_t itemsize, double sample_rate);
-  ~throttle_impl() override;
+  ~throttle_impl() override = default;
 
   void set_sample_rate(double rate) override;
 

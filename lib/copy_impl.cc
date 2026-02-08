@@ -33,15 +33,6 @@ copy_impl::copy_impl(size_t itemsize, bool passthrough)
       d_itemsize(itemsize),
       d_passthrough(passthrough)
 {
-    cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking);
-}
-
-/*
- * Our virtual destructor.
- */
-copy_impl::~copy_impl() 
-{
-    cudaStreamDestroy(d_stream);
 }
 
 int copy_impl::work(int noutput_items,

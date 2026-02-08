@@ -31,19 +31,10 @@ fft_shift_impl::fft_shift_impl(size_t fft_size)
     : gr::sync_block("fft_shift",
                      io_signature::make(1, 1, sizeof(gr_complex) * fft_size, cuda_buffer::type),
                      io_signature::make(1, 1, sizeof(gr_complex) * fft_size, cuda_buffer::type)),
-      d_fft_size(fft_size),
-      d_stream(nullptr)
+      d_fft_size(fft_size)
 {
     if (d_fft_size == 0) {
         throw std::invalid_argument("fft_size must be > 0");
-    }
-    check_cuda_errors(cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking));
-}
-
-fft_shift_impl::~fft_shift_impl()
-{
-    if (d_stream) {
-        cudaStreamDestroy(d_stream);
     }
 }
 

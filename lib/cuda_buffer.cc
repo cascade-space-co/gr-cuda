@@ -11,6 +11,7 @@
 
 #include <gnuradio/block.h>
 #include <gnuradio/cuda/cuda_buffer.h>
+#include <gnuradio/cuda/cuda_error.h>
 
 #include <cstring>
 #include <sstream>
@@ -339,10 +340,11 @@ void cuda_buffer::sync_all_gpu_work()
 
 void cuda_buffer::throw_cuda_error(const char* context, cudaError_t rc)
 {
+    // Log via GR logger before throwing
     std::ostringstream msg;
     msg << context << ": " << cudaGetErrorName(rc) << " -- " << cudaGetErrorString(rc);
     GR_LOG_ERROR(d_logger, msg.str());
-    throw std::runtime_error(msg.str());
+    throw_on_cuda_error(context, rc);
 }
 
 void cuda_buffer::throw_unexpected_transfer_type()

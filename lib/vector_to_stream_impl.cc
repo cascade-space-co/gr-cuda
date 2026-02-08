@@ -27,12 +27,6 @@ vector_to_stream_impl::vector_to_stream_impl(size_t itemsize, size_t vlen)
       d_itemsize(itemsize),
       d_vlen(vlen)
 {
-    check_cuda_errors(cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking));
-}
-
-vector_to_stream_impl::~vector_to_stream_impl()
-{
-    check_cuda_errors(cudaStreamDestroy(d_stream));
 }
 
 int vector_to_stream_impl::work(int noutput_items,

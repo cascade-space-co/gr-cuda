@@ -12,20 +12,19 @@
 #define INCLUDED_CUDA_NULL_SINK_IMPL_H
 
 #include <gnuradio/cuda/null_sink.h>
-#include <cuda_runtime.h>
+#include <gnuradio/cuda/cuda_block.h>
 
 namespace gr {
 namespace cuda {
 
-class null_sink_impl : public null_sink {
+class null_sink_impl : public null_sink, public cuda_block {
 private:
   size_t d_itemsize;
   size_t d_num_inputs;
-  cudaStream_t d_stream;
 
 public:
   null_sink_impl(size_t sizeof_stream_item, size_t num_inputs);
-  ~null_sink_impl() override;
+  ~null_sink_impl() override = default;
 
   int work(int noutput_items, gr_vector_const_void_star &input_items,
            gr_vector_void_star &output_items) override;

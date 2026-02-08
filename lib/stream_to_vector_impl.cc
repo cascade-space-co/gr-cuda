@@ -27,13 +27,6 @@ stream_to_vector_impl::stream_to_vector_impl(size_t itemsize, size_t vlen)
       d_itemsize(itemsize),
       d_vlen(vlen)
 {
-    // Need a stream for the memory copy
-    check_cuda_errors(cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking));
-}
-
-stream_to_vector_impl::~stream_to_vector_impl()
-{
-    check_cuda_errors(cudaStreamDestroy(d_stream));
 }
 
 int stream_to_vector_impl::work(int noutput_items,

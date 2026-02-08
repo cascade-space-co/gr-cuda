@@ -12,20 +12,19 @@
 #define INCLUDED_CUDA_NULL_SOURCE_IMPL_H
 
 #include <gnuradio/cuda/null_source.h>
-#include <cuda_runtime.h>
+#include <gnuradio/cuda/cuda_block.h>
 
 namespace gr {
 namespace cuda {
 
-class null_source_impl : public null_source {
+class null_source_impl : public null_source, public cuda_block {
 private:
   size_t d_itemsize;
   size_t d_num_outputs;
-  cudaStream_t d_stream;
 
 public:
   null_source_impl(size_t sizeof_stream_item, size_t num_outputs);
-  ~null_source_impl() override;
+  ~null_source_impl() override = default;
 
   int work(int noutput_items, gr_vector_const_void_star &input_items,
            gr_vector_void_star &output_items) override;

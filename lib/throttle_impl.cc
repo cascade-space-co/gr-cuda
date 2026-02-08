@@ -42,11 +42,6 @@ throttle_impl::throttle_impl(size_t itemsize, double sample_rate)
       d_itemsize(itemsize),
       d_sample_rate(validate_rate_or_throw(sample_rate)),
       d_total_samples(0) {
-  check_cuda_errors(cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking));
-}
-
-throttle_impl::~throttle_impl() { 
-  cudaStreamDestroy(d_stream); 
 }
 
 void throttle_impl::set_sample_rate(double rate) {

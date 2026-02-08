@@ -62,46 +62,9 @@ namespace gr {
  *
  * \section usage Usage from GPU blocks
  *
- * GPU blocks should use the helper functions in cuda_block_helper.h:
- *
- * \code
- * #include <gnuradio/cuda/cuda_block_helper.h>
- *
- * // In the constructor — request cuda_buffer for all I/O ports via the
- * // io_signature, and create a non-blocking stream so this block's GPU
- * // work does not serialize against the default stream or other blocks.
- * my_block_impl::my_block_impl(...)
- *     : gr::sync_block("my_block",
- *           io_signature::make(1, 1, sizeof(float), cuda_buffer::type),
- *           io_signature::make(1, 1, sizeof(float), cuda_buffer::type))
- * {
- *     cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking);
- * }
- *
- * int my_block_impl::work(int noutput_items,
- *                         gr_vector_const_void_star& input_items,
- *                         gr_vector_void_star& output_items)
- * {
- *     // 1. Wait for upstream data to be ready on the GPU
- *     gr::cuda::wait_for_inputs(detail(), d_stream);
- *
- *     // 2. Launch GPU kernels on d_stream
- *     auto in  = reinterpret_cast<const float*>(input_items[0]);
- *     auto out = reinterpret_cast<float*>(output_items[0]);
- *     my_kernel<<<grid, block, 0, d_stream>>>(in, out, noutput_items);
- *
- *     // 3. Signal outputs ready and inputs consumed
- *     gr::cuda::mark_outputs_ready(detail(), d_stream);
- *     return noutput_items;
- * }
- * \endcode
- *
- * The two helper calls handle all event bookkeeping automatically:
- *   - wait_for_inputs() adds GPU-side waits on each input buffer's
- *     d_dev_ready_evt so the kernel does not read stale data.
- *   - mark_outputs_ready() records d_dev_ready_evt on each output buffer
- *     (signalling downstream) AND records d_read_done_evt on each input
- *     buffer (signalling the upstream producer that this consumer is done).
+ * See cuda_block.h for the standard pattern for writing GPU blocks, and
+ * cuda_block_helper.h for the wait_for_inputs() / mark_outputs_ready()
+ * helper functions that handle all event bookkeeping automatically.
  *
  * Blocks that do NOT use these helpers (e.g. CPU-only blocks connected via
  * cuda_buffer) still work correctly: the synchronization in post_work(),

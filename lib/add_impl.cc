@@ -43,8 +43,7 @@ add_impl<T>::add_impl(size_t num_inputs, size_t vlen)
       d_vlen(vlen)
 {
     get_add_block_and_grid<T>(&d_min_grid_size, &d_block_size);
-    check_cuda_errors(cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking));
-    
+
     // Allocate memory for input pointers on device
     check_cuda_errors(cudaMalloc((void**)&d_input_ptrs_dev, sizeof(T*) * d_num_inputs));
 }
@@ -55,7 +54,6 @@ add_impl<T>::~add_impl()
     if (d_input_ptrs_dev) {
         cudaFree(d_input_ptrs_dev);
     }
-    check_cuda_errors(cudaStreamDestroy(d_stream));
 }
 
 template <class T>
