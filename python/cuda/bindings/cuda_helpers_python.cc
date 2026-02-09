@@ -1,3 +1,9 @@
+/*
+ * Copyright 2026 Cascade Space.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 #include <pybind11/pybind11.h>
 #include <gnuradio/cuda/cuda_block_helper.h>
 #include <gnuradio/block.h>

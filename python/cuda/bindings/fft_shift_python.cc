@@ -1,5 +1,5 @@
 /*
- * Copyright 2026
+ * Copyright 2026 Cascade Space.
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
@@ -9,7 +9,7 @@
 /* BINDTOOL_GEN_AUTOMATIC(0)                                                       */
 /* BINDTOOL_USE_PYGCCXML(0)                                                        */
 /* BINDTOOL_HEADER_FILE(fft_shift.h)                                               */
-/* BINDTOOL_HEADER_FILE_HASH(c2e93d4c73251dfeb7bbcb07e814a3ba)                     */
+/* BINDTOOL_HEADER_FILE_HASH(731d39f0072bab0cfbdd7234f4120b03)                     */
 /***********************************************************************************/
 
 #include <pybind11/pybind11.h>

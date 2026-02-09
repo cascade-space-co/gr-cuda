@@ -1,3 +1,9 @@
+#
+# Copyright 2026 Cascade Space.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
 import time
 import numpy as np
 from gnuradio import gr, blocks, cuda

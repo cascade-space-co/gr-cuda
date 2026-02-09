@@ -1,5 +1,6 @@
 /*
  * Copyright 2021 Free Software Foundation, Inc.
+ * Copyright 2026 Cascade Space.
  *
  * This file is part of GNU Radio
  *
@@ -16,7 +17,7 @@
 /* BINDTOOL_GEN_AUTOMATIC(0) */
 /* BINDTOOL_USE_PYGCCXML(0) */
 /* BINDTOOL_HEADER_FILE(copy.h)                                        */
-/* BINDTOOL_HEADER_FILE_HASH(941f7c1f7037404cbf313316c62da2b5) */
+/* BINDTOOL_HEADER_FILE_HASH(afb4748b0e104c70a1b16ceba77d275e) */
 /***********************************************************************************/
 
 #include <pybind11/complex.h>

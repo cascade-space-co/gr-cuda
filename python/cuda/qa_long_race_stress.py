@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+#
+# Copyright 2026 Cascade Space.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
 import os
 import time
 import unittest
@@ -32,9 +38,9 @@ class wrap_check_sink(gr.sync_block):
         expected_slice = self._expected_slice(n)
         if not np.array_equal(in_data, expected_slice):
             self.mismatch_count += 1
-            #raise RuntimeError("Sequence mismatch (possible buffer sync issue)")
             print("Sequence mismatch (possible buffer sync issue), count: ", self.mismatch_count, "not mismatch count: ", self.notmismatch_count)
-            print(in_data, expected_slice)
+            raise RuntimeError("Sequence mismatch (possible buffer sync issue)")
+            #print(in_data, expected_slice)
         else:
             self.notmismatch_count += 1
         self._offset += n
@@ -128,7 +134,7 @@ class qa_long_race_stress(gr_unittest.TestCase):
             for i, c in enumerate(checkers):
                 if c.mismatch_count:
                     print(f"Checker {i}: mismatches={c.mismatch_count}, ok={c.notmismatch_count}")
-            #raise RuntimeError(f"Total sequence mismatches: {total_mismatches}")
+            raise RuntimeError(f"Total sequence mismatches: {total_mismatches}")
 
 
 if __name__ == '__main__':

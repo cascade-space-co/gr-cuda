@@ -1,6 +1,6 @@
 /* -*- c++ -*- */
 /*
- * Copyright 2026
+ * Copyright 2026 Cascade Space.
  *
  * This file is part of GNU Radio
  *

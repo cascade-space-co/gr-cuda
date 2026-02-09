@@ -1,5 +1,5 @@
 /*
- * Copyright 2025
+ * Copyright 2025 Cascade Space.
  *
  * This file is part of GNU Radio
  *

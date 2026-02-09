@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Free Software Foundation, Inc.
+ * Copyright 2026 Cascade Space.
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
@@ -11,7 +11,7 @@
 /* BINDTOOL_GEN_AUTOMATIC(0)                                                       */
 /* BINDTOOL_USE_PYGCCXML(0)                                                        */
 /* BINDTOOL_HEADER_FILE(vector_to_stream.h)                                        */
-/* BINDTOOL_HEADER_FILE_HASH(c648d934023fc0639cf8862d191f39d2)                                     */
+/* BINDTOOL_HEADER_FILE_HASH(c034fbee5858bf385886e0d9f077e17b)                                     */
 /***********************************************************************************/
 
 #include <pybind11/complex.h>

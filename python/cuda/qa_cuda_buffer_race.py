@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+#
+# Copyright 2026 Cascade Space.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
 import os
 import time
 import unittest

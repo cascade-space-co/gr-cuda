@@ -1,5 +1,6 @@
 #
 # Copyright 2008,2009 Free Software Foundation, Inc.
+# Copyright 2026 Cascade Space.
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #

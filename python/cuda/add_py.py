@@ -1,3 +1,9 @@
+#
+# Copyright 2026 Cascade Space.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
 import numpy as np
 try:
     import cupy as cp

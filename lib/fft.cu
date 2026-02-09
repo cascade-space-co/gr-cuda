@@ -1,3 +1,10 @@
+/* -*- c++ -*- */
+/*
+ * Copyright 2026 Cascade Space.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 #include <gnuradio/cuda/cuda_error.h>
 #include <cuda.h>
 #include <cuda_runtime.h>

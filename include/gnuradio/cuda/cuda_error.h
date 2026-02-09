@@ -1,3 +1,10 @@
+/* -*- c++ -*- */
+/*
+ * Copyright 2026 Cascade Space.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 #ifndef _INCLUDED_GR_CUDA_ERROR
 #define _INCLUDED_GR_CUDA_ERROR
 

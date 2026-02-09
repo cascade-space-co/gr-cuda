@@ -1,6 +1,7 @@
 /* -*- c++ -*- */
 /*
  * Copyright 2021 BlackLynx, Inc.
+ * Copyright 2026 Cascade Space.
  *
  * This file is part of GNU Radio
  *

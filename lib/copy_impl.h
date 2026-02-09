@@ -2,6 +2,7 @@
 /*
  * Copyright 2004,2009,2010,2013 Free Software Foundation, Inc.
  * Copyright 2021 Josh Morman
+ * Copyright 2026 Cascade Space.
  *
  * This file is part of GNU Radio
  *
