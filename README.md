@@ -142,10 +142,16 @@ import numpy as np
 import cupy as cp
 from gnuradio import gr, cuda
 
-class my_block_py(gr.sync_block):
+class my_block_cupy(gr.sync_block):
     def __init__(self):
-        sig = cuda.io_signature_make(1, 1, [np.complex64])
-        gr.sync_block.__init__(self, "my_block_py", sig, sig)
+        # Define input and output signatures (can differ if needed)
+        in_sig = cuda.io_signature_make(1, 1, [np.complex64])
+        out_sig = cuda.io_signature_make(1, 1, [np.complex64])
+
+        # Create block as normal, but with CUDA buffers
+        gr.sync_block.__init__(self, "my_block_cupy", in_sig, out_sig)
+
+        # Create a non-blocking CUDA stream for async GPU operations
         self.stream = cp.cuda.Stream(non_blocking=True)
 
     def work(self, input_items, output_items):
