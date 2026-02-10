@@ -7,8 +7,10 @@
 import numpy as np
 try:
     import cupy as cp
+    from cupy.cuda import cufft as cp_cufft
 except ImportError:
     cp = None
+    cp_cufft = None
 from gnuradio import gr, cuda
 
 class fft_cupy(gr.sync_block):
@@ -61,6 +63,21 @@ class fft_cupy(gr.sync_block):
                 window_dtype = np.float32 if self.real_input else np.complex64
                 self.d_window = cp.asarray(window, dtype=window_dtype)
 
+        # Cached cuFFT plans (keyed by batch size) for C2C transforms.
+        # Executes directly into the output buffer -- no temp allocation.
+        self._plans = {}
+        self._direction = (cp_cufft.CUFFT_FORWARD if forward
+                           else cp_cufft.CUFFT_INVERSE)
+
+    def _get_plan(self, batch_size):
+        """Get or create a cuFFT plan for the given batch size."""
+        plan = self._plans.get(batch_size)
+        if plan is None:
+            plan = cp_cufft.Plan1d(self.fft_size, cp_cufft.CUFFT_C2C,
+                                   batch_size)
+            self._plans[batch_size] = plan
+        return plan
+
     def work(self, input_items, output_items):
         n = len(input_items[0])
         cuda.wait_for_inputs(self.gateway, self.stream.ptr)
@@ -72,20 +89,26 @@ class fft_cupy(gr.sync_block):
 
                 curr_in = self._apply_window(d_in)
 
-                if self.forward:
-                    # cp.fft.fft computes along last axis by default (axis=-1)
-                    res = cp.fft.fft(curr_in, axis=-1)
-                    if self.shift:
-                        res = cp.fft.fftshift(res, axes=(-1,))
+                if not self.forward and self.shift:
+                    curr_in = cp.fft.ifftshift(curr_in, axes=(-1,))
+
+                if self.real_input:
+                    # R2C: fall back to cp.fft (returns full N-point spectrum)
+                    if self.forward:
+                        res = cp.fft.fft(curr_in, axis=-1)
+                    else:
+                        # ifft returns normalized; multiply to match GR convention
+                        res = cp.fft.ifft(curr_in, axis=-1)
+                        res *= self.fft_size
+                    d_out[:] = res
                 else:
-                    if self.shift:
-                        curr_in = cp.fft.ifftshift(curr_in, axes=(-1,))
-                    res = cp.fft.ifft(curr_in, axis=-1)
-                    # Match GNU Radio FFT unnormalized inverse behavior.
-                    res *= self.fft_size
-                    
-                # Copy result to output buffer
-                d_out[:] = res
+                    # C2C: direct cuFFT execution into output buffer.
+                    # cuFFT INVERSE is already unnormalized (matches GR).
+                    plan = self._get_plan(n)
+                    plan.fft(curr_in, d_out, self._direction)
+
+                if self.forward and self.shift:
+                    d_out[:] = cp.fft.fftshift(d_out, axes=(-1,))
             
         cuda.mark_outputs_ready(self.gateway, self.stream.ptr)
         
