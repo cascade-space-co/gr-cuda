@@ -196,6 +196,11 @@ target_link_libraries(gnuradio-myoot PUBLIC gnuradio::gnuradio-runtime gnuradio-
 target_link_libraries(gnuradio-myoot PRIVATE gnuradio-myoot-cu)
 ```
 
+## Limitations
+
+- **No mixed fan-out.** A block's output cannot fan out to both GPU (`cuda_buffer`) and CPU (default) downstream blocks simultaneously. All consumers of a given output port must use the same buffer type.
+- **Large buffers at CPU/GPU boundaries.** H2D and D2H transfers need large batches (2^18--2^20 items) to saturate PCIe bandwidth. Use `set_output_multiple()` on boundary blocks.
+
 ## Performance
 
 Benchmarked on an **NVIDIA DGX Spark (GB10)** and an **NVIDIA RTX PRO 6000 Blackwell**.
@@ -208,7 +213,7 @@ Benchmarked on an **NVIDIA DGX Spark (GB10)** and an **NVIDIA RTX PRO 6000 Black
 | CuPy FFT (Python block) | 9.1 Gsps | 63.6 Gsps |
 | FFTW (CPU baseline) | 0.46 Gsps | 1.02 Gsps |
 
-Full tables, methodology, and analysis: **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)**
+CUDA buffers at CPU/GPU boundaries (H2D, D2H) should be large -- on the order of 2^18 to 2^20 items -- to amortise PCIe latency and achieve peak bandwidth. Use `set_output_multiple()` on boundary blocks to control this. See **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)** for full tables, methodology, and analysis.
 
 ## Acknowledgements
 
