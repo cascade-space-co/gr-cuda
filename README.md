@@ -44,7 +44,7 @@ GPU-accelerated signal processing blocks for [GNU Radio](https://www.gnuradio.or
 
 - NVIDIA GPU with CUDA support
 - [CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit)
-- GNU Radio >= 3.10
+- GNU Radio >= 3.10 (>3.10.12 recommended; older versions have a [fan-out deadlock bug](https://github.com/gnuradio/gnuradio/pull/8029))
 - CMake >= 3.18, Ninja (recommended)
 - [CuPy](https://cupy.dev/) (for Python GPU blocks)
 - A C++17 compiler

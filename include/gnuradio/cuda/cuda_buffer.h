@@ -14,6 +14,7 @@
 
 #include <gnuradio/buffer_single_mapped.h>
 #include <gnuradio/buffer_type.h>
+#include <gnuradio/version.h>
 
 #include <cuda.h>
 #include <cuda_runtime_api.h>
@@ -77,6 +78,17 @@ class GR_RUNTIME_API cuda_buffer : public buffer_single_mapped
 {
 public:
     static buffer_type type;
+
+    // Requires the fan-out fix for custom buffers introduced in:
+    // https://github.com/gnuradio/gnuradio/pull/8029
+#if (GR_VERSION_API == 10 && GR_VERSION_MINOR > 12) || (GR_VERSION_API >= 11)
+    buffer_type get_buffer_type() const override { return type; }
+#else
+#warning "GNU Radio <= 3.10.12 detected: custom buffer fan-out is broken "    \
+         "in this version. Flowgraphs with fan-out on cuda_buffer edges "     \
+         "will deadlock (including QA tests). Upgrade to >3.10.12 for "       \
+         "full support. See https://github.com/gnuradio/gnuradio/pull/8029"
+#endif
 
     virtual ~cuda_buffer();
 
