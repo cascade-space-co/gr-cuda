@@ -17,6 +17,7 @@
 
 #include <cuda.h>
 #include <cuda_runtime_api.h>
+#include <mutex>
 
 namespace gr {
 
@@ -206,6 +207,7 @@ private:
     // Consumer-to-producer sync: tracks when ALL consumers have finished
     // reading from the device buffer, so the producer can safely overwrite.
     cudaEvent_t d_read_done_evt;
+    std::mutex d_read_done_mutex; // Serialises mark_read_done() for fan-out safety
 
     char* d_cuda_buf; // CUDA buffer
 

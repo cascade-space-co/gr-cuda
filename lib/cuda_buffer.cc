@@ -14,6 +14,7 @@
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_error.h>
 
+#include <cstddef>
 #include <cstring>
 #include <sstream>
 #include <stdexcept>
@@ -311,14 +312,52 @@ bool cuda_buffer::output_blocked_callback(int output_multiple, bool force)
 
     bool rc = false;
     switch (d_transfer_type) {
-    case transfer_type::HOST_TO_DEVICE:
-        // Adjust host buffer
-        rc = output_blocked_callback_logic(output_multiple, force, d_base, std::memmove);
+    case transfer_type::HOST_TO_DEVICE: {
+        // Realign both host and device so the consumer (GPU, reading d_cuda_buf)
+        // sees the same layout as the producer (CPU, wrote d_base).
+        auto h2d_memmove = [this](void* dest, const void* src, std::size_t count) {
+            std::memmove(dest, src, count);
+            const std::ptrdiff_t dest_off =
+                static_cast<char*>(dest) - static_cast<char*>(d_base);
+            const std::ptrdiff_t src_off =
+                static_cast<const char*>(src) - static_cast<const char*>(d_base);
+            cuda_memmove(static_cast<char*>(d_cuda_buf) + dest_off,
+                         static_cast<const char*>(d_cuda_buf) + src_off,
+                         count);
+            return dest;
+        };
+        rc = output_blocked_callback_logic(
+            output_multiple, force, d_base, h2d_memmove);
+        cudaStreamSynchronize(d_stream);
         break;
+    }
 
-    case transfer_type::DEVICE_TO_HOST:
+    case transfer_type::DEVICE_TO_HOST: {
+        // Realign both device and host buffers so the consumer (reading d_base)
+        // sees the same logical layout. The base class updates indices based on
+        // the single buffer we pass; we must apply the same move to d_base so
+        // _read_pointer() does not return stale data from the previous wrap.
+        auto d2h_memmove = [this](void* dest, const void* src, std::size_t count) {
+            cuda_memmove(dest, src, count);
+            const std::ptrdiff_t dest_off =
+                static_cast<char*>(dest) - static_cast<char*>(d_cuda_buf);
+            const std::ptrdiff_t src_off =
+                static_cast<const char*>(src) - static_cast<const char*>(d_cuda_buf);
+            std::memmove(static_cast<char*>(d_base) + dest_off,
+                        static_cast<const char*>(d_base) + src_off,
+                        count);
+            return dest;
+        };
+        rc = output_blocked_callback_logic(
+            output_multiple, force, d_cuda_buf, d2h_memmove);
+        // Wait for device moves we enqueued above (sync_all_gpu_work only drained
+        // the stream before the logic ran).
+        cudaStreamSynchronize(d_stream);
+        break;
+    }
+
     case transfer_type::DEVICE_TO_DEVICE:
-        // Adjust "device" buffer
+        // Producer and consumer both use d_cuda_buf; no host buffer in the path.
         rc = output_blocked_callback_logic(
             output_multiple, force, d_cuda_buf, f_cuda_memmove );
         break;
@@ -375,10 +414,12 @@ void cuda_buffer::mark_device_ready(cudaStream_t producer_stream)
 void cuda_buffer::mark_read_done(cudaStream_t consumer_stream)
 {
     // Chain: make this stream depend on any previous consumer's read-done,
-    // then record our own.  Because the wait is enqueued AFTER the consumer's
-    // kernel, the kernels themselves run in parallel — only the event-record
-    // ordering is serialized.  The final recording of d_read_done_evt therefore
-    // captures MAX(all consumers') completion time.
+    // then record our own.  The lock serialises the CPU-side event management
+    // so that fan-out consumers form a proper dependency chain rather than
+    // racing on cudaEventRecord (which would let the last recorder silently
+    // discard earlier consumers).  GPU kernels still run in parallel — only
+    // the two API calls are serialized.
+    std::lock_guard<std::mutex> lock(d_read_done_mutex);
     cudaStreamWaitEvent(consumer_stream, d_read_done_evt, 0);
     cudaEventRecord(d_read_done_evt, consumer_stream);
 }
