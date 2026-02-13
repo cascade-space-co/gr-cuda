@@ -89,7 +89,7 @@ def make_chain(mode, fft_size, output_multiple):
         raise ValueError(f"Unknown mode: {mode}")
 
     for b in blk_list:
-        b.set_min_output_buffer(output_multiple)
+        b.set_min_output_buffer(32 * output_multiple)
         b.set_output_multiple(output_multiple)
 
     return blk_list, conns, meter

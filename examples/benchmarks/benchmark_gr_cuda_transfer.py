@@ -65,7 +65,7 @@ def make_chain(mode, buff_len):
     # Large output_multiple forces the scheduler to issue big work() calls,
     # which translates to large DMA transfers -- critical for PCIe throughput.
     for b in blk_list:
-        b.set_min_output_buffer(buff_len)
+        b.set_min_output_buffer(32 * buff_len)
         b.set_output_multiple(buff_len)
 
     return blk_list, conns, meter
