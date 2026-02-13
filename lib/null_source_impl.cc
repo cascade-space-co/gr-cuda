@@ -34,6 +34,9 @@ int null_source_impl::work(int noutput_items,
                           gr_vector_const_void_star& input_items,
                           gr_vector_void_star& output_items)
 {
+    // Ensure output buffer is safe to write (no downstream still reading).
+    gr::cuda::wait_for_inputs(detail(), d_stream);
+
     auto out = static_cast<uint8_t*>(output_items[0]);
 
     // Fill GPU buffer with zeros (mimics GNU Radio's memset behavior)

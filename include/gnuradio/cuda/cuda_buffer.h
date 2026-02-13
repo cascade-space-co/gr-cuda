@@ -38,19 +38,18 @@ namespace gr {
  * Three event-based mechanisms ensure race-free asynchronous execution across
  * independent CUDA streams, while preserving GPU pipeline overlap:
  *
- * 1. **Device-ready events (d_dev_ready_evt[2])**
- *    Double-buffered: one event per buffer half.  The producer records an event
- *    after writing; the consumer's stream GPU-waits on it before reading.
- *    Having two halves prevents the producer from overwriting an event that the
- *    consumer hasn't observed yet (which a single event would allow when the
- *    producer's CPU thread runs ahead of the GPU).  mark_device_ready() also
- *    does a CPU-side cudaEventSynchronize() for backpressure, preventing the
- *    CPU from outrunning the GPU.
+ * 1. **Device-ready events (d_dev_ready_evt[NUM_HALF_EVENTS])**
+ *    Double-buffered by buffer half: the producer selects a slot based on
+ *    whether d_write_index is in the first or second half of the circular
+ *    buffer.  mark_device_ready() CPU-syncs on the selected slot before
+ *    re-recording, providing backpressure.  The consumer GPU-waits on
+ *    both slots (cheap — already-completed events resolve instantly).
  *
- * 2. **Host-ready events (d_host_ready_evt[2])**
- *    Same double-buffered scheme, but for D2H copies.  Recorded after the async
- *    D2H memcpy completes; _read_pointer() CPU-waits on both halves before
- *    returning a host pointer to the downstream CPU block.
+ * 2. **Host-ready events (d_host_ready_evt[NUM_HALF_EVENTS])**
+ *    Double-buffered by buffer half (same selection as device-ready).
+ *    Recorded after the async D2H memcpy completes on the buffer's stream.
+ *    _read_pointer() CPU-waits on both halves before returning a host
+ *    pointer to the downstream CPU block.
  *
  * 3. **Read-done event (d_read_done_evt)**
  *    A single event that tracks when ALL consumers have finished reading from
@@ -58,10 +57,16 @@ namespace gr {
  *    fan-out consumers run in parallel but the event captures the latest
  *    completion.  The producer waits on this event before overwriting:
  *      - H2D buffers: GPU-side wait in post_work() (does not block CPU).
- *      - D2H buffers: CPU-side wait in write_pointer(), plus the D2H copy
- *        itself records d_read_done_evt so the upstream producer cannot
- *        overwrite device data while an async D2H copy is still reading it.
- *      - D2D buffers: CPU-side wait in write_pointer().
+ *      - D2H/D2D buffers: GPU-side wait via wait_for_inputs() in
+ *        cuda_block_helper.h, which adds a cudaStreamWaitEvent on the
+ *        producer's kernel stream.  The D2H copy itself also records
+ *        d_read_done_evt so the upstream producer cannot overwrite device
+ *        data while an async D2H copy is still reading it.
+ *
+ *    Because all producer-side waits on d_read_done_evt are GPU-side
+ *    (cudaStreamWaitEvent, not cudaEventSynchronize), the CPU thread is never
+ *    blocked, allowing H2D and D2H transfers to overlap on dual-copy-engine
+ *    GPUs.
  *
  * \section usage Usage from GPU blocks
  *
@@ -136,6 +141,21 @@ public:
      * \param consumer_stream Stream that finished reading from this buffer
      */
     void mark_read_done(cudaStream_t consumer_stream);
+
+    /*!
+     * \brief GPU-side wait until all consumers have finished reading.
+     *
+     * Adds a dependency on d_read_done_evt to the given stream so that any
+     * work enqueued after this call will not execute until every consumer
+     * (including in-flight D2H copies) has completed its read.  This is a
+     * GPU-side wait and does **not** block the calling CPU thread.
+     *
+     * Used by wait_for_inputs() in cuda_block_helper.h to protect the output
+     * buffer before the producer's kernel writes new data.
+     *
+     * \param stream The producer's kernel stream
+     */
+    void wait_read_done(cudaStream_t stream);
 
     /*!
      * \brief Do actual buffer allocation. Inherited from buffer_single_mapped.

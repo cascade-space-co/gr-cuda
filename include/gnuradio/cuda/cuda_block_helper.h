@@ -17,22 +17,43 @@ namespace gr {
 namespace cuda {
 
 /*!
- * \brief Wait for inputs using the block detail.
+ * \brief Add GPU-side dependencies before launching kernels.
  *
- * Checks all input ports of the block. If an input buffer is a cuda_buffer,
- * it instructs the provided stream to wait for the buffer's DEV_READY event.
+ * Adds all necessary GPU-side dependencies so that any work enqueued on
+ * \p stream after this call will not execute until:
+ *   1. All input buffers' data is ready on the device (device-ready events).
+ *   2. All output buffers are safe to write (read-done events) — i.e. every
+ *      downstream consumer and in-flight D2H copy has finished reading.
+ *
+ * These are GPU-side waits (cudaStreamWaitEvent) and do **not** block the
+ * calling CPU thread.  This is the primary mechanism that allows H2D and D2H
+ * transfers to overlap on dual-copy-engine GPUs.
  *
  * \param detail The block's detail pointer (e.g. call with this->detail())
- * \param stream The CUDA stream to synchronize with
+ * \param stream The CUDA stream to synchronize
+ *
+ * \sa mark_outputs_ready() for the post-kernel counterpart.
  */
 inline void wait_for_inputs(gr::block_detail_sptr detail, cudaStream_t stream)
 {
+    // 1. Input buffers: wait for upstream data to be ready on the device.
     int ninputs = detail->ninputs();
     for (int i = 0; i < ninputs; i++) {
         auto buf = detail->input(i)->buffer();
         auto cuda_buf = std::dynamic_pointer_cast<gr::cuda_buffer>(buf);
         if (cuda_buf) {
             cuda_buf->wait_device_ready(stream);
+        }
+    }
+
+    // 2. Output buffers: ensure downstream consumers / D2H copies have
+    //    finished reading before our kernel writes new data.
+    int noutputs = detail->noutputs();
+    for (int i = 0; i < noutputs; i++) {
+        auto buf = detail->output(i);
+        auto cuda_buf = std::dynamic_pointer_cast<gr::cuda_buffer>(buf);
+        if (cuda_buf) {
+            cuda_buf->wait_read_done(stream);
         }
     }
 }

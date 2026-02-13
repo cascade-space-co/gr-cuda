@@ -158,19 +158,23 @@ void cuda_buffer::post_work(int nitems)
         // Ensure producing GPU work is complete before copying
         wait_device_ready(d_stream);
 
-        // Copy data from device buffer to host buffer
+        // Copy data from device buffer to host buffer.
+        // Compute the source address directly rather than calling
+        // write_pointer() again (it was already called by the executor
+        // to set up the output items).
+        void* src_ptr  = &d_cuda_buf[d_write_index * d_sizeof_item];
         void* dest_ptr = &d_base[d_write_index * d_sizeof_item];
         rc = cudaMemcpyAsync(
-            dest_ptr, write_pointer(), nitems * d_sizeof_item, cudaMemcpyDeviceToHost, d_stream);
+            dest_ptr, src_ptr, nitems * d_sizeof_item, cudaMemcpyDeviceToHost, d_stream);
         if (rc)
             throw_cuda_error("Error performing cudaMemcpy", rc);
 
         mark_host_ready(d_stream);
 
         // Signal that the D2H copy is done reading from the device buffer.
-        // write_pointer() synchronizes on this event before giving the upstream
-        // producer a new device-side write address, preventing a race between
-        // the async D2H copy and the next producer write to the same region.
+        // wait_for_inputs() adds a GPU-side wait on this event to the upstream
+        // producer's kernel stream, preventing a race between the async D2H
+        // copy and the next producer write.
         cudaEventRecord(d_read_done_evt, d_stream);
 
     } break;
@@ -222,11 +226,19 @@ void* cuda_buffer::write_pointer()
 
     case transfer_type::DEVICE_TO_HOST:
     case transfer_type::DEVICE_TO_DEVICE:
-        // Ensure all consumers have finished reading from the device buffer
-        // before providing a write pointer.  Without this, an async consumer
-        // kernel could still be reading while the producer overwrites the data.
-        cudaEventSynchronize(d_read_done_evt);
-        // Write into CUDA device buffer
+        // Return the device pointer without CPU-side synchronisation.
+        //
+        // Safety against consumer-to-producer data hazards (an async consumer
+        // kernel or D2H copy still reading from a region the producer is about
+        // to overwrite) is enforced GPU-side: wait_for_inputs() in
+        // cuda_block_helper.h adds a cudaStreamWaitEvent on d_read_done_evt
+        // to the producer's kernel stream, so the kernel will not execute
+        // until every consumer has finished.  This avoids blocking the CPU
+        // thread and allows H2D / D2H transfers to overlap on dual-copy-
+        // engine GPUs.
+        //
+        // Index-level safety (non-overlapping regions) is guaranteed by
+        // buffer_single_mapped::space_available().
         ptr = &d_cuda_buf[d_write_index * d_sizeof_item];
         break;
 
@@ -422,6 +434,11 @@ void cuda_buffer::mark_read_done(cudaStream_t consumer_stream)
     std::lock_guard<std::mutex> lock(d_read_done_mutex);
     cudaStreamWaitEvent(consumer_stream, d_read_done_evt, 0);
     cudaEventRecord(d_read_done_evt, consumer_stream);
+}
+
+void cuda_buffer::wait_read_done(cudaStream_t stream)
+{
+    cudaStreamWaitEvent(stream, d_read_done_evt, 0);
 }
 
 void cuda_buffer::wait_device_ready(cudaStream_t consumer_stream)

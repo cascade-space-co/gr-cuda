@@ -80,7 +80,11 @@ namespace gr {
  * The two helper calls (from cuda_block_helper.h) handle all event
  * bookkeeping automatically:
  *   - wait_for_inputs() adds GPU-side waits on each input buffer's
- *     device-ready event so the kernel does not read stale data.
+ *     device-ready event (so the kernel does not read stale data) AND
+ *     on each output buffer's read-done event (so the kernel does not
+ *     overwrite data still being read by a downstream consumer or an
+ *     in-flight D2H copy).  These are GPU-side waits that do not block
+ *     the CPU thread, allowing H2D and D2H transfers to overlap.
  *   - mark_outputs_ready() records device-ready events on each output
  *     buffer (signalling downstream) AND records read-done events on
  *     each input buffer (signalling the upstream producer that this
