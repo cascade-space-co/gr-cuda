@@ -221,9 +221,6 @@ private:
      */
     void sync_all_gpu_work();
 
-    //! Log a CUDA error and throw std::runtime_error.  Never returns.
-    [[noreturn]] void throw_cuda_error(const char* context, cudaError_t rc);
-
     //! Throw for an unhandled transfer_type in a switch.  Never returns.
     [[noreturn]] void throw_unexpected_transfer_type();
 

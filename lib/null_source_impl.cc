@@ -40,7 +40,7 @@ int null_source_impl::work(int noutput_items,
     auto out = static_cast<uint8_t*>(output_items[0]);
 
     // Fill GPU buffer with zeros (mimics GNU Radio's memset behavior)
-    cudaMemsetAsync(out, 0, noutput_items * d_itemsize, d_stream);
+    check_cuda_errors(cudaMemsetAsync(out, 0, noutput_items * d_itemsize, d_stream));
 
     // Mark outputs ready
     gr::cuda::mark_outputs_ready(detail(), d_stream);

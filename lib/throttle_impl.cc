@@ -69,7 +69,8 @@ int throttle_impl::work(int noutput_items,
   gr::cuda::wait_for_inputs(detail(), d_stream);
 
   // 2. Perform copy (throttle is just a pass-through data-wise)
-  cudaMemcpyAsync(out, in, noutput_items * d_itemsize, cudaMemcpyDeviceToDevice, d_stream);
+  check_cuda_errors(cudaMemcpyAsync(
+      out, in, noutput_items * d_itemsize, cudaMemcpyDeviceToDevice, d_stream));
 
   // 3. Mark outputs as ready (GPU work is queued)
   gr::cuda::mark_outputs_ready(detail(), d_stream);
