@@ -1,0 +1,51 @@
+repos:
+  # Ruff - Python linting and formatting
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff
+        entry: ruff check --fix
+        language: system
+        types: [python]
+        exclude: ^(docs/|build/|examples/|test.*\.py|\..*\.py|.*\.grc)
+      - id: ruff-format
+        name: ruff-format
+        entry: ruff format
+        language: system
+        types: [python]
+        exclude: ^(docs/|build/|examples/|test.*\.py|\..*\.py|.*\.grc)
+
+  # clang-format - C++ formatting
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v18.1.8
+    hooks:
+      - id: clang-format
+        types_or: [c++, c, cuda]
+        exclude: ^(build/|docs/)
+
+  # gersemi - CMake formatting
+  - repo: local
+    hooks:
+      - id: gersemi
+        name: gersemi
+        entry: bash -c 'gersemi -i --definitions=$CONDA_PREFIX/lib/cmake/gnuradio "$@"' --
+        language: system
+        files: (CMakeLists\.txt|\.cmake)$
+        exclude: ^(build/|docs/)
+
+  # Standard pre-commit hooks for file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+        exclude: ^(\.conda/|conda\.recipe/)
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: trailing-whitespace
+        exclude: ^(.*\.md|.*\.txt)$
+      - id: end-of-file-fixer
+        exclude: ^(.*\.txt|.*\.grc)$
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: ['--fix=lf']
