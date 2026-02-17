@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <cstring>
+#include <string>
 #include <sstream>
 #include <stdexcept>
 
@@ -28,8 +29,7 @@ void* cuda_buffer::cuda_memcpy(void* dest, const void* src, std::size_t count)
     cudaError_t rc =
         cudaMemcpyAsync(dest, src, count, cudaMemcpyDeviceToDevice, d_stream);
     cudaStreamSynchronize(d_stream);
-    if (rc)
-        throw_cuda_error("Error performing cudaMemcpy", rc);
+    check_cuda_errors(rc, "cuda_memcpy: Error performing cudaMemcpyAsync D2D", d_logger);
 
     return dest;
 }
@@ -46,22 +46,17 @@ void* cuda_buffer::cuda_memmove(void* dest, const void* src, std::size_t count)
             d_temp_buffer_size = 0;
         }
         rc = cudaMalloc((void**)&d_temp_buffer, count);
-        if (rc)
-            throw_cuda_error("Error allocating device temp buffer", rc);
+        check_cuda_errors(rc, "Error allocating device temp buffer", d_logger);
         d_temp_buffer_size = count;
     }
 
     // First copy data from source to temp buffer
     rc = cudaMemcpyAsync(d_temp_buffer, src, count, cudaMemcpyDeviceToDevice, d_stream);
-
-    if (rc)
-        throw_cuda_error("Error performing cudaMemcpy", rc);
+    check_cuda_errors(rc, "cuda_memmove: Error performing cudaMemcpyAsync D2D src->temp", d_logger);
 
     // Then copy data from temp buffer to destination to avoid overlap
     rc = cudaMemcpyAsync(dest, d_temp_buffer, count, cudaMemcpyDeviceToDevice, d_stream);
-
-    if (rc)
-        throw_cuda_error("Error performing cudaMemcpy", rc);
+    check_cuda_errors(rc, "cuda_memmove: Error performing cudaMemcpyAsync D2D temp->dest", d_logger);
 
     // Sync for consistency with cuda_memcpy: callers (blocked-callback logic)
     // expect the data to be in place when the function returns.
@@ -89,12 +84,16 @@ cuda_buffer::cuda_buffer(int nitems,
 
     f_cuda_memcpy = [this](void* dest, const void* src, std::size_t count){ return this->cuda_memcpy(dest, src, count); };
     f_cuda_memmove = [this](void* dest, const void* src, std::size_t count){ return this->cuda_memmove(dest, src, count); };
-    cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking);
+    cudaError_t rc = cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking);
+    check_cuda_errors(rc, "Error creating CUDA stream", d_logger);
     for (int i = 0; i < NUM_HALF_EVENTS; i++) {
-        cudaEventCreateWithFlags(&d_dev_ready_evt[i], cudaEventDisableTiming);
-        cudaEventCreateWithFlags(&d_host_ready_evt[i], cudaEventDisableTiming);
+        rc = cudaEventCreateWithFlags(&d_dev_ready_evt[i], cudaEventDisableTiming);
+        check_cuda_errors(rc, "Error creating CUDA device-ready event", d_logger);
+        rc = cudaEventCreateWithFlags(&d_host_ready_evt[i], cudaEventDisableTiming);
+        check_cuda_errors(rc, "Error creating CUDA host-ready event", d_logger);
     }
-    cudaEventCreateWithFlags(&d_read_done_evt, cudaEventDisableTiming);
+    rc = cudaEventCreateWithFlags(&d_read_done_evt, cudaEventDisableTiming);
+    check_cuda_errors(rc, "Error creating CUDA read-done event", d_logger);
 }
 
 cuda_buffer::~cuda_buffer()
@@ -137,7 +136,7 @@ void cuda_buffer::post_work(int nitems)
     std::ostringstream msg;
     msg << "[" << this << "] "
         << "cuda [" << d_transfer_type << "] -- post_work: " << nitems;
-    GR_LOG_DEBUG(d_logger, msg.str());
+    d_logger->debug("{}", msg.str());
 #endif
 
     if (nitems <= 0) {
@@ -158,8 +157,7 @@ void cuda_buffer::post_work(int nitems)
         void* dest_ptr = &d_cuda_buf[d_write_index * d_sizeof_item];
         rc = cudaMemcpyAsync(
             dest_ptr, write_pointer(), nitems * d_sizeof_item, cudaMemcpyHostToDevice, d_stream);
-        if (rc)
-            throw_cuda_error("Error performing cudaMemcpy", rc);
+        check_cuda_errors(rc, "post_work: Error performing cudaMemcpyAsync H2D", d_logger);
 
         mark_device_ready(d_stream);
 
@@ -177,8 +175,7 @@ void cuda_buffer::post_work(int nitems)
         void* dest_ptr = &d_base[d_write_index * d_sizeof_item];
         rc = cudaMemcpyAsync(
             dest_ptr, src_ptr, nitems * d_sizeof_item, cudaMemcpyDeviceToHost, d_stream);
-        if (rc)
-            throw_cuda_error("Error performing cudaMemcpy", rc);
+        check_cuda_errors(rc, "post_work: Error performing cudaMemcpyAsync D2H", d_logger);
 
         mark_host_ready(d_stream);
 
@@ -206,7 +203,7 @@ bool cuda_buffer::do_allocate_buffer(size_t final_nitems, size_t sizeof_item)
         std::ostringstream msg;
         msg << "[" << this << "] "
             << "cuda constructor -- nitems: " << final_nitems;
-        GR_LOG_DEBUG(d_logger, msg.str());
+        d_logger->debug("{}", msg.str());
     }
 #endif
 
@@ -215,13 +212,11 @@ bool cuda_buffer::do_allocate_buffer(size_t final_nitems, size_t sizeof_item)
 
     // Pinned host buffer
     cudaError_t rc = cudaMallocHost((void**)&d_base, final_nitems * sizeof_item);
-    if (rc)
-        throw_cuda_error("Error allocating pinned host buffer", rc);
+    check_cuda_errors(rc, "Error allocating pinned host buffer", d_logger);
 
     // Device buffer
     rc = cudaMalloc((void**)&d_cuda_buf, final_nitems * sizeof_item);
-    if (rc)
-        throw_cuda_error("Error allocating device buffer", rc);
+    check_cuda_errors(rc, "Error allocating device buffer", d_logger);
 
     return true;
 }
@@ -291,7 +286,7 @@ bool cuda_buffer::input_blocked_callback(int items_required,
     std::ostringstream msg;
     msg << "[" << this << "] "
         << "cuda [" << d_transfer_type << "] -- input_blocked_callback";
-    GR_LOG_DEBUG(d_logger, msg.str());
+    d_logger->debug("{}", msg.str());
 #endif
 
     sync_all_gpu_work();
@@ -328,7 +323,7 @@ bool cuda_buffer::output_blocked_callback(int output_multiple, bool force)
     std::ostringstream msg;
     msg << "[" << this << "] "
         << "cuda [" << d_transfer_type << "] -- output_blocked_callback";
-    GR_LOG_DEBUG(d_logger, msg.str());
+    d_logger->debug("{}", msg.str());
 #endif
 
     sync_all_gpu_work();
@@ -397,20 +392,11 @@ void cuda_buffer::sync_all_gpu_work()
     cudaStreamSynchronize(d_stream);
 }
 
-void cuda_buffer::throw_cuda_error(const char* context, cudaError_t rc)
-{
-    // Log via GR logger before throwing
-    std::ostringstream msg;
-    msg << context << ": " << cudaGetErrorName(rc) << " -- " << cudaGetErrorString(rc);
-    GR_LOG_ERROR(d_logger, msg.str());
-    throw_on_cuda_error(context, rc);
-}
-
 void cuda_buffer::throw_unexpected_transfer_type()
 {
     std::ostringstream msg;
     msg << "Unexpected context for cuda: " << d_transfer_type;
-    GR_LOG_ERROR(d_logger, msg.str());
+    d_logger->error("{}", msg.str());
     throw std::runtime_error(msg.str());
 }
 

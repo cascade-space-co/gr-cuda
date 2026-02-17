@@ -84,11 +84,11 @@ int load_impl::work(int noutput_items,
                              d_stream);
         check_cuda_errors(cudaPeekAtLastError());
 
-        cudaMemcpyAsync(out,
-                        d_dev_out,
-                        noutput_items * d_itemsize,
-                        cudaMemcpyDeviceToHost,
-                        d_stream);
+        check_cuda_errors(cudaMemcpyAsync(out,
+                                          d_dev_out,
+                                          noutput_items * d_itemsize,
+                                          cudaMemcpyDeviceToHost,
+                                          d_stream));
 
     } else {
         load_cu::exec_kernel(in,

@@ -6,21 +6,39 @@
  */
 
 #include <gnuradio/cuda/cuda_error.h>
+#include <gnuradio/logger.h>
 
 #include <sstream>
 #include <stdexcept>
 
-void check_cuda_errors(cudaError_t rc)
-{
-    if (rc) {
-        std::cerr << "Operation returned code " << int(rc) << ": " << cudaGetErrorName(rc)
-                  << " -- " << cudaGetErrorString(rc) << std::endl;
-    }
-}
-
-void throw_on_cuda_error(const char* context, cudaError_t rc)
+namespace {
+std::string format_cuda_error(const char* context, cudaError_t rc)
 {
     std::ostringstream msg;
     msg << context << ": " << cudaGetErrorName(rc) << " -- " << cudaGetErrorString(rc);
-    throw std::runtime_error(msg.str());
+    return msg.str();
+}
+} // namespace
+
+void check_cuda_errors(cudaError_t rc, const char* context)
+{
+    if (!rc) {
+        return;
+    }
+    throw std::runtime_error(format_cuda_error(context, rc));
+}
+
+void check_cuda_errors(cudaError_t rc,
+                       const char* context,
+                       const std::shared_ptr<gr::logger>& logger)
+{
+    if (!rc) {
+        return;
+    }
+
+    const std::string msg = format_cuda_error(context, rc);
+    if (logger) {
+        logger->error("{}", msg);
+    }
+    throw std::runtime_error(msg);
 }
