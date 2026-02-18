@@ -226,6 +226,16 @@ bool cuda_buffer::do_allocate_buffer(size_t final_nitems, size_t sizeof_item)
     return true;
 }
 
+void cuda_buffer::update_reader_block_history(unsigned history, int delay)
+{
+    buffer_single_mapped::update_reader_block_history(history, delay);
+    // Single-mapped buffers cannot wrap: they require compaction when the write
+    // pointer reaches d_bufsize.  The base class sets d_has_history=false when
+    // (history-1)==delay (treating the history as pure alignment overhead), which
+    // also disables the compaction callback.  Force it true so the callback fires.
+    d_has_history = true;
+}
+
 void* cuda_buffer::write_pointer()
 {
     void* ptr = nullptr;
