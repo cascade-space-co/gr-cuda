@@ -2,37 +2,35 @@
 
 ## PCIe transfer throughput
 
-Measured with `benchmark_gr_cuda_transfer.py` (installed to `share/gr-cuda/examples/benchmarks/`).
+Measured with `benchmark_gr_cuda_transfer.py --duration 30 --warmup 5` (installed to `share/gr-cuda/examples/benchmarks/`).
 All numbers are single-chain, item size 8 bytes (`gr_complex`).
 Raw hardware baseline measured with [nvbandwidth](https://github.com/NVIDIA/nvbandwidth) (Copy Engine mode).
 
-### NVIDIA DGX Spark (GB10) -- ARM Cortex-X925, PCIe 5.0 x16
+### NVIDIA DGX Spark (GB10) -- ARM Cortex-X925
 
 | Direction | Peak GB/s | Peak Gsps | nvbandwidth CE | Efficiency |
 |-----------|-----------|-----------|----------------|------------|
 | H2D (CPU -> GPU) | 58.9 | 7.36 | 59.0 GB/s | 99.8% |
-| D2H (GPU -> CPU) | 50.7 | 6.34 | 59.0 GB/s | 85.9% |
-| Full round-trip | 29.2 | 3.65 | 58.9 GB/s | 49.6% |
-| Full round-trip (4 chains) | 28.7 | 3.59 | 58.9 GB/s | 48.7% |
+| D2H (GPU -> CPU) | 48.7 | 6.08 | 59.0 GB/s | 82.5% |
+| Full round-trip | 29.1 | 3.64 | 58.9 GB/s | 49.4% |
 
 ### NVIDIA RTX PRO 6000 Blackwell -- AMD EPYC 9335, PCIe 5.0 x16
 
 | Direction | Peak GB/s | Peak Gsps | nvbandwidth CE | Efficiency |
 |-----------|-----------|-----------|----------------|------------|
-| H2D (CPU -> GPU) | 56.5 | 7.06 | 56.8 GB/s | 99.4% |
-| D2H (GPU -> CPU) | 55.4 | 6.92 | 56.5 GB/s | 98.0% |
-| Full round-trip | 30.1 | 3.76 | 42.1 GB/s | 71.5% |
-| Full round-trip (4 chains) | 40.0 | 5.00 | 42.1 GB/s | 95.0% |
+| H2D (CPU -> GPU) | 56.4 | 7.05 | 56.8 GB/s | 99.3% |
+| D2H (GPU -> CPU) | 56.3 | 7.03 | 56.5 GB/s | 99.6% |
+| Full round-trip | 40.1 | 5.01 | 42.1 GB/s | 95.3% |
 
 ### Transfer notes
 
-- **H2D** achieves near-theoretical PCIe bandwidth on both systems (99%+).
-- **D2H asymmetry** varies by platform. The GB10 shows the typical PCIe read penalty (~86%), while the RTX PRO 6000 is nearly symmetric (~98%). This depends on chipset, IOMMU, and PCIe topology.
-- **Full round-trip** throughput is limited by the serialisation of H2D and D2H transfers within each batch.
-- **Parallel chains** help on higher-latency platforms. The RTX PRO 6000 (832 ns PCIe latency, discrete add-in card) jumps from 71% to **95%** of bidirectional bandwidth with 4 chains. The DGX Spark's GB10 (304 ns, on-module GPU with short PCIe path to the Grace CPU) already saturates with a single chain, so extra chains don't help.
-- **Buffer size sweet spot** varies by platform: the GB10 is stable across 2^19--2^22, while the RTX PRO 6000 performs best at 2^18--2^20 and drops at larger sizes.
+- **H2D** achieves near-theoretical bandwidth on both systems (99%+).
+- **D2H asymmetry** varies by platform. The RTX PRO 6000 is nearly symmetric (\~99.6%), while the DGX Spark's GB10 shows a larger read penalty (\~82%). This depends on chipset, IOMMU, and interconnect topology.
+- **Full round-trip** on the RTX PRO 6000 reaches **95.3%** of bidirectional nvbandwidth with a single chain — no parallel chains needed. Previous versions required 4 chains to reach this level; double-buffered GPU-side event synchronisation now pipelines H2D and D2H transfers automatically.
+- **DGX Spark topology** differs from a traditional discrete-GPU server. The GB10 Superchip pairs an Arm Grace CPU and a Blackwell GPU on the same module with a short on-package interconnect (304 ns latency vs 832 ns for the discrete RTX PRO 6000). This low latency means a single chain already saturates the link, but the D2H asymmetry and round-trip efficiency (~49%) suggest the on-module interconnect has different read/write characteristics than standard PCIe.
+- **Buffer size sweet spot** varies by platform: the GB10 performs best at 2^19-2^21, while the RTX PRO 6000 peaks at 2^17-2^20 and drops at larger sizes.
 
-> **Tip:** Run `benchmark_gr_cuda_transfer.py` on your system to find the optimal buffer size and chain count. Start with `set_output_multiple()` of 2^18 to 2^20.
+> **Tip:** Run `benchmark_gr_cuda_transfer.py --duration 30 --warmup 5` on your system to find the optimal buffer size. Start with `set_output_multiple()` of 2^18 to 2^20.
 
 ## FFT throughput
 
@@ -84,6 +82,6 @@ Raw cuFFT ceiling measured with a standalone cuFFT C2C benchmark using CUDA even
 - **CuPy FFT** uses a cached `cupy.cuda.cufft.Plan1d` and writes directly into the output buffer, bypassing `cp.fft.fft()`'s per-call allocation and copy. This makes it essentially **identical to the C++ cuFFT block**: within 2% on the GB10 (8.8-9.1 Gsps) and within 1% on the RTX PRO 6000 (62-63 Gsps). Write your GPU blocks in Python with no performance penalty.
 - **FFTW (CPU)** peaks at 0.46 Gsps (ARM Cortex-X925) and 1.02 Gsps (AMD EPYC 9335). cuFFT on the GB10 provides a **20-37x speedup** over single-threaded FFTW; the RTX PRO 6000 achieves **60-175x**.
 
-> **Tip:** Run `benchmark_gr_cuda_fft.py --plot fft_bench.png` on your system to generate a comparison plot. Use `--csv results.csv` to save raw data.
+> **Tip:** Run `benchmark_gr_cuda_fft.py --plot fft_bench.png` on your system to generate a comparison plot.
 
 [^note]: If 64 Gsps of FFTs isn't enough for your application, I'm prety sure you probably have bigger problems than GNURadio.
