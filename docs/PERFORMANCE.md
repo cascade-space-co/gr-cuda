@@ -86,4 +86,4 @@ Raw cuFFT ceiling measured with a standalone cuFFT C2C benchmark using CUDA even
 
 > **Tip:** Run `benchmark_gr_cuda_fft.py --plot fft_bench.png` on your system to generate a comparison plot. Use `--csv results.csv` to save raw data.
 
-[^note]: If 64 Gsps of FFTs isn't enough for your application, I'm prety sure you probably have bigger problems than GNURadio.
+[^note]: If 64 Gsps of FFTs isn't enough for your application, I'm pretty sure you probably have bigger problems than GNURadio.

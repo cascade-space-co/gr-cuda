@@ -36,9 +36,9 @@ public:
    * creating new instances.
    *
    * \param itemsize Size of a stream item in bytes
-   * \param passthrough If true, skip memcpy and just pass through (for benchmarking)
+   * \param noop If true, skip the device-to-device memcpy (for benchmarking transfer overhead)
    */
-  static sptr make(size_t itemsize, bool passthrough = false);
+  static sptr make(size_t itemsize, bool noop = false);
 };
 
 } // namespace cuda

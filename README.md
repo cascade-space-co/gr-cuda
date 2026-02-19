@@ -21,7 +21,7 @@ GPU-accelerated signal processing blocks for [GNU Radio](https://www.gnuradio.or
 | `cuda.multiply_const` | Multiplies input stream by a scalar constant |
 | `cuda.fft` | Forward/inverse FFT via cuFFT, with optional windowing and shift |
 | `cuda.fft_shift` | Applies `fftshift` on complex vectors |
-| `cuda.copy` | Copies input to output (passthrough mode available for benchmarking) |
+| `cuda.copy` | Copies input to output (no-op mode available for benchmarking) |
 | `cuda.stream_to_vector` | Packs a stream into fixed-size vectors |
 | `cuda.vector_to_stream` | Unpacks vectors back into a stream |
 | `cuda.streams_to_vector` | Interleaves N streams into one vector stream |

@@ -11,9 +11,6 @@
 This is the GNU Radio CUDA module. Place your Python package
 description here (python/__init__.py).
 '''
-import os
-import numpy as np
-
 # import pybind11 generated symbols into the cuda namespace
 try:
     # this might fail if the module is python-only

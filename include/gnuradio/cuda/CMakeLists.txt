@@ -11,6 +11,7 @@
 ########################################################################
 install(FILES
     api.h
+    cuda_block.h
     cuda_error.h
     cuda_buffer.h
     cuda_block_helper.h

@@ -22,10 +22,10 @@ namespace cuda {
 class copy_impl : public copy, public cuda_block {
 private:
   size_t d_itemsize;
-  bool d_passthrough;
+  bool d_noop;
 
 public:
-  copy_impl(size_t itemsize, bool passthrough);
+  copy_impl(size_t itemsize, bool noop);
   ~copy_impl() override = default;
 
   // Where all the action really happens

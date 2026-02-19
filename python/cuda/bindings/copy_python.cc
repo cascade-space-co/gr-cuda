@@ -17,7 +17,7 @@
 /* BINDTOOL_GEN_AUTOMATIC(0) */
 /* BINDTOOL_USE_PYGCCXML(0) */
 /* BINDTOOL_HEADER_FILE(copy.h)                                        */
-/* BINDTOOL_HEADER_FILE_HASH(afb4748b0e104c70a1b16ceba77d275e) */
+/* BINDTOOL_HEADER_FILE_HASH(4294957090943fa0092a8fca2d8d5718) */
 /***********************************************************************************/
 
 #include <pybind11/complex.h>
@@ -39,7 +39,7 @@ void bind_copy(py::module &m) {
 
       .def(py::init(&copy::make), 
            py::arg("itemsize"), 
-           py::arg("passthrough") = false,
+           py::arg("noop") = false,
            D(copy, make))
 
       ;
