@@ -2,7 +2,7 @@
 
 ## PCIe transfer throughput
 
-Measured with `benchmark_gr_cuda_transfer.py` (installed to `share/gr-cuda/examples/benchmarks/`).
+Measured with `benchmark_gr_cuda_transfer.py` (installed to `bin/`).
 All numbers are single-chain, item size 8 bytes (`gr_complex`).
 Raw hardware baseline measured with [nvbandwidth](https://github.com/NVIDIA/nvbandwidth) (Copy Engine mode).
 

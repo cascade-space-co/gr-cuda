@@ -10,5 +10,7 @@ include(GrPython)
 
 GR_PYTHON_INSTALL(
     PROGRAMS
+        benchmark_gr_cuda_transfer.py
+        benchmark_gr_cuda_fft.py
     DESTINATION bin
 )
