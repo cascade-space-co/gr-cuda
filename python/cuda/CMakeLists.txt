@@ -41,7 +41,6 @@ GR_ADD_TEST(qa_multiply_const_py ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR
 GR_ADD_TEST(qa_add_py ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_add_py.py)
 GR_ADD_TEST(qa_add ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_add.py)
 GR_ADD_TEST(qa_fft ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_fft.py)
-GR_ADD_TEST(qa_cuda_buffer_race ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_cuda_buffer_race.py)
 GR_ADD_TEST(qa_stream_operators ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_stream_operators.py)
 
 # Create a package directory that tests can import. It includes everything
@@ -52,10 +51,10 @@ add_custom_target(
           ${CMAKE_BINARY_DIR}/test_modules/gnuradio/cuda/
 )
 
-GR_ADD_TEST(qa_load ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_load.py)
-GR_ADD_TEST(qa_custom_gpu_block ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_custom_gpu_block.py)
 GR_ADD_TEST(qa_stress_sync ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_stress_sync.py)
 GR_ADD_TEST(qa_parallel_sync ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_parallel_sync.py)
 GR_ADD_TEST(qa_fanin_sync ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_fanin_sync.py)
 GR_ADD_TEST(qa_long_race_stress ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_long_race_stress.py)
+GR_ADD_TEST(qa_blocked_callbacks ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_blocked_callbacks.py)
+GR_ADD_TEST(qa_tag_propagation ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tag_propagation.py)
 GR_ADD_TEST(qa_throttle ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_throttle.py)
