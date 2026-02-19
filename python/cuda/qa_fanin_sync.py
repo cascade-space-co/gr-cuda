@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 #
 # Copyright 2026 Cascade Space.
 #
@@ -7,59 +8,14 @@
 import numpy as np
 from gnuradio import gr, gr_unittest, blocks
 from gnuradio import cuda
-try:
-    import cupy as cp
-except ImportError:
-    cp = None
+import cupy as cp
 
 try:
     from .multiply_const_py import multiply_const_py
+    from .add_py import add_py
 except ImportError:
     from multiply_const_py import multiply_const_py
-
-class add_block_py(gr.sync_block):
-    """
-    A custom GPU block that adds two inputs together.
-    Used to test synchronization when multiple streams merge (fan-in).
-    """
-    def __init__(self, dtype=np.complex64):
-        if cp is None:
-            raise ImportError("CuPy is required for add_block_py")
-            
-        self.dtype = np.dtype(dtype)
-        
-        # Create CUDA-aware IO signatures
-        # Input: 2 ports
-        sig_in = cuda.io_signature_make(2, 2, self.dtype)
-        # Output: 1 port
-        sig_out = cuda.io_signature_make(1, 1, self.dtype)
-
-        gr.sync_block.__init__(self, "add_block_py", sig_in, sig_out)
-        
-        # Create a CUDA stream for this block
-        self.stream = cp.cuda.Stream(non_blocking=True)
-
-    def work(self, input_items, output_items):
-        # Synchronization: Wait for ALL inputs to be ready on the GPU
-        # This should handle waiting on multiple upstream streams if they differ
-        cuda.wait_for_inputs(self.gateway, self.stream.ptr)
-        
-        n = len(input_items[0])
-        
-        if n > 0:
-            with self.stream:
-                # Zero-copy wrap the input and output buffers
-                d_in0 = cuda.as_cupy(input_items[0])
-                d_in1 = cuda.as_cupy(input_items[1])
-                d_out = cuda.as_cupy(output_items[0])
-                
-                # Perform the operation: out = in0 + in1
-                cp.add(d_in0, d_in1, out=d_out)
-            
-        # Synchronization: Mark outputs as ready
-        cuda.mark_outputs_ready(self.gateway, self.stream.ptr)
-        
-        return n
+    from add_py import add_py
 
 class qa_fanin_sync(gr_unittest.TestCase):
     def setUp(self):
@@ -73,11 +29,6 @@ class qa_fanin_sync(gr_unittest.TestCase):
         Test fan-in from multiple parallel GPU blocks to a single consumer.
         This verifies that the consumer correctly waits for multiple upstream streams.
         """
-        if cp is None:
-            print("Skipping test_001_fanin because CuPy is missing")
-            return
-
-        # Parameters
         N = 10000
         
         # Generate random complex data
@@ -96,7 +47,7 @@ class qa_fanin_sync(gr_unittest.TestCase):
         
         # Merge: Add branch 1 and branch 2
         # This runs on yet another stream and must wait for both mult1 and mult2
-        add_blk = add_block_py(dtype=np.complex64)
+        add_blk = add_py(num_inputs=2, dtype=np.complex64)
         
         snk = blocks.vector_sink_c()
         

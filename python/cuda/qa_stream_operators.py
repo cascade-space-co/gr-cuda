@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 #
 # Copyright 2026 Cascade Space.
 #
@@ -8,7 +9,7 @@ import numpy as np
 from gnuradio import gr, gr_unittest, blocks
 from gnuradio import cuda
 
-class qa_conversions(gr_unittest.TestCase):
+class qa_stream_operators(gr_unittest.TestCase):
     def setUp(self):
         self.tb = gr.top_block()
 
@@ -247,4 +248,4 @@ class qa_conversions(gr_unittest.TestCase):
         np.testing.assert_array_equal(result, src_data)
 
 if __name__ == '__main__':
-    gr_unittest.run(qa_conversions)
+    gr_unittest.run(qa_stream_operators)

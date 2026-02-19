@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 #
 # Copyright 2026 Cascade Space.
 #
@@ -7,10 +8,7 @@
 import numpy as np
 from gnuradio import gr, gr_unittest, blocks
 from gnuradio import cuda
-try:
-    import cupy as cp
-except ImportError:
-    cp = None
+import cupy as cp
 
 try:
     from .add_py import add_py
@@ -25,9 +23,6 @@ class qa_add_py(gr_unittest.TestCase):
         self.tb = None
 
     def test_001_add_2_streams(self):
-        if cp is None:
-            return
-
         N = 1000
         src_data1 = np.random.randn(N).astype(np.float32)
         src_data2 = np.random.randn(N).astype(np.float32)
@@ -52,9 +47,6 @@ class qa_add_py(gr_unittest.TestCase):
         np.testing.assert_allclose(result, expected, rtol=1e-5, atol=1e-5)
 
     def test_002_add_complex(self):
-        if cp is None:
-            return
-
         N = 1000
         src_data1 = (np.random.randn(N) + 1j*np.random.randn(N)).astype(np.complex64)
         src_data2 = (np.random.randn(N) + 1j*np.random.randn(N)).astype(np.complex64)

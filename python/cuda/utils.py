@@ -6,10 +6,7 @@
 
 import numpy as np
 
-try:
-    import cupy as cp
-except ImportError:
-    cp = None
+import cupy as cp
 
 from .cuda_python import cuda_buffer
 
@@ -20,9 +17,7 @@ def as_cupy(numpy_array):
     This function assumes the numpy array's data pointer is actually a device pointer
     (e.g. from a cuda_buffer).
     """
-    if cp is None:
-        raise ImportError("CuPy is required for as_cupy()")
-
+    
     # Get the data pointer and size from the numpy array
     # __array_interface__['data'] returns (ptr, read_only)
     ptr, _ = numpy_array.__array_interface__['data']

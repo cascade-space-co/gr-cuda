@@ -123,8 +123,6 @@ class qa_long_race_stress(gr_unittest.TestCase):
         try:
             while time.time() - start < duration_s:
                 time.sleep(0.5)
-                #if checker.mismatch_count > 0:
-                #    break
         finally:
             self.tb.stop()
             self.tb.wait()
@@ -134,7 +132,7 @@ class qa_long_race_stress(gr_unittest.TestCase):
             for i, c in enumerate(checkers):
                 if c.mismatch_count:
                     print(f"Checker {i}: mismatches={c.mismatch_count}, ok={c.notmismatch_count}")
-            raise RuntimeError(f"Total sequence mismatches: {total_mismatches}")
+        self.assertEqual(total_mismatches, 0, f"Total sequence mismatches: {total_mismatches}")
 
 
 if __name__ == '__main__':

@@ -5,10 +5,7 @@
 #
 
 import numpy as np
-try:
-    import cupy as cp
-except ImportError:
-    cp = None
+import cupy as cp
 from gnuradio import gr, cuda
 
 class add_py(gr.sync_block):
@@ -40,9 +37,6 @@ class add_py(gr.sync_block):
         
         gr.sync_block.__init__(self, "add_py", input_sig, output_sig)
         
-        if cp is None:
-            raise ImportError("CuPy is required for add_py")
-            
         self.stream = cp.cuda.Stream(non_blocking=True)
 
     def work(self, input_items, output_items):

@@ -5,10 +5,7 @@
 #
 
 import numpy as np
-try:
-    import cupy as cp
-except ImportError:
-    cp = None
+import cupy as cp
 from gnuradio import gr, cuda
 
 class multiply_const_py(gr.sync_block):
@@ -41,10 +38,6 @@ class multiply_const_py(gr.sync_block):
 
         gr.sync_block.__init__(self, "multiply_const_py", sig, sig)
         
-        if cp is None:
-            raise ImportError("CuPy is required for multiply_const_py")
-            
-        # Create a CUDA stream for this block to allow overlap
         self.stream = cp.cuda.Stream(non_blocking=True)
 
     def work(self, input_items, output_items):

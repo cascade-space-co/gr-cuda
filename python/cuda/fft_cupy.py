@@ -5,12 +5,8 @@
 #
 
 import numpy as np
-try:
-    import cupy as cp
-    from cupy.cuda import cufft as cp_cufft
-except ImportError:
-    cp = None
-    cp_cufft = None
+import cupy as cp
+from cupy.cuda import cufft as cp_cufft
 from gnuradio import gr, cuda
 
 class fft_cupy(gr.sync_block):
@@ -52,9 +48,6 @@ class fft_cupy(gr.sync_block):
 
         gr.sync_block.__init__(self, "fft_cupy", sig_in, sig_out)
         
-        if cp is None:
-            raise ImportError("CuPy is required for fft_cupy")
-            
         self.stream = cp.cuda.Stream(non_blocking=True)
         
         self.d_window = None
