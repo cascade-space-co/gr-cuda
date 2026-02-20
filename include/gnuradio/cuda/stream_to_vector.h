@@ -15,7 +15,7 @@ namespace gr {
 namespace cuda {
 
 /*!
- * \brief Convert a stream of items into a stream of blocks containing nitems_per_block
+ * \brief Convert a stream of items into a stream of vectors of length vlen
  * \ingroup cuda
  */
 class CUDA_API stream_to_vector : virtual public sync_decimator

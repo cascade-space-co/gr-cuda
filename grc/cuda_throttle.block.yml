@@ -1,5 +1,5 @@
 id: cuda_throttle
-label: Throttle (GPU)
+label: Throttle (CUDA)
 category: '[CUDA]'
 
 templates:

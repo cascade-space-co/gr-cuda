@@ -1,5 +1,5 @@
 id: cuda_null_source
-label: Null Source (GPU)
+label: Null Source (CUDA)
 category: '[CUDA]'
 
 templates:

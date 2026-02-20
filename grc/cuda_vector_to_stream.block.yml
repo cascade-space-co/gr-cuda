@@ -1,5 +1,5 @@
 id: cuda_vector_to_stream
-label: Vector to Stream (GPU)
+label: Vector to Stream (CUDA)
 category: '[CUDA]/Stream Operators'
 flags: [ python ]
 

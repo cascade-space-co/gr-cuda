@@ -1,5 +1,5 @@
 id: cuda_probe_rate
-label: Probe Rate (GPU)
+label: Probe Rate (CUDA)
 category: '[CUDA]'
 
 templates:

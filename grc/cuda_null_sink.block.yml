@@ -1,5 +1,5 @@
 id: cuda_null_sink
-label: Null Sink (GPU)
+label: Null Sink (CUDA)
 category: '[CUDA]'
 
 templates:

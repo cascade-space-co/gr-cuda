@@ -19,7 +19,7 @@ parameters:
 -   id: vlen
     label: Vector Length
     dtype: int
-    default: '1'git 
+    default: '1'
     hide: ${ 'part' if vlen == 1 else 'none' }
 
 inputs:
