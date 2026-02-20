@@ -5,8 +5,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#ifndef INCLUDED_GR_CUDA_BLOCK_H
-#define INCLUDED_GR_CUDA_BLOCK_H
+#ifndef INCLUDED_GR_CUDA_BLOCK_HELPER_H
+#define INCLUDED_GR_CUDA_BLOCK_HELPER_H
 
 #include <gnuradio/block.h>
 #include <gnuradio/block_detail.h>
@@ -100,5 +100,5 @@ inline void mark_outputs_ready(gr::block_detail_sptr detail, cudaStream_t stream
 } /* namespace cuda */
 } /* namespace gr */
 
-#endif /* INCLUDED_GR_CUDA_BLOCK_H */
+#endif /* INCLUDED_GR_CUDA_BLOCK_HELPER_H */
 

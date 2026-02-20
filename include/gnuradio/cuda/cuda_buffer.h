@@ -9,8 +9,8 @@
  *
  */
 
-#ifndef INCLUDED_GR_CUDA_H
-#define INCLUDED_GR_CUDA_H
+#ifndef INCLUDED_GR_CUDA_BUFFER_H
+#define INCLUDED_GR_CUDA_BUFFER_H
 
 #include <gnuradio/buffer_single_mapped.h>
 #include <gnuradio/buffer_type.h>
@@ -278,4 +278,4 @@ private:
 
 } /* namespace gr */
 
-#endif /* INCLUDED_GR_CUDA_H */
+#endif /* INCLUDED_GR_CUDA_BUFFER_H */
