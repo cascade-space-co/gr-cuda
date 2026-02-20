@@ -77,7 +77,17 @@ set_target_properties(gnuradio-cuda PROPERTIES CUDA_ARCHITECTURES "${CMAKE_CUDA_
 # Install built library files
 ########################################################################
 include(GrMiscUtils)
-GR_LIBRARY_FOO(gnuradio-cuda)
+if(COMMAND GR_INSTALL_LIBRARY)
+    # GNU Radio 3.11+ expects explicit install rules.
+    GR_REGISTER_LIBRARY(gnuradio-cuda)
+    GR_INSTALL_LIBRARY(
+        TARGET gnuradio-cuda
+        COMPONENT ${CMAKE_PROJECT_NAME}
+    )
+else()
+    # GNU Radio <3.11 compatibility path.
+    GR_LIBRARY_FOO(gnuradio-cuda)
+endif()
 
 ########################################################################
 # Print summary
