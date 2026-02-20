@@ -35,7 +35,7 @@ int null_sink_impl::work(int noutput_items,
                         gr_vector_void_star& output_items)
 {
     // Wait for inputs to be ready
-    gr::cuda::wait_for_inputs(detail(), d_stream);
+    gr::cuda::wait_for_work(detail(), d_stream);
 
     // Do nothing - just consume the data (mimics GNU Radio's null_sink)
     return noutput_items;

@@ -50,7 +50,7 @@ int add_impl<T>::work(int noutput_items,
                       gr_vector_void_star& output_items)
 {
     // Wait for inputs
-    gr::cuda::wait_for_inputs(this->detail(), d_stream);
+    gr::cuda::wait_for_work(this->detail(), d_stream);
 
     auto out = static_cast<T*>(output_items[0]);
     
@@ -83,7 +83,7 @@ int add_impl<T>::work(int noutput_items,
                        d_stream);
     
     // Mark outputs ready
-    gr::cuda::mark_outputs_ready(this->detail(), d_stream);
+    gr::cuda::mark_work_done(this->detail(), d_stream);
 
     return noutput_items;
 }

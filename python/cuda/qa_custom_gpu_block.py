@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
+# TODO: This QA file is not necessary and will be deleted in a coming PR.
 
 import numpy as np
 from gnuradio import gr, gr_unittest, blocks
@@ -22,12 +23,12 @@ class my_gpu_block(gr.sync_block):
 
     def work(self, input_items, output_items):
         # Must pass self.gateway (the underlying C++ block) to helpers
-        cuda.wait_for_inputs(self.gateway, self.stream.ptr)
+        cuda.wait_for_work(self.gateway, self.stream.ptr)
         with self.stream:
             d_in = cuda.as_cupy(input_items[0])
             d_out = cuda.as_cupy(output_items[0])
             cp.multiply(d_in, 2.0, out=d_out)
-        cuda.mark_outputs_ready(self.gateway, self.stream.ptr)
+        cuda.mark_work_done(self.gateway, self.stream.ptr)
         return len(input_items[0])
 
 class qa_custom_gpu_block(gr_unittest.TestCase):

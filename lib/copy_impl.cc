@@ -41,7 +41,7 @@ int copy_impl::work(int noutput_items,
                     gr_vector_void_star& output_items)
 {
     // 1. Wait on inputs
-    gr::cuda::wait_for_inputs(detail(), d_stream);
+    gr::cuda::wait_for_work(detail(), d_stream);
 
     if (!d_noop) {
         auto in = static_cast<const uint8_t*>(input_items[0]);
@@ -50,7 +50,7 @@ int copy_impl::work(int noutput_items,
     }
 
     // 3. Mark outputs
-    gr::cuda::mark_outputs_ready(detail(), d_stream);
+    gr::cuda::mark_work_done(detail(), d_stream);
 
     // Tell runtime system how many output items we produced.
     return noutput_items;

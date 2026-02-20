@@ -40,7 +40,7 @@ int vector_to_streams_impl::work(int noutput_items,
                                  gr_vector_const_void_star& input_items,
                                  gr_vector_void_star& output_items)
 {
-    gr::cuda::wait_for_inputs(this->detail(), d_stream);
+    gr::cuda::wait_for_work(detail(), d_stream);
 
     auto in = static_cast<const void*>(input_items[0]);
 
@@ -74,7 +74,7 @@ int vector_to_streams_impl::work(int noutput_items,
                       d_block_size,
                       d_stream);
 
-    gr::cuda::mark_outputs_ready(this->detail(), d_stream);
+    gr::cuda::mark_work_done(detail(), d_stream);
 
     return noutput_items;
 }

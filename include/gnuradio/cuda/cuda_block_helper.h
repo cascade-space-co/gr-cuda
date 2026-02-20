@@ -29,12 +29,12 @@ namespace cuda {
  * calling CPU thread.  This is the primary mechanism that allows H2D and D2H
  * transfers to overlap on dual-copy-engine GPUs.
  *
- * \param detail The block's detail pointer (e.g. call with this->detail())
+ * \param detail The block's detail pointer (e.g. call with detail())
  * \param stream The CUDA stream to synchronize
  *
- * \sa mark_outputs_ready() for the post-kernel counterpart.
+ * \sa mark_work_done() for the post-kernel counterpart.
  */
-inline void wait_for_inputs(gr::block_detail_sptr detail, cudaStream_t stream)
+inline void wait_for_work(const gr::block_detail_sptr& detail, cudaStream_t stream)
 {
     // 1. Input buffers: wait for upstream data to be ready on the device.
     int ninputs = detail->ninputs();
@@ -60,7 +60,8 @@ inline void wait_for_inputs(gr::block_detail_sptr detail, cudaStream_t stream)
 
 /*!
  * \brief Mark all output CUDA buffers as ready and all input CUDA buffers as
- *        consumed.
+ *        consumed.  Call this after launching all GPU work for the current
+ *        work() invocation.
  *
  * For outputs: records the DEV_READY event so downstream consumers know data is
  * available.
@@ -69,11 +70,14 @@ inline void wait_for_inputs(gr::block_detail_sptr detail, cudaStream_t stream)
  * safe to overwrite the buffer.  This eliminates the consumer-to-producer data
  * hazard without requiring any per-block code changes.
  *
- * \param detail The block's detail pointer (e.g. call with this->detail())
+ * All operations are GPU-side event records (cudaEventRecord) and do **not** block
+ * the calling CPU thread.
+ *
+ * \param detail The block's detail pointer (e.g. call with detail())
  * \param stream The CUDA stream that finished both reading inputs and producing
  *               outputs
  */
-inline void mark_outputs_ready(gr::block_detail_sptr detail, cudaStream_t stream)
+inline void mark_work_done(const gr::block_detail_sptr& detail, cudaStream_t stream)
 {
     // 1. Signal output buffers as ready for downstream consumers
     int noutputs = detail->noutputs();

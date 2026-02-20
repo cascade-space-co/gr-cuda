@@ -64,7 +64,7 @@ namespace gr {
  *                         gr_vector_void_star& output_items)
  * {
  *     // 1. Wait for upstream data to be ready on the GPU
- *     gr::cuda::wait_for_inputs(this->detail(), d_stream);
+ *     gr::cuda::wait_for_work(detail(), d_stream);
  *
  *     // 2. Launch GPU kernels on d_stream
  *     auto in  = static_cast<const float*>(input_items[0]);
@@ -72,26 +72,26 @@ namespace gr {
  *     my_kernel<<<grid, block, 0, d_stream>>>(in, out, noutput_items);
  *
  *     // 3. Signal outputs ready and inputs consumed
- *     gr::cuda::mark_outputs_ready(this->detail(), d_stream);
+ *     gr::cuda::mark_work_done(detail(), d_stream);
  *     return noutput_items;
  * }
  * \endcode
  *
  * The two helper calls (from cuda_block_helper.h) handle all event
  * bookkeeping automatically:
- *   - wait_for_inputs() adds GPU-side waits on each input buffer's
+ *   - wait_for_work() adds GPU-side waits on each input buffer's
  *     device-ready event (so the kernel does not read stale data) AND
  *     on each output buffer's read-done event (so the kernel does not
  *     overwrite data still being read by a downstream consumer or an
  *     in-flight D2H copy).  These are GPU-side waits that do not block
  *     the CPU thread, allowing H2D and D2H transfers to overlap.
- *   - mark_outputs_ready() records device-ready events on each output
+ *   - mark_work_done() records device-ready events on each output
  *     buffer (signalling downstream) AND records read-done events on
  *     each input buffer (signalling the upstream producer that this
  *     consumer is done).
  *
  * \sa cuda_buffer for the underlying synchronization model.
- * \sa cuda_block_helper.h for wait_for_inputs() and mark_outputs_ready().
+ * \sa cuda_block_helper.h for wait_for_work() and mark_work_done().
  */
 class cuda_block
 {

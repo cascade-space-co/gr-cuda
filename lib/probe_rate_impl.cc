@@ -54,7 +54,7 @@ int probe_rate_impl::work(int noutput_items,
                           gr_vector_const_void_star &input_items,
                           gr_vector_void_star &output_items) {
   // Wait for GPU data to be ready (no D2H transfer!)
-  gr::cuda::wait_for_inputs(detail(), d_stream);
+  gr::cuda::wait_for_work(detail(), d_stream);
 
   // Count throughput (data stays on GPU)
   d_lastthru += noutput_items;

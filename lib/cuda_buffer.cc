@@ -42,6 +42,8 @@ void* cuda_buffer::cuda_memmove(void* dest, const void* src, std::size_t count)
     if (count > d_temp_buffer_size) {
         if (d_temp_buffer != nullptr) {
             cudaFree(d_temp_buffer);
+            d_temp_buffer = nullptr;
+            d_temp_buffer_size = 0;
         }
         rc = cudaMalloc((void**)&d_temp_buffer, count);
         if (rc)
@@ -60,6 +62,10 @@ void* cuda_buffer::cuda_memmove(void* dest, const void* src, std::size_t count)
 
     if (rc)
         throw_cuda_error("Error performing cudaMemcpy", rc);
+
+    // Sync for consistency with cuda_memcpy: callers (blocked-callback logic)
+    // expect the data to be in place when the function returns.
+    cudaStreamSynchronize(d_stream);
 
     return dest;
 }
@@ -93,7 +99,12 @@ cuda_buffer::cuda_buffer(int nitems,
 
 cuda_buffer::~cuda_buffer()
 {
-    // Free stream and events
+    // Drain all in-flight GPU work before releasing any resources.
+    // cudaStreamDestroy alone is not sufficient — it returns immediately
+    // and defers cleanup, so a subsequent cudaFreeHost could free pinned
+    // memory while an async H2D/D2H copy is still in flight.
+    cudaStreamSynchronize(d_stream);
+
     cudaStreamDestroy(d_stream);
     for (int i = 0; i < NUM_HALF_EVENTS; i++) {
         cudaEventDestroy(d_dev_ready_evt[i]);
@@ -172,7 +183,7 @@ void cuda_buffer::post_work(int nitems)
         mark_host_ready(d_stream);
 
         // Signal that the D2H copy is done reading from the device buffer.
-        // wait_for_inputs() adds a GPU-side wait on this event to the upstream
+        // wait_for_work() adds a GPU-side wait on this event to the upstream
         // producer's kernel stream, preventing a race between the async D2H
         // copy and the next producer write.
         cudaEventRecord(d_read_done_evt, d_stream);
@@ -230,7 +241,7 @@ void* cuda_buffer::write_pointer()
         //
         // Safety against consumer-to-producer data hazards (an async consumer
         // kernel or D2H copy still reading from a region the producer is about
-        // to overwrite) is enforced GPU-side: wait_for_inputs() in
+        // to overwrite) is enforced GPU-side: wait_for_work() in
         // cuda_block_helper.h adds a cudaStreamWaitEvent on d_read_done_evt
         // to the producer's kernel stream, so the kernel will not execute
         // until every consumer has finished.  This avoids blocking the CPU
@@ -371,7 +382,8 @@ bool cuda_buffer::output_blocked_callback(int output_multiple, bool force)
     case transfer_type::DEVICE_TO_DEVICE:
         // Producer and consumer both use d_cuda_buf; no host buffer in the path.
         rc = output_blocked_callback_logic(
-            output_multiple, force, d_cuda_buf, f_cuda_memmove );
+            output_multiple, force, d_cuda_buf, f_cuda_memmove);
+        cudaStreamSynchronize(d_stream);
         break;
 
     default:

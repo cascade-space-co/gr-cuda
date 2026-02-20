@@ -66,13 +66,13 @@ int throttle_impl::work(int noutput_items,
   auto out = static_cast<uint8_t *>(output_items[0]);
 
   // 1. Wait for inputs to be ready on GPU
-  gr::cuda::wait_for_inputs(detail(), d_stream);
+  gr::cuda::wait_for_work(detail(), d_stream);
 
   // 2. Perform copy (throttle is just a pass-through data-wise)
   cudaMemcpyAsync(out, in, noutput_items * d_itemsize, cudaMemcpyDeviceToDevice, d_stream);
 
   // 3. Mark outputs as ready (GPU work is queued)
-  gr::cuda::mark_outputs_ready(detail(), d_stream);
+  gr::cuda::mark_work_done(detail(), d_stream);
 
   // 4. Throttling Logic (happens on CPU side to delay next scheduler call)
   const double rate = d_sample_rate.load(std::memory_order_relaxed);

@@ -36,7 +36,7 @@ int fft_shift_impl::work(int noutput_items,
                          gr_vector_void_star& output_items)
 {
     // Ensure upstream GPU work is complete before reading inputs.
-    gr::cuda::wait_for_inputs(detail(), d_stream);
+    gr::cuda::wait_for_work(detail(), d_stream);
 
     auto in = static_cast<const cufftComplex*>(input_items[0]);
     auto out = static_cast<cufftComplex*>(output_items[0]);
@@ -45,7 +45,7 @@ int fft_shift_impl::work(int noutput_items,
     exec_kernel_fftshift(in, out, total_items, d_fft_size, d_stream);
 
     // Notify downstream CUDA buffers that output is ready.
-    gr::cuda::mark_outputs_ready(detail(), d_stream);
+    gr::cuda::mark_work_done(detail(), d_stream);
     return noutput_items;
 }
 

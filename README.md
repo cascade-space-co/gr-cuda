@@ -118,7 +118,7 @@ my_block_impl::my_block_impl(...)
 int my_block_impl::work(int noutput_items, ...)
 {
     // Wait for upstream GPU data to be ready
-    gr::cuda::wait_for_inputs(this->detail(), d_stream);
+    gr::cuda::wait_for_work(detail(), d_stream);
 
     // Launch your kernel
     auto in  = static_cast<const float*>(input_items[0]);
@@ -126,7 +126,7 @@ int my_block_impl::work(int noutput_items, ...)
     my_kernel<<<grid, block, 0, d_stream>>>(in, out, noutput_items);
 
     // Signal downstream that outputs are ready
-    gr::cuda::mark_outputs_ready(this->detail(), d_stream);
+    gr::cuda::mark_work_done(detail(), d_stream);
     return noutput_items;
 }
 ```
@@ -156,7 +156,7 @@ class my_block_cupy(gr.sync_block):
 
     def work(self, input_items, output_items):
         # Wait for upstream GPU data to be ready
-        cuda.wait_for_inputs(self.gateway, self.stream.ptr)
+        cuda.wait_for_work(self.gateway, self.stream.ptr)
 
         # Do GPU work with CuPy on self.stream
         with self.stream:
@@ -168,7 +168,7 @@ class my_block_cupy(gr.sync_block):
             d_out[:] = d_in * 2.0
 
         # Signal downstream that outputs are ready
-        cuda.mark_outputs_ready(self.gateway, self.stream.ptr)
+        cuda.mark_work_done(self.gateway, self.stream.ptr)
         return len(output_items[0])
 ```
 

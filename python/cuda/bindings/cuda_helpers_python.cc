@@ -23,19 +23,21 @@ struct block_accessor : public gr::block {
     }
 };
 
-void wait_for_inputs_wrapper(std::shared_ptr<gr::block> block, size_t stream_ptr) {
+void wait_for_work_wrapper(std::shared_ptr<gr::block> block, size_t stream_ptr) {
     auto detail = block_accessor::get_detail(block.get());
-    gr::cuda::wait_for_inputs(detail, (cudaStream_t)stream_ptr);
+    // CuPy exposes stream.ptr as a Python int; pybind11 passes it as size_t.
+    // cudaStream_t is a pointer type, so reinterpret_cast is required.
+    gr::cuda::wait_for_work(detail, reinterpret_cast<cudaStream_t>(stream_ptr));
 }
 
-void mark_outputs_ready_wrapper(std::shared_ptr<gr::block> block, size_t stream_ptr) {
+void mark_work_done_wrapper(std::shared_ptr<gr::block> block, size_t stream_ptr) {
     auto detail = block_accessor::get_detail(block.get());
-    gr::cuda::mark_outputs_ready(detail, (cudaStream_t)stream_ptr);
+    gr::cuda::mark_work_done(detail, reinterpret_cast<cudaStream_t>(stream_ptr));
 }
 
 void bind_cuda_helpers(py::module& m) {
-    m.def("wait_for_inputs", &wait_for_inputs_wrapper, "Wait for input CUDA buffers to be ready",
+    m.def("wait_for_work", &wait_for_work_wrapper, "Wait for input CUDA buffers to be ready",
         py::arg("block"), py::arg("stream_ptr"));
-    m.def("mark_outputs_ready", &mark_outputs_ready_wrapper, "Mark output CUDA buffers as ready",
+    m.def("mark_work_done", &mark_work_done_wrapper, "Mark GPU work as done (outputs ready, inputs consumed)",
         py::arg("block"), py::arg("stream_ptr"));
 }

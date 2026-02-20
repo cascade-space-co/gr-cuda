@@ -43,7 +43,7 @@ class multiply_const_py(gr.sync_block):
     def work(self, input_items, output_items):
         # Synchronization: Wait for inputs to be ready on the GPU
         # self.gateway is the underlying C++ block object needed by the helper
-        cuda.wait_for_inputs(self.gateway, self.stream.ptr)
+        cuda.wait_for_work(self.gateway, self.stream.ptr)
         
         n = len(input_items[0])
         
@@ -59,7 +59,7 @@ class multiply_const_py(gr.sync_block):
                 cp.multiply(d_in, self.k, out=d_out)
             
         # Synchronization: Mark outputs as ready so downstream blocks know
-        cuda.mark_outputs_ready(self.gateway, self.stream.ptr)
+        cuda.mark_work_done(self.gateway, self.stream.ptr)
         
         return n
 

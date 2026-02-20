@@ -41,7 +41,7 @@ class add_py(gr.sync_block):
 
     def work(self, input_items, output_items):
         # Synchronization
-        cuda.wait_for_inputs(self.gateway, self.stream.ptr)
+        cuda.wait_for_work(self.gateway, self.stream.ptr)
         
         n_out = len(output_items[0])
         
@@ -57,7 +57,7 @@ class add_py(gr.sync_block):
                 d_out[:] = sum(d_inputs)
                     
         # Synchronization
-        cuda.mark_outputs_ready(self.gateway, self.stream.ptr)
+        cuda.mark_work_done(self.gateway, self.stream.ptr)
         
         return n_out
 

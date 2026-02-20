@@ -35,7 +35,7 @@ int null_source_impl::work(int noutput_items,
                           gr_vector_void_star& output_items)
 {
     // Ensure output buffer is safe to write (no downstream still reading).
-    gr::cuda::wait_for_inputs(detail(), d_stream);
+    gr::cuda::wait_for_work(detail(), d_stream);
 
     auto out = static_cast<uint8_t*>(output_items[0]);
 
@@ -43,7 +43,7 @@ int null_source_impl::work(int noutput_items,
     cudaMemsetAsync(out, 0, noutput_items * d_itemsize, d_stream);
 
     // Mark outputs ready
-    gr::cuda::mark_outputs_ready(detail(), d_stream);
+    gr::cuda::mark_work_done(detail(), d_stream);
 
     return noutput_items;
 }

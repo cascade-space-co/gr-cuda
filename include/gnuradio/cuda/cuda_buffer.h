@@ -57,7 +57,7 @@ namespace gr {
  *    fan-out consumers run in parallel but the event captures the latest
  *    completion.  The producer waits on this event before overwriting:
  *      - H2D buffers: GPU-side wait in post_work() (does not block CPU).
- *      - D2H/D2D buffers: GPU-side wait via wait_for_inputs() in
+ *      - D2H/D2D buffers: GPU-side wait via wait_for_work() in
  *        cuda_block_helper.h, which adds a cudaStreamWaitEvent on the
  *        producer's kernel stream.  The D2H copy itself also records
  *        d_read_done_evt so the upstream producer cannot overwrite device
@@ -71,7 +71,7 @@ namespace gr {
  * \section usage Usage from GPU blocks
  *
  * See cuda_block.h for the standard pattern for writing GPU blocks, and
- * cuda_block_helper.h for the wait_for_inputs() / mark_outputs_ready()
+ * cuda_block_helper.h for the wait_for_work() / mark_work_done()
  * helper functions that handle all event bookkeeping automatically.
  *
  * Blocks that do NOT use these helpers (e.g. CPU-only blocks connected via
@@ -95,7 +95,7 @@ public:
          "full support. See https://github.com/gnuradio/gnuradio/pull/8029"
 #endif
 
-    virtual ~cuda_buffer();
+    ~cuda_buffer() override;
 
     /*!
      * \brief Handle post-general_work() cleanup and data transfer
@@ -106,7 +106,7 @@ public:
      *
      * \param nitems is the number of items produced by the general_work() function.
      */
-    virtual void post_work(int nitems);
+    void post_work(int nitems) override;
 
     /*!
      * \brief Mark the device buffer as ready (producer done)
@@ -150,7 +150,7 @@ public:
      * (including in-flight D2H copies) has completed its read.  This is a
      * GPU-side wait and does **not** block the calling CPU thread.
      *
-     * Used by wait_for_inputs() in cuda_block_helper.h to protect the output
+     * Used by wait_for_work() in cuda_block_helper.h to protect the output
      * buffer before the producer's kernel writes new data.
      *
      * \param stream The producer's kernel stream
@@ -160,19 +160,19 @@ public:
     /*!
      * \brief Do actual buffer allocation. Inherited from buffer_single_mapped.
      */
-    bool do_allocate_buffer(size_t final_nitems, size_t sizeof_item);
+    bool do_allocate_buffer(size_t final_nitems, size_t sizeof_item) override;
 
     /*!
      * \brief Return a pointer to the write buffer depending on the context
      */
-    virtual void* write_pointer();
+    void* write_pointer() override;
 
     /*!
      * \brief return pointer to read buffer depending on the context
      *
      * The return value points to at least items_available() items.
      */
-    virtual const void* _read_pointer(unsigned int read_index);
+    const void* _read_pointer(unsigned int read_index) override;
 
     /*!
      * \brief Callback function that the scheduler will call when it determines

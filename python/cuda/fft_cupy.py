@@ -75,7 +75,7 @@ class fft_cupy(gr.sync_block):
 
     def work(self, input_items, output_items) -> int:
         n = len(input_items[0])
-        cuda.wait_for_inputs(self.gateway, self.stream.ptr)
+        cuda.wait_for_work(self.gateway, self.stream.ptr)
 
         with self.stream:
             d_in = cuda.as_cupy(input_items[0])
@@ -102,7 +102,7 @@ class fft_cupy(gr.sync_block):
             if self.forward and self.shift:
                 d_out[:] = cp.fft.fftshift(d_out, axes=(-1,))
 
-        cuda.mark_outputs_ready(self.gateway, self.stream.ptr)
+        cuda.mark_work_done(self.gateway, self.stream.ptr)
 
         return n
 
