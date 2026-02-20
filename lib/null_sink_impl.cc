@@ -38,9 +38,12 @@ int null_sink_impl::work(int noutput_items,
     gr::cuda::wait_for_work(detail(), d_stream);
 
     // Do nothing - just consume the data (mimics GNU Radio's null_sink)
+<<<<<<< wael/CS-528-sink-mark-read-done
     // Signal inputs consumed so upstream producers can safely overwrite
     gr::cuda::mark_outputs_ready(detail(), d_stream);
 
+=======
+>>>>>>> wael/gpu-optimization
     return noutput_items;
 }
 
