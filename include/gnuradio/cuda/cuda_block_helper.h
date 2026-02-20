@@ -70,8 +70,9 @@ inline void wait_for_work(const gr::block_detail_sptr& detail, cudaStream_t stre
  * safe to overwrite the buffer.  This eliminates the consumer-to-producer data
  * hazard without requiring any per-block code changes.
  *
- * All operations are GPU-side event records (cudaEventRecord) and do **not** block
- * the calling CPU thread.
+ * Input-side operations (mark_read_done) are non-blocking GPU event records.
+ * Output-side operations (mark_device_ready) may briefly block the CPU via
+ * cudaEventSynchronize for backpressure when the GPU falls behind.
  *
  * \param detail The block's detail pointer (e.g. call with detail())
  * \param stream The CUDA stream that finished both reading inputs and producing

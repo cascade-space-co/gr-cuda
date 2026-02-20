@@ -351,7 +351,6 @@ bool cuda_buffer::output_blocked_callback(int output_multiple, bool force)
         };
         rc = output_blocked_callback_logic(
             output_multiple, force, d_base, h2d_memmove);
-        cudaStreamSynchronize(d_stream);
         break;
     }
 
@@ -373,9 +372,6 @@ bool cuda_buffer::output_blocked_callback(int output_multiple, bool force)
         };
         rc = output_blocked_callback_logic(
             output_multiple, force, d_cuda_buf, d2h_memmove);
-        // Wait for device moves we enqueued above (sync_all_gpu_work only drained
-        // the stream before the logic ran).
-        cudaStreamSynchronize(d_stream);
         break;
     }
 
@@ -383,7 +379,6 @@ bool cuda_buffer::output_blocked_callback(int output_multiple, bool force)
         // Producer and consumer both use d_cuda_buf; no host buffer in the path.
         rc = output_blocked_callback_logic(
             output_multiple, force, d_cuda_buf, f_cuda_memmove);
-        cudaStreamSynchronize(d_stream);
         break;
 
     default:
