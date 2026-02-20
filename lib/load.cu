@@ -1,4 +1,12 @@
-#include <cuComplex.h>
+/* -*- c++ -*- */
+/*
+ * Copyright 2022 Josh Morman.
+ * Copyright 2026 Cascade Space.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+#include <gnuradio/cuda/cuda_error.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 
@@ -26,11 +34,12 @@ void exec_kernel(const uint8_t* in,
                  cudaStream_t stream)
 {
     load_kernel<<<grid_size, block_size, 0, stream>>>(in, out, N, load);
+    check_cuda_errors(cudaGetLastError());
 }
 
 void get_block_and_grid(int* minGrid, int* minBlock)
 {
-    cudaOccupancyMaxPotentialBlockSize(minGrid, minBlock, load_kernel, 0, 0);
+    check_cuda_errors(cudaOccupancyMaxPotentialBlockSize(minGrid, minBlock, load_kernel, 0, 0));
 }
 
 } // namespace load_cu

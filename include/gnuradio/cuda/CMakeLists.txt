@@ -11,10 +11,16 @@
 ########################################################################
 install(FILES
     api.h
+    cuda_block.h
     cuda_error.h
     cuda_buffer.h
-    cuda_block.h
+    cuda_block_helper.h
     copy.h
+    fft.h
+    fft_shift.h
     multiply_const.h
-    load.h DESTINATION include/gnuradio/cuda
+    load.h
+    null_source.h
+    null_sink.h
+    probe_rate.h DESTINATION include/gnuradio/cuda
 )

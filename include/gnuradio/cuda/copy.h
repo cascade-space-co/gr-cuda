@@ -1,6 +1,7 @@
 /* -*- c++ -*- */
 /*
  * Copyright 2021 Josh Morman
+ * Copyright 2026 Cascade Space.
  *
  * This file is part of GNU Radio
  *
@@ -33,8 +34,11 @@ public:
    * constructor is in a private implementation
    * class. cuda::copy::make is the public interface for
    * creating new instances.
+   *
+   * \param itemsize Size of a stream item in bytes
+   * \param noop If true, skip the device-to-device memcpy (for benchmarking transfer overhead)
    */
-  static sptr make(size_t itemsize);
+  static sptr make(size_t itemsize, bool noop = false);
 };
 
 } // namespace cuda

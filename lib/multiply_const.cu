@@ -1,3 +1,11 @@
+/* -*- c++ -*- */
+/*
+ * Copyright 2021 Josh Morman.
+ * Copyright 2026 Cascade Space.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 #include <stdio.h>
 
 #include <gnuradio/cuda/cuda_error.h>

@@ -1,0 +1,41 @@
+id: cuda_streams_to_vector
+label: Streams to Vector (CUDA)
+category: '[CUDA]/Stream Operators'
+flags: [ python ]
+
+parameters:
+-   id: type
+    label: IO Type
+    dtype: enum
+    default: complex
+    options: [complex, float, int, short, byte]
+    option_attributes:
+        size: [gr.sizeof_gr_complex, gr.sizeof_float, gr.sizeof_int, gr.sizeof_short, gr.sizeof_char]
+    hide: part
+-   id: num_streams
+    label: Num Streams
+    dtype: int
+    default: '2'
+    hide: part
+-   id: vlen
+    label: Vector Length
+    dtype: int
+    default: '1'
+    hide: ${ 'part' if vlen == 1 else 'none' }
+
+inputs:
+-   domain: cuda
+    dtype: ${ type }
+    vlen: ${ vlen }
+    multiplicity: ${ num_streams }
+
+outputs:
+-   domain: cuda
+    dtype: ${ type }
+    vlen: ${ vlen * num_streams }
+
+templates:
+    imports: from gnuradio import cuda
+    make: cuda.streams_to_vector(${type.size}*${vlen}, ${num_streams})
+
+file_format: 1

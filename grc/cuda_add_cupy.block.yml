@@ -1,0 +1,40 @@
+id: cuda_add_cupy
+label: Add (CuPy)
+category: '[CUDA]'
+
+parameters:
+-   id: type
+    label: Type
+    dtype: enum
+    options: [complex, float, int, short, byte]
+    option_attributes:
+        dtype: ["'complex64'", "'float32'", "'int32'", "'int16'", "'int8'"]
+    hide: part
+-   id: num_inputs
+    label: Num Inputs
+    dtype: int
+    default: '2'
+    hide: part
+-   id: vlen
+    label: Vector Length
+    dtype: int
+    default: '1'
+    hide: part
+
+inputs:
+-   domain: cuda
+    dtype: ${ type }
+    vlen: ${ vlen }
+    multiplicity: ${ num_inputs }
+
+outputs:
+-   domain: cuda
+    dtype: ${ type }
+    vlen: ${ vlen }
+
+templates:
+    imports: from gnuradio import cuda
+    make: cuda.add_cupy(${num_inputs}, ${type.dtype}, ${vlen})
+
+file_format: 1
+

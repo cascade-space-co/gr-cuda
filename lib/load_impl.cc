@@ -1,6 +1,7 @@
 /* -*- c++ -*- */
 /*
  * Copyright 2022 Josh Morman.
+ * Copyright 2026 Cascade Space.
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
@@ -8,6 +9,8 @@
 #include "load_impl.h"
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/io_signature.h>
+#include <gnuradio/block_detail.h>
+#include <gnuradio/cuda/cuda_block_helper.h>
 
 #include "load.cuh"
 
@@ -33,7 +36,6 @@ load_impl::load_impl(size_t iterations, size_t itemsize, bool use_cb)
 {
     load_cu::get_block_and_grid(&d_min_grid_size, &d_block_size);
     d_logger->info("minGrid: {}, blockSize: {}", d_min_grid_size, d_block_size);
-    cudaStreamCreate(&d_stream);
 
     if (use_cb) {
         set_input_signature(gr::io_signature::make(1, 1, itemsize, cuda_buffer::type));
@@ -50,6 +52,9 @@ int load_impl::work(int noutput_items,
 {
     auto in = static_cast<const uint8_t*>(input_items[0]);
     auto out = static_cast<uint8_t*>(output_items[0]);
+
+    // 1. Wait on inputs
+    gr::cuda::wait_for_work(detail(), d_stream);
 
     int gridSize = (noutput_items * d_itemsize + d_block_size - 1) / d_block_size;
 
@@ -86,8 +91,8 @@ int load_impl::work(int noutput_items,
         check_cuda_errors(cudaPeekAtLastError());
     }
 
-
-    cudaStreamSynchronize(d_stream);
+    // 2. Mark outputs
+    gr::cuda::mark_work_done(detail(), d_stream);
 
     // Tell runtime system how many output items we produced.
     return noutput_items;

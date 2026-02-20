@@ -1,3 +1,10 @@
+/* -*- c++ -*- */
+/*
+ * Copyright 2025 Cascade Space.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 #include <cuComplex.h>
 #include <cuda.h>
 #include <cuda_runtime.h>

@@ -1,5 +1,6 @@
 /*
  * Copyright 2021 Free Software Foundation, Inc.
+ * Copyright 2026 Cascade Space.
  *
  * This file is part of GNU Radio
  *
@@ -16,7 +17,7 @@
 /* BINDTOOL_GEN_AUTOMATIC(0) */
 /* BINDTOOL_USE_PYGCCXML(0) */
 /* BINDTOOL_HEADER_FILE(copy.h)                                        */
-/* BINDTOOL_HEADER_FILE_HASH(2ba0497b0f20abc0f60cb1053aa64cde) */
+/* BINDTOOL_HEADER_FILE_HASH(4294957090943fa0092a8fca2d8d5718) */
 /***********************************************************************************/
 
 #include <pybind11/complex.h>
@@ -36,7 +37,10 @@ void bind_copy(py::module &m) {
   py::class_<copy, gr::sync_block, gr::block, gr::basic_block,
              std::shared_ptr<copy>>(m, "copy", D(copy))
 
-      .def(py::init(&copy::make), py::arg("itemsize"), D(copy, make))
+      .def(py::init(&copy::make), 
+           py::arg("itemsize"), 
+           py::arg("noop") = false,
+           D(copy, make))
 
       ;
 }
