@@ -10,53 +10,9 @@
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_block_helper.h>
 #include <gnuradio/cuda/cuda_error.h>
+#include "fft.cuh"
 #include <sstream>
 #include <stdexcept>
-
-// Kernel wrappers (implemented in fft.cu)
-void exec_kernel_window(const cufftComplex* in,
-                        cufftComplex* out,
-                        const float* window,
-                        size_t total_items,
-                        size_t fft_size,
-                        cudaStream_t stream);
-void exec_kernel_real_window(const float* in,
-                             cufftComplex* out,
-                             const float* window,
-                             size_t total_items,
-                             size_t fft_size,
-                             cudaStream_t stream);
-void exec_kernel_real_to_complex(const float* in,
-                                 cufftComplex* out,
-                                 size_t total_items,
-                                 cudaStream_t stream);
-void exec_kernel_ifftshift(const cufftComplex* in,
-                           cufftComplex* out,
-                           size_t total_items,
-                           size_t fft_size,
-                           cudaStream_t stream);
-void exec_kernel_real_ifftshift(const float* in,
-                                cufftComplex* out,
-                                size_t total_items,
-                                size_t fft_size,
-                                cudaStream_t stream);
-void exec_kernel_window_ifftshift(const cufftComplex* in,
-                                  cufftComplex* out,
-                                  const float* window,
-                                  size_t total_items,
-                                  size_t fft_size,
-                                  cudaStream_t stream);
-void exec_kernel_real_window_ifftshift(const float* in,
-                                       cufftComplex* out,
-                                       const float* window,
-                                       size_t total_items,
-                                       size_t fft_size,
-                                       cudaStream_t stream);
-void exec_kernel_fftshift(const cufftComplex* in,
-                          cufftComplex* out,
-                          size_t total_items,
-                          size_t fft_size,
-                          cudaStream_t stream);
 
 namespace {
 inline void check_cufft(cufftResult rc, const char* where)

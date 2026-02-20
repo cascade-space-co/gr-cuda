@@ -10,14 +10,7 @@
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_block_helper.h>
 #include <gnuradio/cuda/cuda_error.h>
-#include <cufft.h>
-
-// Kernel wrapper (implemented in fft.cu)
-void exec_kernel_fftshift(const cufftComplex* in,
-                          cufftComplex* out,
-                          size_t total_items,
-                          size_t fft_size,
-                          cudaStream_t stream);
+#include "fft.cuh"
 
 namespace gr {
 namespace cuda {
@@ -42,10 +35,6 @@ int fft_shift_impl::work(int noutput_items,
                          gr_vector_const_void_star& input_items,
                          gr_vector_void_star& output_items)
 {
-    if (noutput_items <= 0) {
-        return 0;
-    }
-
     // Ensure upstream GPU work is complete before reading inputs.
     gr::cuda::wait_for_inputs(detail(), d_stream);
 

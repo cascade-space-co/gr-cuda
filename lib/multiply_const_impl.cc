@@ -62,8 +62,7 @@ int multiply_const_impl<T>::work(int noutput_items,
                                   d_block_size,
                                   noutput_items,
                                   d_stream);
-    
-    // cudaStreamSynchronize(d_stream);
+
 
     // Notify downstream CUDA buffers that output is ready.
     gr::cuda::mark_outputs_ready(this->detail(), d_stream);

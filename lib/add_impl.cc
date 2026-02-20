@@ -10,19 +10,7 @@
 #include <gnuradio/cuda/cuda_error.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_block_helper.h>
-
-// Forward declaration of kernel launcher
-template <typename T>
-void exec_kernel_add(T** inputs,
-                     T* out,
-                     int num_inputs,
-                     int grid_size,
-                     int block_size,
-                     size_t n,
-                     cudaStream_t stream);
-
-template <typename T>
-void get_add_block_and_grid(int* minGrid, int* minBlock);
+#include "add.cuh"
 
 
 namespace gr {
@@ -73,7 +61,7 @@ int add_impl<T>::work(int noutput_items,
     // so the kernel can access inputs[i].
     std::vector<T*> host_input_ptrs(d_num_inputs);
     for (size_t i = 0; i < d_num_inputs; i++) {
-        host_input_ptrs[i] = (T*)input_items[i]; // const cast
+        host_input_ptrs[i] = const_cast<T*>(static_cast<const T*>(input_items[i]));
     }
     
     // Copy input pointers to device

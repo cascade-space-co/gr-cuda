@@ -32,7 +32,10 @@ public:
              gr_vector_void_star& output_items) override;
 
 private:
+    /*! Return a cuFFT plan for the given batch count, creating one if needed. */
     cufftHandle get_plan(int batch);
+
+    /*! (Re-)allocate the GPU staging buffer so it can hold at least \p total_items. */
     void ensure_work_buffers(size_t total_items);
 
     const size_t d_fft_size;

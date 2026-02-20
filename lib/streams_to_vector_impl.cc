@@ -10,18 +10,7 @@
 #include <gnuradio/cuda/cuda_error.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_block_helper.h>
-
-// Forward decls from interleave.cu
-void exec_interleave(const void** inputs,
-                     void* out,
-                     int num_streams,
-                     int itemsize,
-                     int N,
-                     int grid_size,
-                     int block_size,
-                     cudaStream_t stream);
-
-void get_interleave_block_and_grid(int* minGrid, int* minBlock);
+#include "interleave.cuh"
 
 
 namespace gr {
