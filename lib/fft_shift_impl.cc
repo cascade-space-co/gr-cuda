@@ -38,8 +38,8 @@ int fft_shift_impl::work(int noutput_items,
     // Ensure upstream GPU work is complete before reading inputs.
     gr::cuda::wait_for_inputs(detail(), d_stream);
 
-    auto in = reinterpret_cast<const cufftComplex*>(input_items[0]);
-    auto out = reinterpret_cast<cufftComplex*>(output_items[0]);
+    auto in = static_cast<const cufftComplex*>(input_items[0]);
+    auto out = static_cast<cufftComplex*>(output_items[0]);
     const size_t total_items = static_cast<size_t>(noutput_items) * d_fft_size;
 
     exec_kernel_fftshift(in, out, total_items, d_fft_size, d_stream);

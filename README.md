@@ -121,8 +121,8 @@ int my_block_impl::work(int noutput_items, ...)
     gr::cuda::wait_for_inputs(this->detail(), d_stream);
 
     // Launch your kernel
-    auto in  = reinterpret_cast<const float*>(input_items[0]);
-    auto out = reinterpret_cast<float*>(output_items[0]);
+    auto in  = static_cast<const float*>(input_items[0]);
+    auto out = static_cast<float*>(output_items[0]);
     my_kernel<<<grid, block, 0, d_stream>>>(in, out, noutput_items);
 
     // Signal downstream that outputs are ready
@@ -219,7 +219,7 @@ Benchmarked on an **NVIDIA DGX Spark (GB10)** and an **NVIDIA RTX PRO 6000 Black
 | CuPy FFT (Python block) | 9.1 Gsps | 63.6 Gsps |
 | FFTW (CPU baseline) | 0.46 Gsps | 1.02 Gsps |
 
-CUDA buffers at CPU/GPU boundaries (H2D, D2H) should be large -- on the order of 2^18 to 2^20 items -- to amortise PCIe latency and achieve peak bandwidth. Use `set_output_multiple()` on boundary blocks to control this. See **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)** for full tables, methodology, and analysis.
+See **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)** for full tables, methodology, and analysis.
 
 ## Acknowledgements
 

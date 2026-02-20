@@ -151,8 +151,8 @@ int fft_impl::work(int noutput_items,
     // Ensure upstream GPU work is complete before reading inputs.
     gr::cuda::wait_for_inputs(detail(), d_stream);
 
-    auto in = reinterpret_cast<const cufftComplex*>(input_items[0]);
-    auto out = reinterpret_cast<cufftComplex*>(output_items[0]);
+    auto in = static_cast<const cufftComplex*>(input_items[0]);
+    auto out = static_cast<cufftComplex*>(output_items[0]);
 
     const size_t total_items = static_cast<size_t>(noutput_items) * d_fft_size;
 
@@ -167,7 +167,7 @@ int fft_impl::work(int noutput_items,
     // Pre-FFT path: optional ifftshift/window/real->complex conversions.
     if (d_shift && !d_forward) {
         if (d_real_input) {
-            const auto real_in = reinterpret_cast<const float*>(input_items[0]);
+            const auto real_in = static_cast<const float*>(input_items[0]);
             if (d_has_window) {
                 exec_kernel_real_window_ifftshift(real_in,
                                                   d_work_dev,
@@ -191,7 +191,7 @@ int fft_impl::work(int noutput_items,
         fft_out = out;
     } else {
         if (d_real_input) {
-            const auto real_in = reinterpret_cast<const float*>(input_items[0]);
+            const auto real_in = static_cast<const float*>(input_items[0]);
             if (d_has_window) {
                 exec_kernel_real_window(
                     real_in, d_work_dev, d_window_dev, total_items, d_fft_size, d_stream);

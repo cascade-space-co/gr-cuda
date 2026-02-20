@@ -67,8 +67,8 @@ namespace gr {
  *     gr::cuda::wait_for_inputs(this->detail(), d_stream);
  *
  *     // 2. Launch GPU kernels on d_stream
- *     auto in  = reinterpret_cast<const float*>(input_items[0]);
- *     auto out = reinterpret_cast<float*>(output_items[0]);
+ *     auto in  = static_cast<const float*>(input_items[0]);
+ *     auto out = static_cast<float*>(output_items[0]);
  *     my_kernel<<<grid, block, 0, d_stream>>>(in, out, noutput_items);
  *
  *     // 3. Signal outputs ready and inputs consumed
