@@ -112,12 +112,14 @@ fft_impl::fft_impl(size_t fft_size,
             throw std::invalid_argument("window length must match fft_size");
         }
         d_window_size = window.size();
-        check_cuda_errors(cudaMalloc((void**)&d_window_dev, d_window_size * sizeof(float)));
+        check_cuda_errors(cudaMalloc((void**)&d_window_dev, d_window_size * sizeof(float)),
+                          "fft: cudaMalloc window", d_logger);
         check_cuda_errors(cudaMemcpyAsync(d_window_dev,
                                           window.data(),
                                           d_window_size * sizeof(float),
                                           cudaMemcpyHostToDevice,
-                                          d_stream));
+                                          d_stream),
+                          "fft: cudaMemcpyAsync H2D window", d_logger);
     }
 }
 
@@ -144,7 +146,8 @@ void fft_impl::ensure_work_buffers(size_t total_items)
         d_work_dev = nullptr;
         d_work_items = 0;
     }
-    check_cuda_errors(cudaMalloc((void**)&d_work_dev, total_items * sizeof(cufftComplex)));
+    check_cuda_errors(cudaMalloc((void**)&d_work_dev, total_items * sizeof(cufftComplex)),
+                      "fft: cudaMalloc work buffer", d_logger);
     d_work_items = total_items;
 }
 

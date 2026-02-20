@@ -28,8 +28,8 @@ void* cuda_buffer::cuda_memcpy(void* dest, const void* src, std::size_t count)
 {
     cudaError_t rc =
         cudaMemcpyAsync(dest, src, count, cudaMemcpyDeviceToDevice, d_stream);
-    cudaStreamSynchronize(d_stream);
-    check_cuda_errors(rc, "cuda_memcpy: Error performing cudaMemcpyAsync D2D", d_logger);
+    check_cuda_errors(rc, "cuda_memcpy: cudaMemcpyAsync D2D", d_logger);
+    check_cuda_errors(cudaStreamSynchronize(d_stream), "cuda_memcpy: cudaStreamSynchronize", d_logger);
 
     return dest;
 }
@@ -335,7 +335,8 @@ bool cuda_buffer::output_blocked_callback(int output_multiple, bool force)
         };
         rc = output_blocked_callback_logic(
             output_multiple, force, d_base, h2d_memmove);
-        cudaStreamSynchronize(d_stream);
+        check_cuda_errors(cudaStreamSynchronize(d_stream),
+                          "output_blocked_callback H2D: cudaStreamSynchronize", d_logger);
         break;
     }
 
@@ -357,9 +358,8 @@ bool cuda_buffer::output_blocked_callback(int output_multiple, bool force)
         };
         rc = output_blocked_callback_logic(
             output_multiple, force, d_cuda_buf, d2h_memmove);
-        // Wait for device moves we enqueued above (sync_all_gpu_work only drained
-        // the stream before the logic ran).
-        cudaStreamSynchronize(d_stream);
+        check_cuda_errors(cudaStreamSynchronize(d_stream),
+                          "output_blocked_callback D2H: cudaStreamSynchronize", d_logger);
         break;
     }
 
@@ -382,7 +382,8 @@ void cuda_buffer::sync_all_gpu_work()
         cudaEventSynchronize(d_dev_ready_evt[i]);
     }
     cudaEventSynchronize(d_read_done_evt);
-    cudaStreamSynchronize(d_stream);
+    check_cuda_errors(cudaStreamSynchronize(d_stream),
+                      "sync_all_gpu_work: cudaStreamSynchronize", d_logger);
 }
 
 void cuda_buffer::throw_unexpected_transfer_type()

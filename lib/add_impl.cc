@@ -45,7 +45,8 @@ add_impl<T>::add_impl(size_t num_inputs, size_t vlen)
     get_add_block_and_grid<T>(&d_min_grid_size, &d_block_size);
 
     // Allocate memory for input pointers on device
-    check_cuda_errors(cudaMalloc((void**)&d_input_ptrs_dev, sizeof(T*) * d_num_inputs));
+    check_cuda_errors(cudaMalloc((void**)&d_input_ptrs_dev, sizeof(T*) * d_num_inputs),
+                      "add: cudaMalloc input_ptrs", this->d_logger);
 }
 
 template <class T>
@@ -81,7 +82,8 @@ int add_impl<T>::work(int noutput_items,
                                       host_input_ptrs.data(), 
                                       sizeof(T*) * d_num_inputs, 
                                       cudaMemcpyHostToDevice, 
-                                      d_stream));
+                                      d_stream),
+                      "add: cudaMemcpyAsync H2D ptrs", this->d_logger);
 
     int gridSize = (noutput_items + d_block_size - 1) / d_block_size;
     
