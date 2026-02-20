@@ -36,8 +36,8 @@ GPU-accelerated signal processing blocks for [GNU Radio](https://www.gnuradio.or
 
 | Block | Description |
 |-------|-------------|
-| `cuda.add_py` | Adds N input streams on the GPU using CuPy |
-| `cuda.multiply_const_py` | Multiplies by a constant on the GPU using CuPy |
+| `cuda.add_cupy` | Adds N input streams on the GPU using CuPy |
+| `cuda.multiply_const_cupy` | Multiplies by a constant on the GPU using CuPy |
 | `cuda.fft_cupy` | Forward/inverse FFT on the GPU using CuPy |
 
 ## Prerequisites
@@ -172,7 +172,7 @@ class my_block_cupy(gr.sync_block):
         return len(output_items[0])
 ```
 
-See `multiply_const_py.py` for a complete example.
+See `multiply_const_cupy.py` for a complete example.
 
 ## Using gr-cuda in your own OOT
 

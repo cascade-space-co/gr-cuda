@@ -11,11 +11,11 @@ from gnuradio import cuda
 import cupy as cp
 
 try:
-    from .add_py import add_py
+    from .add_cupy import add_cupy
 except ImportError:
-    from add_py import add_py
+    from add_cupy import add_cupy
 
-class qa_add_py(gr_unittest.TestCase):
+class qa_add_cupy(gr_unittest.TestCase):
     def setUp(self):
         self.tb = gr.top_block()
 
@@ -30,7 +30,7 @@ class qa_add_py(gr_unittest.TestCase):
         src1 = blocks.vector_source_f(src_data1, False)
         src2 = blocks.vector_source_f(src_data2, False)
         
-        dut = add_py(num_inputs=2, dtype=np.float32)
+        dut = add_cupy(num_inputs=2, dtype=np.float32)
         
         snk = blocks.vector_sink_f()
         
@@ -56,7 +56,7 @@ class qa_add_py(gr_unittest.TestCase):
         src2 = blocks.vector_source_c(src_data2, False)
         src3 = blocks.vector_source_c(src_data3, False)
         
-        dut = add_py(num_inputs=3, dtype=np.complex64)
+        dut = add_cupy(num_inputs=3, dtype=np.complex64)
         
         snk = blocks.vector_sink_c()
         
@@ -82,7 +82,7 @@ class qa_add_py(gr_unittest.TestCase):
 
         src1 = blocks.vector_source_f(src_data1, False, vlen)
         src2 = blocks.vector_source_f(src_data2, False, vlen)
-        dut = add_py(num_inputs=2, dtype=np.float32, vlen=vlen)
+        dut = add_cupy(num_inputs=2, dtype=np.float32, vlen=vlen)
         snk = blocks.vector_sink_f(vlen)
 
         self.tb.connect(src1, (dut, 0))
@@ -95,4 +95,4 @@ class qa_add_py(gr_unittest.TestCase):
         np.testing.assert_allclose(result, expected, rtol=1e-5, atol=1e-5)
 
 if __name__ == '__main__':
-    gr_unittest.run(qa_add_py)
+    gr_unittest.run(qa_add_cupy)

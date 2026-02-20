@@ -1,4 +1,4 @@
-id: cuda_multiply_const_py
+id: cuda_multiply_const_cupy
 label: Multiply Const (CuPy)
 flags: [ python ]
 category: '[CUDA]'
@@ -38,7 +38,7 @@ templates:
     imports: |-
         from gnuradio import cuda
         import numpy as np
-    make: cuda.multiply_const_py(${const}, dtype=${type.np_dtype}, vlen=${vlen})
+    make: cuda.multiply_const_cupy(${const}, dtype=${type.np_dtype}, vlen=${vlen})
     callbacks:
     - set_k(${const})
 

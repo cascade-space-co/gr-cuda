@@ -11,11 +11,11 @@ from gnuradio import cuda
 import cupy as cp
 
 try:
-    from .multiply_const_py import multiply_const_py
-    from .add_py import add_py
+    from .multiply_const_cupy import multiply_const_cupy
+    from .add_cupy import add_cupy
 except ImportError:
-    from multiply_const_py import multiply_const_py
-    from add_py import add_py
+    from multiply_const_cupy import multiply_const_cupy
+    from add_cupy import add_cupy
 
 class qa_fanin_sync(gr_unittest.TestCase):
     def setUp(self):
@@ -39,15 +39,15 @@ class qa_fanin_sync(gr_unittest.TestCase):
         
         # Branch 1: Multiply by 2.0
         # This will run on its own stream
-        mult1 = multiply_const_py(2.0, dtype=np.complex64)
+        mult1 = multiply_const_cupy(2.0, dtype=np.complex64)
         
         # Branch 2: Multiply by 3.0
         # This will run on its own stream (different from mult1)
-        mult2 = multiply_const_py(3.0, dtype=np.complex64)
+        mult2 = multiply_const_cupy(3.0, dtype=np.complex64)
         
         # Merge: Add branch 1 and branch 2
         # This runs on yet another stream and must wait for both mult1 and mult2
-        add_blk = add_py(num_inputs=2, dtype=np.complex64)
+        add_blk = add_cupy(num_inputs=2, dtype=np.complex64)
         
         snk = blocks.vector_sink_c()
         

@@ -23,8 +23,8 @@ GR_PYTHON_INSTALL(
     FILES
     __init__.py
     utils.py
-    multiply_const_py.py
-    add_py.py
+    multiply_const_cupy.py
+    add_cupy.py
     fft_cupy.py
     DESTINATION ${GR_PYTHON_DIR}/gnuradio/cuda
 )
@@ -45,8 +45,8 @@ add_custom_target(
 set(GR_TEST_TARGET_DEPS gnuradio-cuda)
 GR_ADD_TEST(qa_copy ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_copy.py)
 GR_ADD_TEST(qa_multiply_const ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_multiply_const.py)
-GR_ADD_TEST(qa_multiply_const_py ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_multiply_const_py.py)
-GR_ADD_TEST(qa_add_py ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_add_py.py)
+GR_ADD_TEST(qa_multiply_const_cupy ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_multiply_const_cupy.py)
+GR_ADD_TEST(qa_add_cupy ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_add_cupy.py)
 GR_ADD_TEST(qa_add ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_add.py)
 GR_ADD_TEST(qa_fft ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_fft.py)
 GR_ADD_TEST(qa_cuda_buffer_race ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_cuda_buffer_race.py)

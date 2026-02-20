@@ -9,11 +9,11 @@ import numpy as np
 from gnuradio import gr, gr_unittest, blocks
 from gnuradio import cuda
 try:
-    from .multiply_const_py import multiply_const_py
+    from .multiply_const_cupy import multiply_const_cupy
 except ImportError:
-    from multiply_const_py import multiply_const_py
+    from multiply_const_cupy import multiply_const_cupy
 
-class qa_multiply_const_py(gr_unittest.TestCase):
+class qa_multiply_const_cupy(gr_unittest.TestCase):
     def setUp(self):
         self.tb = gr.top_block()
 
@@ -32,7 +32,7 @@ class qa_multiply_const_py(gr_unittest.TestCase):
         src = blocks.vector_source_c(src_data, False)
         
         # DUT
-        dut = multiply_const_py(k, dtype=np.complex64)
+        dut = multiply_const_cupy(k, dtype=np.complex64)
         
         snk = blocks.vector_sink_c()
         
@@ -56,7 +56,7 @@ class qa_multiply_const_py(gr_unittest.TestCase):
         src = blocks.vector_source_f(src_data, False)
         
         # DUT
-        dut = multiply_const_py(k, dtype=np.float32)
+        dut = multiply_const_cupy(k, dtype=np.float32)
         
         snk = blocks.vector_sink_f()
         
@@ -76,7 +76,7 @@ class qa_multiply_const_py(gr_unittest.TestCase):
         src_data = np.random.randn(N * vlen).astype(np.float32)
 
         src = blocks.vector_source_f(src_data, False, vlen)
-        dut = multiply_const_py(k, dtype=np.float32, vlen=vlen)
+        dut = multiply_const_cupy(k, dtype=np.float32, vlen=vlen)
         snk = blocks.vector_sink_f(vlen)
 
         self.tb.connect(src, dut, snk)
@@ -87,4 +87,4 @@ class qa_multiply_const_py(gr_unittest.TestCase):
         np.testing.assert_allclose(result, expected, rtol=1e-5, atol=1e-5)
 
 if __name__ == '__main__':
-    gr_unittest.run(qa_multiply_const_py)
+    gr_unittest.run(qa_multiply_const_cupy)

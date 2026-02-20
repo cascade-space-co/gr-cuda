@@ -9,9 +9,9 @@ import numpy as np
 from gnuradio import gr, gr_unittest, blocks
 from gnuradio import cuda
 try:
-    from .multiply_const_py import multiply_const_py
+    from .multiply_const_cupy import multiply_const_cupy
 except ImportError:
-    from multiply_const_py import multiply_const_py
+    from multiply_const_cupy import multiply_const_cupy
 
 class qa_stress_sync(gr_unittest.TestCase):
     def setUp(self):
@@ -22,7 +22,7 @@ class qa_stress_sync(gr_unittest.TestCase):
 
     def test_001_chain(self):
         """
-        Test a long chain of multiply_const_py blocks.
+        Test a long chain of multiply_const_cupy blocks.
         This verifies that synchronization between multiple GPU blocks (each with its own stream)
         works correctly.
         """
@@ -50,7 +50,7 @@ class qa_stress_sync(gr_unittest.TestCase):
         chain = []
         for i in range(chain_length):
             k = 2.0 if i % 2 == 0 else 0.5
-            blk = multiply_const_py(k, dtype=np.complex64)
+            blk = multiply_const_cupy(k, dtype=np.complex64)
             chain.append(blk)
             
         snk = blocks.vector_sink_c()

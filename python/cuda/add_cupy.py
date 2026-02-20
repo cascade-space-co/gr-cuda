@@ -8,9 +8,9 @@ import numpy as np
 import cupy as cp
 from gnuradio import gr, cuda
 
-class add_py(gr.sync_block):
+class add_cupy(gr.sync_block):
     """
-    add_py
+    add_cupy
     
     Adds N input streams together on the GPU using CuPy.
     """
@@ -35,7 +35,7 @@ class add_py(gr.sync_block):
         input_sig = cuda.io_signature_make(num_inputs, num_inputs, io_dtype)
         output_sig = cuda.io_signature_make(1, 1, io_dtype)
         
-        gr.sync_block.__init__(self, "add_py", input_sig, output_sig)
+        gr.sync_block.__init__(self, "add_cupy", input_sig, output_sig)
         
         self.stream = cp.cuda.Stream(non_blocking=True)
 

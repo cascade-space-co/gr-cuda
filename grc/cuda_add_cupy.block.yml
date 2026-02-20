@@ -1,4 +1,4 @@
-id: cuda_add_py
+id: cuda_add_cupy
 label: Add (CuPy)
 category: '[CUDA]'
 
@@ -34,7 +34,7 @@ outputs:
 
 templates:
     imports: from gnuradio import cuda
-    make: cuda.add_py(${num_inputs}, ${type.dtype}, ${vlen})
+    make: cuda.add_cupy(${num_inputs}, ${type.dtype}, ${vlen})
 
 file_format: 1
 

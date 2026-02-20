@@ -13,8 +13,8 @@ install(FILES
     cuda_fft.block.yml
     cuda_fft_shift.block.yml
     cuda_multiply_const_xx.block.yml
-    cuda_multiply_const_py.block.yml
-    cuda_add_py.block.yml
+    cuda_multiply_const_cupy.block.yml
+    cuda_add_cupy.block.yml
     cuda_add.block.yml
     cuda_load.block.yml
     cuda_stream_to_vector.block.yml

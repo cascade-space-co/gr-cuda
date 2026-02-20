@@ -8,9 +8,9 @@ import numpy as np
 import cupy as cp
 from gnuradio import gr, cuda
 
-class multiply_const_py(gr.sync_block):
+class multiply_const_cupy(gr.sync_block):
     """
-    multiply_const_py
+    multiply_const_cupy
     
     Multiplies input stream by a constant value (k) on the GPU using CuPy.
     """
@@ -36,7 +36,7 @@ class multiply_const_py(gr.sync_block):
         # or a single type for all ports. Here we have 1 in, 1 out.
         sig = cuda.io_signature_make(1, 1, io_dtype)
 
-        gr.sync_block.__init__(self, "multiply_const_py", sig, sig)
+        gr.sync_block.__init__(self, "multiply_const_cupy", sig, sig)
         
         self.stream = cp.cuda.Stream(non_blocking=True)
 

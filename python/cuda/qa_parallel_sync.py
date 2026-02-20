@@ -9,9 +9,9 @@ import numpy as np
 from gnuradio import gr, gr_unittest, blocks
 from gnuradio import cuda
 try:
-    from .multiply_const_py import multiply_const_py
+    from .multiply_const_cupy import multiply_const_cupy
 except ImportError:
-    from multiply_const_py import multiply_const_py
+    from multiply_const_cupy import multiply_const_cupy
 
 class qa_parallel_sync(gr_unittest.TestCase):
     def setUp(self):
@@ -42,12 +42,12 @@ class qa_parallel_sync(gr_unittest.TestCase):
         to_dev = cuda.copy(np.dtype(np.complex64).itemsize)
         
         # Branch 1: Multiply by 2.0
-        mult1 = multiply_const_py(2.0, dtype=np.complex64)
+        mult1 = multiply_const_cupy(2.0, dtype=np.complex64)
         from_dev1 = cuda.copy(np.dtype(np.complex64).itemsize)
         snk1 = blocks.vector_sink_c()
         
         # Branch 2: Multiply by 3.0
-        mult2 = multiply_const_py(3.0, dtype=np.complex64)
+        mult2 = multiply_const_cupy(3.0, dtype=np.complex64)
         from_dev2 = cuda.copy(np.dtype(np.complex64).itemsize)
         snk2 = blocks.vector_sink_c()
         
