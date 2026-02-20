@@ -103,7 +103,8 @@ protected:
 public:
     cuda_block()
     {
-        check_cuda_errors(cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking));
+        check_cuda_errors(cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking),
+                          "cuda_block::cuda_block cudaStreamCreateWithFlags");
     }
 
     virtual ~cuda_block()

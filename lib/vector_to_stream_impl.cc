@@ -54,7 +54,8 @@ int vector_to_stream_impl::work(int noutput_items,
                                           in, 
                                           total_bytes, 
                                           cudaMemcpyDeviceToDevice, 
-                                          d_stream));
+                                          d_stream),
+                          "vector_to_stream: cudaMemcpyAsync D2D", d_logger);
     }
 
     // Mark outputs ready

@@ -10,28 +10,26 @@
 
 #include <cuda.h>
 #include <cuda_runtime_api.h>
-#include <iostream>
+#include <memory>
 
+namespace gr {
+class logger;
+}
 /*!
- * \brief Log a CUDA error to stderr (does not throw).
+ * \brief Log (optionally) and throw on CUDA failure.
  *
- * Prints the error code, name, and description to stderr if \p rc
- * indicates a failure.  Used as a lightweight check wrapper throughout
- * the codebase.
- */
-void check_cuda_errors(cudaError_t rc);
-
-/*!
- * \brief Format a CUDA error with context and throw std::runtime_error.
+ * If \p rc indicates a CUDA failure, logs the formatted message when
+ * \p logger is non-null, then throws std::runtime_error with
+ * the supplied \p context, CUDA error name, and CUDA error description.
+ * Returns silently when \p rc is cudaSuccess.
  *
- * Always throws — call only when \p rc indicates a failure.
- * The exception message includes \p context, the CUDA error name,
- * and the CUDA error description string.
- *
- * \param context  Human-readable description of the operation that failed.
  * \param rc       The CUDA error code.
+ * \param context  Human-readable description of the failed operation.
+ * \param logger   Optional GNU Radio logger for error logging before throw.
  * \throws std::runtime_error
  */
-[[noreturn]] void throw_on_cuda_error(const char* context, cudaError_t rc);
+void check_cuda_errors(cudaError_t rc,
+                       const char* context = "CUDA operation failed",
+                       const std::shared_ptr<gr::logger>& logger = nullptr);
 
 #endif

@@ -28,7 +28,8 @@ vector_to_streams_impl::vector_to_streams_impl(size_t itemsize, size_t num_strea
       d_num_streams(num_streams)
 {
     get_deinterleave_block_and_grid(&d_min_grid_size, &d_block_size);
-    check_cuda_errors(cudaMalloc((void**)&d_output_ptrs_dev, sizeof(void*) * d_num_streams));
+    check_cuda_errors(cudaMalloc((void**)&d_output_ptrs_dev, sizeof(void*) * d_num_streams),
+                      "vector_to_streams: cudaMalloc output_ptrs", d_logger);
 }
 
 vector_to_streams_impl::~vector_to_streams_impl()
@@ -50,7 +51,8 @@ int vector_to_streams_impl::work(int noutput_items,
                                       output_items.data(), 
                                       sizeof(void*) * d_num_streams, 
                                       cudaMemcpyHostToDevice, 
-                                      d_stream));
+                                      d_stream),
+                      "vector_to_streams: cudaMemcpyAsync H2D ptrs", d_logger);
 
     // noutput_items = number of scalars produced per stream (which equals number of input vectors consumed).
     // This kernel deinterleaves data from one input vector stream into N output scalar streams.
