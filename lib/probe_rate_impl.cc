@@ -88,6 +88,9 @@ int probe_rate_impl::work(int noutput_items,
       message_port_pub(d_port, pmt::dict_from_mapping(d_data_dict));
     }
   }
+
+  // Signal inputs consumed so upstream producers can safely overwrite
+  gr::cuda::mark_work_done(detail(), d_stream);
   return noutput_items;
 }
 
