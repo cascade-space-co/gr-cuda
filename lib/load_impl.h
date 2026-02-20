@@ -21,12 +21,13 @@ private:
     size_t d_iterations;
     size_t d_itemsize;
     bool d_use_cb;
-    uint8_t *d_dev_in;
-    uint8_t *d_dev_out;
+    uint8_t *d_dev_in = nullptr;
+    uint8_t *d_dev_out = nullptr;
 
     size_t d_max_buffer_size = 65536*8;
 public:
     load_impl(size_t iterations, size_t itemsize, bool use_cb = true);
+    ~load_impl() override;
 
     // Where all the action really happens
     int work(int noutput_items,

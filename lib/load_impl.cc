@@ -46,6 +46,16 @@ load_impl::load_impl(size_t iterations, size_t itemsize, bool use_cb)
     }
 }
 
+load_impl::~load_impl()
+{
+    if (d_dev_in) {
+        cudaFree(d_dev_in);
+    }
+    if (d_dev_out) {
+        cudaFree(d_dev_out);
+    }
+}
+
 int load_impl::work(int noutput_items,
                     gr_vector_const_void_star& input_items,
                     gr_vector_void_star& output_items)
