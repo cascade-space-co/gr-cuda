@@ -303,9 +303,35 @@ bool cuda_buffer::input_blocked_callback(int items_required,
 
     bool rc = false;
     switch (d_transfer_type) {
-    case transfer_type::HOST_TO_DEVICE:
+    case transfer_type::HOST_TO_DEVICE: {
+        // Consumer reads d_cuda_buf.  Rearrange both buffers so d_base stays
+        // in sync (the next H2D post_work copies d_base -> d_cuda_buf using
+        // the same indices).
+        auto h2d_memcpy = [this](void* dest, const void* src, std::size_t count) {
+            void* result = cuda_memcpy(dest, src, count);
+            const std::ptrdiff_t dest_off =
+                static_cast<char*>(dest) - d_cuda_buf;
+            const std::ptrdiff_t src_off =
+                static_cast<const char*>(src) - d_cuda_buf;
+            std::memcpy(d_base + dest_off, d_base + src_off, count);
+            return result;
+        };
+        auto h2d_memmove = [this](void* dest, const void* src, std::size_t count) {
+            void* result = cuda_memmove(dest, src, count);
+            const std::ptrdiff_t dest_off =
+                static_cast<char*>(dest) - d_cuda_buf;
+            const std::ptrdiff_t src_off =
+                static_cast<const char*>(src) - d_cuda_buf;
+            std::memmove(d_base + dest_off, d_base + src_off, count);
+            return result;
+        };
+        rc = input_blocked_callback_logic(
+            items_required, items_avail, read_index,
+            d_cuda_buf, h2d_memcpy, h2d_memmove);
+        break;
+    }
+
     case transfer_type::DEVICE_TO_DEVICE:
-        // Adjust "device" buffer
         rc = input_blocked_callback_logic(items_required,
                                           items_avail,
                                           read_index,
@@ -314,11 +340,32 @@ bool cuda_buffer::input_blocked_callback(int items_required,
                                           f_cuda_memmove);
         break;
 
-    case transfer_type::DEVICE_TO_HOST:
-        // Adjust host buffer
+    case transfer_type::DEVICE_TO_HOST: {
+        // Consumer reads d_base.  Rearrange both buffers so d_cuda_buf stays
+        // in sync (D2H post_work copies d_cuda_buf → d_base using the same
+        // indices).
+        auto d2h_memcpy = [this](void* dest, const void* src, std::size_t count) {
+            std::memcpy(dest, src, count);
+            const std::ptrdiff_t dest_off =
+                static_cast<char*>(dest) - static_cast<char*>(d_base);
+            const std::ptrdiff_t src_off =
+                static_cast<const char*>(src) - static_cast<const char*>(d_base);
+            cuda_memcpy(d_cuda_buf + dest_off, d_cuda_buf + src_off, count);
+            return dest;
+        };
+        auto d2h_memmove = [this](void* dest, const void* src, std::size_t count) {
+            std::memmove(dest, src, count);
+            const std::ptrdiff_t dest_off =
+                static_cast<char*>(dest) - static_cast<char*>(d_base);
+            const std::ptrdiff_t src_off =
+                static_cast<const char*>(src) - static_cast<const char*>(d_base);
+            cuda_memmove(d_cuda_buf + dest_off, d_cuda_buf + src_off, count);
+            return dest;
+        };
         rc = input_blocked_callback_logic(
-            items_required, items_avail, read_index, d_base, std::memcpy, std::memmove);
+            items_required, items_avail, read_index, d_base, d2h_memcpy, d2h_memmove);
         break;
+    }
 
     default:
         throw_unexpected_transfer_type();
