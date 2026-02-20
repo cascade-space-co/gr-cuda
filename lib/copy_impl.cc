@@ -47,7 +47,8 @@ int copy_impl::work(int noutput_items,
         auto in = static_cast<const uint8_t*>(input_items[0]);
         auto out = static_cast<uint8_t*>(output_items[0]);
         check_cuda_errors(cudaMemcpyAsync(
-            out, in, noutput_items * d_itemsize, cudaMemcpyDeviceToDevice, d_stream));
+            out, in, noutput_items * d_itemsize, cudaMemcpyDeviceToDevice, d_stream),
+            "copy: cudaMemcpyAsync D2D", d_logger);
     }
 
     // 3. Mark outputs

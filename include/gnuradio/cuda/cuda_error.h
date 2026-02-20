@@ -16,26 +16,20 @@ namespace gr {
 class logger;
 }
 /*!
- * \brief Throw on CUDA failure.
+ * \brief Log (optionally) and throw on CUDA failure.
  *
- * If \p rc indicates a CUDA failure, throws std::runtime_error with
+ * If \p rc indicates a CUDA failure, logs the formatted message when
+ * \p logger is non-null, then throws std::runtime_error with
  * the supplied \p context, CUDA error name, and CUDA error description.
  * Returns silently when \p rc is cudaSuccess.
  *
  * \param rc       The CUDA error code.
  * \param context  Human-readable description of the failed operation.
+ * \param logger   Optional GNU Radio logger for error logging before throw.
  * \throws std::runtime_error
  */
-void check_cuda_errors(cudaError_t rc, const char* context = "CUDA operation failed");
-
-/*!
- * \brief Log via GNU Radio logger and throw on CUDA failure.
- *
- * If \p rc indicates a CUDA failure, logs the formatted message when
- * \p logger is non-null, then throws std::runtime_error.
- */
 void check_cuda_errors(cudaError_t rc,
-                       const char* context,
-                       const std::shared_ptr<gr::logger>& logger);
+                       const char* context = "CUDA operation failed",
+                       const std::shared_ptr<gr::logger>& logger = nullptr);
 
 #endif

@@ -28,8 +28,8 @@ void* cuda_buffer::cuda_memcpy(void* dest, const void* src, std::size_t count)
 {
     cudaError_t rc =
         cudaMemcpyAsync(dest, src, count, cudaMemcpyDeviceToDevice, d_stream);
-    cudaStreamSynchronize(d_stream);
-    check_cuda_errors(rc, "cuda_memcpy: Error performing cudaMemcpyAsync D2D", d_logger);
+    check_cuda_errors(rc, "cuda_memcpy: cudaMemcpyAsync D2D", d_logger);
+    check_cuda_errors(cudaStreamSynchronize(d_stream), "cuda_memcpy: cudaStreamSynchronize", d_logger);
 
     return dest;
 }
@@ -389,7 +389,8 @@ void cuda_buffer::sync_all_gpu_work()
         cudaEventSynchronize(d_dev_ready_evt[i]);
     }
     cudaEventSynchronize(d_read_done_evt);
-    cudaStreamSynchronize(d_stream);
+    check_cuda_errors(cudaStreamSynchronize(d_stream),
+                      "sync_all_gpu_work: cudaStreamSynchronize", d_logger);
 }
 
 void cuda_buffer::throw_unexpected_transfer_type()
