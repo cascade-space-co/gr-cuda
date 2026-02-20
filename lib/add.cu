@@ -1,18 +1,22 @@
-#include <stdio.h>
+/* -*- c++ -*- */
+/*
+ * Copyright 2026 Cascade Space.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
 
 #include <gnuradio/cuda/cuda_error.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuComplex.h>
-#include <iostream>
 #include <complex>
 
-// Kernel definition
+/*! Element-wise sum of \p num_inputs arrays into \p out. */
 template <typename T>
-__global__ void kernel_add(T** inputs, T* out, int num_inputs, int N)
+__global__ void kernel_add(T** inputs, T* out, int num_inputs, int num_elements)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < N) {
+    if (i < num_elements) {
         T sum = 0;
         for (int k = 0; k < num_inputs; k++) {
             sum += inputs[k][i];
@@ -21,15 +25,14 @@ __global__ void kernel_add(T** inputs, T* out, int num_inputs, int N)
     }
 }
 
-// Specialization for cuFloatComplex (compatible with std::complex<float>)
 template <>
 __global__ void kernel_add<cuFloatComplex>(cuFloatComplex** inputs, 
                                            cuFloatComplex* out, 
                                            int num_inputs, 
-                                           int N)
+                                           int num_elements)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < N) {
+    if (i < num_elements) {
         cuFloatComplex sum = make_cuFloatComplex(0.0f, 0.0f);
         for (int k = 0; k < num_inputs; k++) {
             sum = cuCaddf(sum, inputs[k][i]);
@@ -38,8 +41,6 @@ __global__ void kernel_add<cuFloatComplex>(cuFloatComplex** inputs,
     }
 }
 
-
-// Kernel wrapper
 template <typename T>
 void exec_kernel_add(T** inputs,
                      T* out,
@@ -49,11 +50,11 @@ void exec_kernel_add(T** inputs,
                      size_t n,
                      cudaStream_t stream)
 {
-    kernel_add<T><<<grid_size, block_size, 0, stream>>>(inputs, out, num_inputs, n);
+    kernel_add<T><<<grid_size, block_size, 0, stream>>>(inputs, out, num_inputs, static_cast<int>(n));
     check_cuda_errors(cudaGetLastError());
 }
 
-// Specialization for std::complex -> cuFloatComplex
+// std::complex<float> is binary-compatible with cuFloatComplex
 template <>
 void exec_kernel_add<std::complex<float>>(std::complex<float>** inputs,
                                           std::complex<float>* out,
@@ -63,13 +64,11 @@ void exec_kernel_add<std::complex<float>>(std::complex<float>** inputs,
                                           size_t n,
                                           cudaStream_t stream)
 {
-    // inputs is T**, so std::complex<float>**
-    // We cast it to cuFloatComplex** which is binary compatible
     kernel_add<cuFloatComplex>
         <<<grid_size, block_size, 0, stream>>>((cuFloatComplex**)inputs,
                                                (cuFloatComplex*)out,
                                                num_inputs,
-                                               n);
+                                               static_cast<int>(n));
     check_cuda_errors(cudaGetLastError());
 }
 

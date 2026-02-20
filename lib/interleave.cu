@@ -5,28 +5,21 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#include <stdio.h>
 #include <gnuradio/cuda/cuda_error.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
-#include <iostream>
+#include <string.h>
 
-// Use char* to handle arbitrary item sizes
-// N = number of vectors to process
-// itemsize = bytes per scalar item
-// vlen = number of streams (or vector length)
+// Uses char* to handle arbitrary item sizes without template specialization.
 
+/*! Interleave N input streams into one output vector stream.
+ *  One thread per scalar element (N * num_streams total threads). */
 __global__ void kernel_interleave(const void** inputs, 
                                   char* out, 
                                   int num_streams, 
                                   int itemsize, 
                                   int N)
 {
-    // N = number of output vectors
-    // One thread per output vector? Or one thread per scalar?
-    // One thread per scalar is better parallelism.
-    // Total scalars = N * num_streams
-    
     int total_scalars = N * num_streams;
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     
@@ -45,27 +38,18 @@ __global__ void kernel_interleave(const void** inputs,
         
         const char* in_ptr = (const char*)inputs[stream_idx];
         
-        // Copy itemsize bytes
-        // Doing byte-wise copy inside a thread for 'itemsize' might be slow if itemsize is large.
-        // But usually it's 4 or 8 bytes.
-        // For arbitrary itemsize, we loop.
-        
-        int in_offset = vec_idx * itemsize;
-        int out_offset = idx * itemsize;
-        
-        for (int b = 0; b < itemsize; b++) {
-            out[out_offset + b] = in_ptr[in_offset + b];
-        }
+        memcpy(&out[idx * itemsize], &in_ptr[vec_idx * itemsize], itemsize);
     }
 }
 
+/*! Deinterleave one input vector stream into N output streams.
+ *  One thread per scalar element (N * num_streams total threads). */
 __global__ void kernel_deinterleave(const char* in, 
                                     void** outputs, 
                                     int num_streams, 
                                     int itemsize, 
                                     int N)
 {
-    // N = number of input vectors
     int total_scalars = N * num_streams;
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     
@@ -78,12 +62,7 @@ __global__ void kernel_deinterleave(const char* in,
         
         char* out_ptr = (char*)outputs[stream_idx];
         
-        int in_offset = idx * itemsize;
-        int out_offset = vec_idx * itemsize;
-        
-        for (int b = 0; b < itemsize; b++) {
-            out_ptr[out_offset + b] = in[in_offset + b];
-        }
+        memcpy(&out_ptr[vec_idx * itemsize], &in[idx * itemsize], itemsize);
     }
 }
 

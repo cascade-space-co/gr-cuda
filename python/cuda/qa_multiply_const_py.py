@@ -69,5 +69,22 @@ class qa_multiply_const_py(gr_unittest.TestCase):
         
         self.assertFloatTuplesAlmostEqual(result, expected, 5)
 
+    def test_003_float_vlen(self):
+        N = 10000
+        vlen = 4
+        k = 2.5
+        src_data = np.random.randn(N * vlen).astype(np.float32)
+
+        src = blocks.vector_source_f(src_data, False, vlen)
+        dut = multiply_const_py(k, dtype=np.float32, vlen=vlen)
+        snk = blocks.vector_sink_f(vlen)
+
+        self.tb.connect(src, dut, snk)
+        self.tb.run()
+
+        result = np.array(snk.data(), dtype=np.float32)
+        expected = src_data * k
+        np.testing.assert_allclose(result, expected, rtol=1e-5, atol=1e-5)
+
 if __name__ == '__main__':
     gr_unittest.run(qa_multiply_const_py)

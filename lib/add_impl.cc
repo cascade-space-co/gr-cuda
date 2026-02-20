@@ -71,14 +71,15 @@ int add_impl<T>::work(int noutput_items,
                                       cudaMemcpyHostToDevice, 
                                       d_stream));
 
-    int gridSize = (noutput_items + d_block_size - 1) / d_block_size;
+    size_t total_elements = static_cast<size_t>(noutput_items) * d_vlen;
+    int gridSize = (total_elements + d_block_size - 1) / d_block_size;
     
     exec_kernel_add<T>(d_input_ptrs_dev,
                        out,
                        d_num_inputs,
                        gridSize,
                        d_block_size,
-                       noutput_items,
+                       total_elements,
                        d_stream);
     
     // Mark outputs ready

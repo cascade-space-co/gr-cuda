@@ -102,5 +102,45 @@ class qa_add(gr_unittest.TestCase):
         # Exact match for integers
         np.testing.assert_array_equal(result, expected)
 
+    def test_004_add_float_vlen(self):
+        N = 10000
+        vlen = 4
+        src_data1 = np.random.randn(N * vlen).astype(np.float32)
+        src_data2 = np.random.randn(N * vlen).astype(np.float32)
+
+        src1 = blocks.vector_source_f(src_data1, False, vlen)
+        src2 = blocks.vector_source_f(src_data2, False, vlen)
+        dut = cuda.add_ff(num_inputs=2, vlen=vlen)
+        snk = blocks.vector_sink_f(vlen)
+
+        self.tb.connect(src1, (dut, 0))
+        self.tb.connect(src2, (dut, 1))
+        self.tb.connect(dut, snk)
+        self.tb.run()
+
+        result = np.array(snk.data(), dtype=np.float32)
+        expected = src_data1 + src_data2
+        np.testing.assert_allclose(result, expected, rtol=1e-5, atol=1e-5)
+
+    def test_005_add_complex_vlen(self):
+        N = 10000
+        vlen = 8
+        src_data1 = (np.random.randn(N * vlen) + 1j * np.random.randn(N * vlen)).astype(np.complex64)
+        src_data2 = (np.random.randn(N * vlen) + 1j * np.random.randn(N * vlen)).astype(np.complex64)
+
+        src1 = blocks.vector_source_c(src_data1, False, vlen)
+        src2 = blocks.vector_source_c(src_data2, False, vlen)
+        dut = cuda.add_cc(num_inputs=2, vlen=vlen)
+        snk = blocks.vector_sink_c(vlen)
+
+        self.tb.connect(src1, (dut, 0))
+        self.tb.connect(src2, (dut, 1))
+        self.tb.connect(dut, snk)
+        self.tb.run()
+
+        result = np.array(snk.data(), dtype=np.complex64)
+        expected = src_data1 + src_data2
+        np.testing.assert_allclose(result, expected, rtol=1e-5, atol=1e-5)
+
 if __name__ == '__main__':
     gr_unittest.run(qa_add)

@@ -54,13 +54,14 @@ int multiply_const_impl<T>::work(int noutput_items,
     gr::cuda::wait_for_inputs(this->detail(), d_stream);
     auto in = static_cast<const T*>(input_items[0]);
     auto out = static_cast<T*>(output_items[0]);
-    int gridSize = (noutput_items + d_block_size - 1) / d_block_size;
+    size_t total_elements = static_cast<size_t>(noutput_items) * d_vlen;
+    int gridSize = (total_elements + d_block_size - 1) / d_block_size;
     exec_kernel_multiply_const<T>(in,
                                   out,
                                   d_k,
                                   gridSize,
                                   d_block_size,
-                                  noutput_items,
+                                  total_elements,
                                   d_stream);
 
 
