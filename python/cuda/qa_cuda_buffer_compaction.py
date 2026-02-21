@@ -46,14 +46,8 @@ The minimum trigger conditions are:
     3. That reader also sets delay = history - 1  (forces d_has_history=false)
 
 The test uses ``cuda.null_source`` feeding a tiny Python sink that sets
-``history=2`` and ``declare_sample_delay(1)`` — the same pattern used by
-``qtgui.time_sink_c`` — to trigger the deadlock deterministically.
-
-Fix
----
-Override ``update_reader_block_history`` in cuda_buffer to unconditionally
-force ``d_has_history = true`` after the base-class call.  Single-mapped
-buffers ALWAYS need the compaction path.
+``history=2`` and ``declare_sample_delay(1)`` to trigger the deadlock 
+deterministically.
 """
 
 import time
