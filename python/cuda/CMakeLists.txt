@@ -57,3 +57,4 @@ GR_ADD_TEST(qa_long_race_stress ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}
 GR_ADD_TEST(qa_blocked_callbacks ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_blocked_callbacks.py)
 GR_ADD_TEST(qa_tag_propagation ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tag_propagation.py)
 GR_ADD_TEST(qa_throttle ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_throttle.py)
+GR_ADD_TEST(qa_cuda_buffer_compaction ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_cuda_buffer_compaction.py)

@@ -158,6 +158,21 @@ public:
     void wait_read_done(cudaStream_t stream);
 
     /*!
+     * \brief Force d_has_history=true so the compaction callback is always
+     *        eligible to run when the write pointer reaches the end of the buffer.
+     *
+     * buffer_single_mapped gates the output-blocked compaction callback on
+     * d_has_history.  It sets that flag to false when (history - 1) == delay,
+     * on the assumption that such history is purely for pointer alignment and
+     * not "real" look-back data.  For double-mapped buffers this is harmless
+     * because the write pointer wraps; for cuda_buffer (single-mapped) it means
+     * compaction is never triggered once the write pointer reaches d_bufsize,
+     * causing a permanent BLKD_OUT deadlock.  Forcing d_has_history=true
+     * ensures the compaction path is always taken when needed.
+     */
+    void update_reader_block_history(unsigned history, int delay) override;
+
+    /*!
      * \brief Do actual buffer allocation. Inherited from buffer_single_mapped.
      */
     bool do_allocate_buffer(size_t final_nitems, size_t sizeof_item) override;
