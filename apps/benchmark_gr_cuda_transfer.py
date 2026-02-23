@@ -22,6 +22,11 @@ import argparse
 import time
 from gnuradio import gr, blocks, cuda
 
+# Buffer is BUFFER_MULTIPLE times the output_multiple.  Larger buffers reduce
+# compaction frequency in cuda_buffer (single-mapped), avoiding costly full
+# GPU pipeline drains in output_blocked_callback.
+BUFFER_MULTIPLE = 32
+
 
 def make_chain(mode, buff_len):
     """Build one transfer chain.
@@ -65,7 +70,7 @@ def make_chain(mode, buff_len):
     # Large output_multiple forces the scheduler to issue big work() calls,
     # which translates to large DMA transfers -- critical for PCIe throughput.
     for b in blk_list:
-        b.set_min_output_buffer(32 * buff_len)
+        b.set_min_output_buffer(BUFFER_MULTIPLE * buff_len)
         b.set_output_multiple(buff_len)
 
     return blk_list, conns, meter
