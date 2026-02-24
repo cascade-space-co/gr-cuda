@@ -85,13 +85,6 @@ def _run_cupy_fft(data, fft_size, forward, window, shift, real_input):
     return _run_flowgraph(src, block, sink, fft_size)
 
 
-def _run_cuda_fft_shift(data, fft_size):
-    src = blocks.vector_source_c(data.astype(np.complex64), False, fft_size)
-    sink = _make_sink(fft_size)
-    block = cuda.fft_shift(fft_size)
-    return _run_flowgraph(src, block, sink, fft_size)
-
-
 class qa_fft(gr_unittest.TestCase):
     def setUp(self):
         self.rng = np.random.default_rng(0)
@@ -173,14 +166,6 @@ class qa_fft(gr_unittest.TestCase):
                 self._compare_fft(_run_cupy_fft, fft_size, True, [], True, real_input)
             with self.subTest(real_input=real_input, direction="inverse"):
                 self._compare_fft(_run_cupy_fft, fft_size, False, [], True, real_input)
-
-    def test_cuda_fft_shift_block(self):
-        fft_size = 257
-        data = self._make_input(fft_size, real_input=False)
-        expected = np.fft.fftshift(data.reshape((-1, fft_size)), axes=1)
-        actual = _run_cuda_fft_shift(data, fft_size)
-        np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
-
 
 if __name__ == "__main__":
     gr_unittest.run(qa_fft)

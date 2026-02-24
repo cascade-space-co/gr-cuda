@@ -32,7 +32,6 @@ list(APPEND cuda_python_files
     add_python.cc
     copy_python.cc
     fft_python.cc
-    fft_shift_python.cc
     multiply_const_python.cc
     load_python.cc
     cuda_helpers_python.cc
