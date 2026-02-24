@@ -33,19 +33,19 @@ from gnuradio import gr, blocks, cuda
 from gnuradio import fft as gr_fft
 from gnuradio.fft import window as gr_window
 
-# Auto-scale output_multiple so each work() call processes roughly
-# TARGET_BATCH_BYTES of data.  This keeps the comparison fair across all
-# engines: every engine gets the same number of vectors per call for a
-# given FFT size.
-TARGET_BATCH_BYTES = 64 * 1024 * 1024   # 64 MiB
-MIN_OUTPUT_MULTIPLE = 4
+# Each work() call processes ~WORK_BATCH_BYTES of data, which also determines
+# the cuFFT batch size (vectors per call).  Adjusting this value (inherently
+# the batch size of the cuFFT plan) might or might not produce better
+# performance.  The buffer is BUFFER_MULTIPLE times larger to give the
+# producer headroom over the consumer.
+WORK_BATCH_BYTES = 64 * 1024 * 1024    # 64 MiB per work() call
+BUFFER_MULTIPLE = 16                    # buffer = 16 work() calls = ~1 GiB
 
 
 def _auto_output_multiple(fft_size):
-    """Compute output_multiple so total batch ~ TARGET_BATCH_BYTES."""
+    """Compute output_multiple so total batch ~ WORK_BATCH_BYTES."""
     bytes_per_vector = fft_size * 8  # complex64
-    om = max(MIN_OUTPUT_MULTIPLE, TARGET_BATCH_BYTES // bytes_per_vector)
-    return om
+    return max(1, WORK_BATCH_BYTES // bytes_per_vector)
 
 
 def make_chain(mode, fft_size, output_multiple):
@@ -89,7 +89,7 @@ def make_chain(mode, fft_size, output_multiple):
         raise ValueError(f"Unknown mode: {mode}")
 
     for b in blk_list:
-        b.set_min_output_buffer(32 * output_multiple)
+        b.set_min_output_buffer(BUFFER_MULTIPLE * output_multiple)
         b.set_output_multiple(output_multiple)
 
     return blk_list, conns, meter
@@ -121,6 +121,12 @@ def run_benchmark(mode, fft_size, output_multiple, duration, warmup=1.0):
 
     elapsed = t1 - t0
     total_vectors = n1 - n0
+
+    if mode == "cupy":
+        import cupy
+        # Free all CuPy memory blocks to avoid memory leaks.
+        cupy.get_default_memory_pool().free_all_blocks()
+
     return total_vectors, elapsed
 
 
@@ -190,7 +196,7 @@ def main():
     if args.output_multiple is not None:
         print(f"  Output multiple: {args.output_multiple} vectors per work() call")
     else:
-        print(f"  Output multiple: auto (~{TARGET_BATCH_BYTES // (1024*1024)} MiB/call)")
+        print(f"  Output multiple: auto (~{WORK_BATCH_BYTES // (1024*1024)} MiB/call)")
     print(f"  FFT sizes:       2^{args.fft_exp_min} .. 2^{args.fft_exp_max} points")
     print()
 
