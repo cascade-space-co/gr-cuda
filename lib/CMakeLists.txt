@@ -28,7 +28,6 @@ list(APPEND cuda_sources
     interleave.cu
     fft_impl.cc
     fft.cu
-    fft_shift_impl.cc
     stream_to_vector_impl.cc
     vector_to_stream_impl.cc
     streams_to_vector_impl.cc
