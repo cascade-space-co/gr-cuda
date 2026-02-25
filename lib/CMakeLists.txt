@@ -49,6 +49,7 @@ add_library(gnuradio-cuda SHARED ${cuda_sources})
 target_link_libraries(gnuradio-cuda PUBLIC
     gnuradio::gnuradio-runtime
     CUDA::cudart
+    CUDA::cuda_driver
     CUDA::cufft
     )
 
