@@ -13,6 +13,8 @@
 #include <gnuradio/block.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_error.h>
+#include "detail/device_vmm_ring.h"
+#include "detail/host_mmap_ring.h"
 
 #include <algorithm>
 #include <cassert>
@@ -20,234 +22,7 @@
 #include <sstream>
 #include <stdexcept>
 
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <unistd.h>
-
 namespace gr {
-
-/*!
- * \brief Result of a VMM device-side double-mapped allocation.
- *
- * ptr points to the start of the 2N VA region; the same physical allocation
- * (handle) is mapped at [ptr, ptr+aligned_bytes) and
- * [ptr+aligned_bytes, ptr+2*aligned_bytes).
- */
-struct vmm_device_alloc {
-    CUdeviceptr ptr;
-    CUmemGenericAllocationHandle handle;
-    size_t aligned_bytes;  // N (one half), aligned to VMM granularity
-};
-
-/*!
- * \brief Query the minimum VMM allocation granularity for the current device.
- *
- * All VMM allocations and mappings must be multiples of this value
- * (typically 2 MB on modern NVIDIA GPUs).
- */
-static size_t vmm_query_granularity()
-{
-    int device;
-    check_cuda_errors(cudaGetDevice(&device), "vmm: cudaGetDevice");
-
-    CUdevice cu_dev;
-    CUresult res = cuDeviceGet(&cu_dev, device);
-    if (res != CUDA_SUCCESS)
-        throw std::runtime_error("vmm: cuDeviceGet failed");
-
-    // Pinned, device-local, matches what vmm_create_double_mapped will use
-    CUmemAllocationProp prop = {};
-    prop.type = CU_MEM_ALLOCATION_TYPE_PINNED;
-    prop.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
-    prop.location.id = cu_dev;
-
-    size_t granularity = 0;
-    res = cuMemGetAllocationGranularity(
-        &granularity, &prop, CU_MEM_ALLOC_GRANULARITY_MINIMUM);
-    if (res != CUDA_SUCCESS)
-        throw std::runtime_error("vmm: cuMemGetAllocationGranularity failed");
-
-    return granularity;
-}
-
-/*!
- * \brief Create a device-side circular buffer using CUDA Driver VMM.
- *
- * Allocates N bytes of physical GPU memory and maps it into two adjacent
- * virtual address ranges [ptr, ptr+N) and [ptr+N, ptr+2N), both backed by
- * the same physical allocation.  This is the GPU-side equivalent of the
- * host mmap double-mapping: CUDA kernels and DMA see a contiguous 2N
- * region that wraps transparently.
- *
- * \code
- *   GPU virtual address space:
- *   [ ---- half 1 ---- | ---- half 2 ---- ]
- *     ^                   ^
- *     ptr                 ptr + N
- *     \__ same physical __/
- *         allocation
- * \endcode
- *
- * Cleanup order (in vmm_destroy): unmap both halves, release handle, free VA.
- */
-static vmm_device_alloc vmm_create_double_mapped(size_t requested_bytes)
-{
-    int device;
-    check_cuda_errors(cudaGetDevice(&device), "vmm_create: cudaGetDevice");
-
-    CUdevice cu_dev;
-    CUresult res = cuDeviceGet(&cu_dev, device);
-    if (res != CUDA_SUCCESS)
-        throw std::runtime_error("vmm_create: cuDeviceGet failed");
-
-    CUmemAllocationProp prop = {};
-    prop.type = CU_MEM_ALLOCATION_TYPE_PINNED;
-    prop.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
-    prop.location.id = cu_dev;
-
-    size_t granularity = 0;
-    res = cuMemGetAllocationGranularity(
-        &granularity, &prop, CU_MEM_ALLOC_GRANULARITY_MINIMUM);
-    if (res != CUDA_SUCCESS)
-        throw std::runtime_error("vmm_create: cuMemGetAllocationGranularity failed");
-
-    // Round up to granularity, VMM requires all sizes/offsets to be multiples
-    size_t aligned =
-        ((requested_bytes + granularity - 1) / granularity) * granularity;
-
-    // Reserve 2N contiguous VA (no physical memory yet)
-    CUdeviceptr ptr = 0;
-    res = cuMemAddressReserve(&ptr, 2 * aligned, 0, 0, 0);
-    if (res != CUDA_SUCCESS)
-        throw std::runtime_error("vmm_create: cuMemAddressReserve failed");
-
-    // Create one physical allocation of size N
-    CUmemGenericAllocationHandle handle = 0;
-    res = cuMemCreate(&handle, aligned, &prop, 0);
-    if (res != CUDA_SUCCESS) {
-        cuMemAddressFree(ptr, 2 * aligned);
-        throw std::runtime_error("vmm_create: cuMemCreate failed");
-    }
-
-    // Map the physical allocation into the first half [ptr, ptr+N)
-    res = cuMemMap(ptr, aligned, 0, handle, 0);
-    if (res != CUDA_SUCCESS) {
-        cuMemRelease(handle);
-        cuMemAddressFree(ptr, 2 * aligned);
-        throw std::runtime_error("vmm_create: cuMemMap first half failed");
-    }
-
-    // Map the same allocation into the second half [ptr+N, ptr+2N)
-    res = cuMemMap(ptr + aligned, aligned, 0, handle, 0);
-    if (res != CUDA_SUCCESS) {
-        cuMemUnmap(ptr, aligned);
-        cuMemRelease(handle);
-        cuMemAddressFree(ptr, 2 * aligned);
-        throw std::runtime_error("vmm_create: cuMemMap second half failed");
-    }
-
-    // Grant read/write access across the full 2N range
-    CUmemAccessDesc access = {};
-    access.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
-    access.location.id = cu_dev;
-    access.flags = CU_MEM_ACCESS_FLAGS_PROT_READWRITE;
-
-    res = cuMemSetAccess(ptr, 2 * aligned, &access, 1);
-    if (res != CUDA_SUCCESS) {
-        cuMemUnmap(ptr, aligned);
-        cuMemUnmap(ptr + aligned, aligned);
-        cuMemRelease(handle);
-        cuMemAddressFree(ptr, 2 * aligned);
-        throw std::runtime_error("vmm_create: cuMemSetAccess failed");
-    }
-
-    return {ptr, handle, aligned};
-}
-
-static void vmm_destroy(vmm_device_alloc& alloc)
-{
-    if (alloc.ptr) {
-        cuMemUnmap(alloc.ptr, alloc.aligned_bytes);
-        cuMemUnmap(alloc.ptr + alloc.aligned_bytes, alloc.aligned_bytes);
-        cuMemRelease(alloc.handle);
-        cuMemAddressFree(alloc.ptr, 2 * alloc.aligned_bytes);
-        alloc.ptr = 0;
-    }
-}
-
-/*!
- * \brief Result of a host-side mmap double-mapped allocation.
- */
-struct host_circ_alloc {
-    void* base;   // start of the 2N virtual address region
-    size_t bytes;  // N (one half), page-aligned
-};
-
-/*!
- * \brief Create a host-side circular buffer using mmap double-mapping.
- *
- * Allocates N bytes of physical memory (via memfd) and maps it into two
- * adjacent virtual address ranges [base, base+N) and [base+N, base+2N),
- * both backed by the same physical pages.  This makes a contiguous read
- * starting near the end of the buffer transparently wrap around to the
- * beginning without any memcpy, the hardware MMU handles it natively.
- */
-static host_circ_alloc host_circ_create(size_t requested_bytes)
-{
-    long page_size = sysconf(_SC_PAGESIZE);
-    size_t bytes =
-        ((requested_bytes + page_size - 1) / (size_t)page_size) * page_size;
-
-    // Anonymous file backed by RAM, no filesystem path needed
-    int fd = memfd_create("gr_cuda_buf", 0);
-    if (fd < 0)
-        throw std::runtime_error("host_circ_create: memfd_create failed");
-
-    if (ftruncate(fd, (off_t)bytes) != 0) {
-        close(fd);
-        throw std::runtime_error("host_circ_create: ftruncate failed");
-    }
-
-    // Reserve 2N contiguous VA with no access rights (placeholder)
-    void* region =
-        mmap(nullptr, 2 * bytes, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (region == MAP_FAILED) {
-        close(fd);
-        throw std::runtime_error("host_circ_create: VA reservation mmap failed");
-    }
-
-    // Map the fd into the first half [base, base+N), replacing the placeholder
-    void* p1 =
-        mmap(region, bytes, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, fd, 0);
-    if (p1 == MAP_FAILED) {
-        munmap(region, 2 * bytes);
-        close(fd);
-        throw std::runtime_error("host_circ_create: first-half mmap failed");
-    }
-
-    // Map the same fd into the second half [base+N, base+2N)
-    void* p2 = mmap(static_cast<char*>(region) + bytes, bytes,
-                     PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, fd, 0);
-    if (p2 == MAP_FAILED) {
-        munmap(region, 2 * bytes);
-        close(fd);
-        throw std::runtime_error("host_circ_create: second-half mmap failed");
-    }
-
-    // fd can be closed immediately; the mappings hold a reference
-    close(fd);
-    return {region, bytes};
-}
-
-static void host_circ_destroy(host_circ_alloc& alloc)
-{
-    if (alloc.base) {
-        munmap(alloc.base, 2 * alloc.bytes);
-        alloc.base = nullptr;
-    }
-}
-
-
 buffer_type cuda_buffer::type(buftype<cuda_buffer, cuda_buffer>{});
 
 cuda_buffer::cuda_buffer(int nitems,
@@ -270,7 +45,6 @@ cuda_buffer::cuda_buffer(int nitems,
     for (int i = 0; i < PIPELINE_DEPTH; i++) {
         rc = cudaEventCreateWithFlags(&d_dev_ready_evt[i], cudaEventDisableTiming);
         check_cuda_errors(rc, "cuda_buffer: device-ready event create", d_logger);
-
         rc = cudaEventCreateWithFlags(&d_host_ready_evt[i], cudaEventDisableTiming);
         check_cuda_errors(rc, "cuda_buffer: host-ready event create", d_logger);
     }
@@ -303,20 +77,10 @@ cuda_buffer::~cuda_buffer()
     if (d_read_done_evt)
         cudaEventDestroy(d_read_done_evt);
 
-    if (d_host_registered && d_host_mmap_base) {
-        cudaHostUnregister(d_host_mmap_base);
-        d_host_registered = false;
-    }
-
-    vmm_device_alloc dev = {d_vmm_ptr, d_vmm_handle, d_vmm_aligned_bytes};
-    vmm_destroy(dev);
-    d_vmm_ptr = 0;
+    d_device_ring.reset();
     d_cuda_buf = nullptr;
 
-    host_circ_alloc host = {d_host_mmap_base, d_host_mmap_bytes};
-    host_circ_destroy(host);
-    d_host_mmap_base = nullptr;
-
+    d_host_ring.reset();
     d_base = nullptr;
 }
 
@@ -330,10 +94,10 @@ cuda_buffer::~cuda_buffer()
  */
 bool cuda_buffer::do_allocate_buffer(size_t final_nitems, size_t sizeof_item)
 {
-    size_t vmm_granularity = vmm_query_granularity();
+    size_t vmm_granularity = detail::query_vmm_granularity_for_current_device();
 
     // Round up to VMM granularity.  This may significantly increase the
-    // buffer size (e.g. 128 items * 8 bytes → 2 MB).
+    // buffer size (e.g. 128 items * 8 bytes -> 2 MB).
     size_t raw_bytes = final_nitems * sizeof_item;
     size_t aligned_bytes =
         ((raw_bytes + vmm_granularity - 1) / vmm_granularity) * vmm_granularity;
@@ -345,34 +109,23 @@ bool cuda_buffer::do_allocate_buffer(size_t final_nitems, size_t sizeof_item)
 
     d_bufsize = static_cast<unsigned>(aligned_bytes / sizeof_item);
 
-    // 1) Host: mmap double-mapped circular buffer (see host_circ_create)
-    host_circ_alloc host = host_circ_create(aligned_bytes);
-    d_host_mmap_base = host.base;
-    d_host_mmap_bytes = host.bytes;
-    d_base = static_cast<char*>(d_host_mmap_base);
+    try {
+        // 1) Host: mmap double-mapped circular buffer (owned by RAII helper).
+        d_host_ring = detail::host_mmap_ring::create(aligned_bytes);
+        d_host_ring->register_pinned();
+        d_base = d_host_ring->base_ptr();
 
-    // Pin the full 2N host region for async DMA (cudaMemcpyAsync).
-    // We register the entire double-mapped range so copies that
-    // straddle the wrap boundary still hit pinned memory.
-    cudaError_t rc =
-        cudaHostRegister(d_host_mmap_base, 2 * d_host_mmap_bytes,
-                         cudaHostRegisterDefault);
-    if (rc != cudaSuccess) {
-        d_logger->error("cudaHostRegister failed: {} ({})",
-                        cudaGetErrorName(rc), cudaGetErrorString(rc));
-        host_circ_destroy(host);
-        d_host_mmap_base = nullptr;
+        // 2) Device: VMM double-mapped circular buffer (owned by RAII helper).
+        d_device_ring = detail::device_vmm_ring::create(aligned_bytes);
+        d_cuda_buf = d_device_ring->data();
+    } catch (const std::exception& e) {
+        d_logger->error("cuda_buffer allocation failed: {}", e.what());
+        d_device_ring.reset();
+        d_host_ring.reset();
         d_base = nullptr;
+        d_cuda_buf = nullptr;
         return false;
     }
-    d_host_registered = true;
-
-    // 2) Device: VMM double-mapped circular buffer (see vmm_create_double_mapped)
-    vmm_device_alloc dev = vmm_create_double_mapped(aligned_bytes);
-    d_vmm_ptr = dev.ptr;
-    d_vmm_handle = dev.handle;
-    d_vmm_aligned_bytes = dev.aligned_bytes;
-    d_cuda_buf = reinterpret_cast<char*>(static_cast<uintptr_t>(d_vmm_ptr));
 
     return true;
 }
@@ -477,90 +230,104 @@ void cuda_buffer::post_work(int nitems)
     if (nitems <= 0)
         return;
 
-    cudaError_t rc;
     const unsigned wi = d_write_index;
     const unsigned tail = d_bufsize - wi;
+    const unsigned produced = static_cast<unsigned>(nitems);
 
     switch (d_transfer_type) {
 
     // H2D: CPU block produced into host buffer, DMA it to the device
-    case transfer_type::HOST_TO_DEVICE: {
-        // Wait until all downstream GPU consumers have finished reading
-        // from device memory before we overwrite it with new data.
-        cudaStreamWaitEvent(d_stream, d_read_done_evt, 0);
-
-        char* h_src = &d_base[wi * d_sizeof_item];
-        char* d_dst = &d_cuda_buf[wi * d_sizeof_item];
-
-        // If the write doesn't cross the buffer boundary, one copy suffices.
-        // Otherwise split at the boundary: cudaHostRegister may not
-        // correctly resolve mmap aliases in the second half of the 2N region.
-        if ((unsigned)nitems <= tail) {
-            rc = cudaMemcpyAsync(d_dst, h_src,
-                                 nitems * d_sizeof_item,
-                                 cudaMemcpyHostToDevice, d_stream);
-            check_cuda_errors(rc, "cuda_buffer post_work: H2D", d_logger);
-        } else {
-            rc = cudaMemcpyAsync(d_dst, h_src,
-                                 tail * d_sizeof_item,
-                                 cudaMemcpyHostToDevice, d_stream);
-            check_cuda_errors(rc, "cuda_buffer post_work: H2D part1", d_logger);
-
-            unsigned wrap = nitems - tail;
-            rc = cudaMemcpyAsync(d_cuda_buf, d_base,
-                                 wrap * d_sizeof_item,
-                                 cudaMemcpyHostToDevice, d_stream);
-            check_cuda_errors(rc, "cuda_buffer post_work: H2D part2", d_logger);
-        }
-
-        // Signal downstream GPU consumers that new device data is ready.
-        mark_device_ready(d_stream);
-    } break;
+    case transfer_type::HOST_TO_DEVICE:
+        post_work_h2d(wi, tail, produced);
+        break;
 
     // D2H: GPU block produced into device buffer, DMA it to the host
-    case transfer_type::DEVICE_TO_HOST: {
-        // Wait until the upstream GPU kernel has finished writing to
-        // device memory before we read it for the D2H copy.
-        wait_device_ready(d_stream);
-
-        char* d_src = &d_cuda_buf[wi * d_sizeof_item];
-        char* h_dst = &d_base[wi * d_sizeof_item];
-
-        // Same split logic as H2D, keep each copy within [0, N).
-        if ((unsigned)nitems <= tail) {
-            rc = cudaMemcpyAsync(h_dst, d_src,
-                                 nitems * d_sizeof_item,
-                                 cudaMemcpyDeviceToHost, d_stream);
-            check_cuda_errors(rc, "cuda_buffer post_work: D2H", d_logger);
-        } else {
-            rc = cudaMemcpyAsync(h_dst, d_src,
-                                 tail * d_sizeof_item,
-                                 cudaMemcpyDeviceToHost, d_stream);
-            check_cuda_errors(rc, "cuda_buffer post_work: D2H part1", d_logger);
-
-            unsigned wrap = nitems - tail;
-            rc = cudaMemcpyAsync(d_base, d_cuda_buf,
-                                 wrap * d_sizeof_item,
-                                 cudaMemcpyDeviceToHost, d_stream);
-            check_cuda_errors(rc, "cuda_buffer post_work: D2H part2", d_logger);
-        }
-
-        // Signal downstream CPU readers that host data has landed.
-        mark_host_ready(d_stream);
-
-        // Record that the D2H copy has finished reading from device memory,
-        // so the upstream GPU kernel (via wait_for_work → wait_read_done)
-        // knows it's safe to overwrite.
-        cudaEventRecord(d_read_done_evt, d_stream);
-    } break;
+    case transfer_type::DEVICE_TO_HOST:
+        post_work_d2h(wi, tail, produced);
+        break;
 
     // D2D: both sides are on the GPU, no DMA needed
     case transfer_type::DEVICE_TO_DEVICE:
+        post_work_d2d(wi, tail, produced);
         break;
 
     default:
         throw_unexpected_transfer_type();
     }
+}
+
+void cuda_buffer::post_work_h2d(unsigned wi, unsigned tail, unsigned nitems)
+{
+    cudaError_t rc;
+
+    // Wait until all downstream GPU consumers have finished reading
+    // from device memory before we overwrite it with new data.
+    cudaStreamWaitEvent(d_stream, d_read_done_evt, 0);
+
+    char* h_src = &d_base[wi * d_sizeof_item];
+    char* d_dst = &d_cuda_buf[wi * d_sizeof_item];
+
+    // If the write doesn't cross the buffer boundary, one copy suffices.
+    // Otherwise split at the boundary: cudaHostRegister may not
+    // correctly resolve mmap aliases in the second half of the 2N region.
+    if (nitems <= tail) {
+        rc = cudaMemcpyAsync(
+            d_dst, h_src, nitems * d_sizeof_item, cudaMemcpyHostToDevice, d_stream);
+        check_cuda_errors(rc, "cuda_buffer post_work: H2D", d_logger);
+    } else {
+        rc = cudaMemcpyAsync(
+            d_dst, h_src, tail * d_sizeof_item, cudaMemcpyHostToDevice, d_stream);
+        check_cuda_errors(rc, "cuda_buffer post_work: H2D part1", d_logger);
+
+        unsigned wrap = nitems - tail;
+        rc = cudaMemcpyAsync(
+            d_cuda_buf, d_base, wrap * d_sizeof_item, cudaMemcpyHostToDevice, d_stream);
+        check_cuda_errors(rc, "cuda_buffer post_work: H2D part2", d_logger);
+    }
+
+    // Signal downstream GPU consumers that new device data is ready.
+    mark_device_ready(d_stream);
+}
+
+void cuda_buffer::post_work_d2h(unsigned wi, unsigned tail, unsigned nitems)
+{
+    cudaError_t rc;
+
+    // Wait until the upstream GPU kernel has finished writing to
+    // device memory before we read it for the D2H copy.
+    wait_device_ready(d_stream);
+
+    char* d_src = &d_cuda_buf[wi * d_sizeof_item];
+    char* h_dst = &d_base[wi * d_sizeof_item];
+
+    // Same split logic as H2D, keep each copy within [0, N).
+    if (nitems <= tail) {
+        rc = cudaMemcpyAsync(
+            h_dst, d_src, nitems * d_sizeof_item, cudaMemcpyDeviceToHost, d_stream);
+        check_cuda_errors(rc, "cuda_buffer post_work: D2H", d_logger);
+    } else {
+        rc = cudaMemcpyAsync(
+            h_dst, d_src, tail * d_sizeof_item, cudaMemcpyDeviceToHost, d_stream);
+        check_cuda_errors(rc, "cuda_buffer post_work: D2H part1", d_logger);
+
+        unsigned wrap = nitems - tail;
+        rc = cudaMemcpyAsync(
+            d_base, d_cuda_buf, wrap * d_sizeof_item, cudaMemcpyDeviceToHost, d_stream);
+        check_cuda_errors(rc, "cuda_buffer post_work: D2H part2", d_logger);
+    }
+
+    // Signal downstream CPU readers that host data has landed.
+    mark_host_ready(d_stream);
+
+    // Record that the D2H copy has finished reading from device memory,
+    // so the upstream GPU kernel (via wait_for_work -> wait_read_done)
+    // knows it's safe to overwrite.
+    cudaEventRecord(d_read_done_evt, d_stream);
+}
+
+void cuda_buffer::post_work_d2d(unsigned, unsigned, unsigned)
+{
+    // D2D has no host/device DMA here.
 }
 
 // Event pipeline (ring-buffer, PIPELINE_DEPTH deep)
@@ -608,7 +375,7 @@ void cuda_buffer::wait_read_done(cudaStream_t stream)
     cudaStreamWaitEvent(stream, d_read_done_evt, 0);
 }
 
-// ─── Factory ────────────────────────────────────────────────────────────────
+// Factory
 
 buffer_sptr cuda_buffer::make_buffer(int nitems,
                                      size_t sizeof_item,

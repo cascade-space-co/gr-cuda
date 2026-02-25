@@ -19,8 +19,13 @@
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 #include <mutex>
+#include <memory>
 
 namespace gr {
+namespace detail {
+class device_vmm_ring;
+class host_mmap_ring;
+} // namespace detail
 
 /*!
  * \brief GPU-aware circular buffer using CUDA VMM + mmap double-mapping.
@@ -172,24 +177,22 @@ protected:
     }
 
 private:
+    void post_work_h2d(unsigned write_index, unsigned tail, unsigned nitems);
+    void post_work_d2h(unsigned write_index, unsigned tail, unsigned nitems);
+    void post_work_d2d(unsigned write_index, unsigned tail, unsigned nitems);
+
     [[noreturn]] void throw_unexpected_transfer_type();
 
     /*!
-     * VMM device buffer state.
-     * CUDA Driver VMM double-mapped device memory.
+     * CUDA Driver VMM double-mapped device memory ownership.
      */
-    CUdeviceptr d_vmm_ptr = 0;
-    CUmemGenericAllocationHandle d_vmm_handle = 0;
-    size_t d_vmm_aligned_bytes = 0;
-    char* d_cuda_buf = nullptr;      /*!< d_vmm_ptr cast to char* for arithmetic */
+    std::unique_ptr<detail::device_vmm_ring> d_device_ring;
+    char* d_cuda_buf = nullptr;
 
     /*!
-     * Host double-mapped buffer state.
-     * POSIX mmap-based circular host memory, pinned via cudaHostRegister.
+     * POSIX mmap double-mapped host memory ownership (incl. pinning).
      */
-    void* d_host_mmap_base = nullptr;
-    size_t d_host_mmap_bytes = 0;    // N (one half), page-aligned
-    bool d_host_registered = false;  // true after cudaHostRegister succeeds
+    std::unique_ptr<detail::host_mmap_ring> d_host_ring;
 
     cudaStream_t d_stream = nullptr; // dedicated stream for H2D / D2H DMA
 

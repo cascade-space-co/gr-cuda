@@ -18,6 +18,8 @@ find_package(CUDAToolkit REQUIRED)
 list(APPEND cuda_sources
     cuda_error.cc
     cuda_buffer.cc
+    detail/device_vmm_ring.cc
+    detail/host_mmap_ring.cc
     copy_impl.cc
     multiply_const_impl.cc
     multiply_const.cu
