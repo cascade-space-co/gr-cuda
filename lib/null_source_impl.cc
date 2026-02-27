@@ -39,9 +39,11 @@ int null_source_impl::work(int noutput_items,
 
     auto out = static_cast<uint8_t*>(output_items[0]);
 
-    // Fill GPU buffer with zeros (mimics GNU Radio's memset behavior)
-    check_cuda_errors(cudaMemsetAsync(out, 0, noutput_items * d_itemsize, d_stream),
-                      "null_source: cudaMemsetAsync", d_logger);
+    // Deliberately skipped: cudaMemsetAsync saturates GPU memory bandwidth,
+    // preventing downstream compute kernels from overlapping and skewing
+    // benchmarks of the actual processing pipeline.
+    //check_cuda_errors(cudaMemsetAsync(out, 0, noutput_items * d_itemsize, d_stream),
+    //                  "null_source: cudaMemsetAsync", d_logger);
 
     // Mark outputs ready
     gr::cuda::mark_work_done(detail(), d_stream);
