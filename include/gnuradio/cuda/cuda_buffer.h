@@ -47,13 +47,13 @@ class host_mmap_ring;
  *
  * \section sync Synchronization model
  *
- * Ring-buffered CUDA events (PIPELINE_DEPTH=4) for pipeline overlap:
+ * Three CUDA events coordinate producer/consumer overlap:
  *
- * 1. **Device-ready events** -- producer records after writing device data;
+ * 1. **Device-ready** -- producer records after writing device data;
  *    consumer GPU-waits before reading.
- * 2. **Host-ready events** -- recorded after async D2H copy; _read_pointer()
+ * 2. **Host-ready** -- recorded after async D2H copy; _read_pointer()
  *    CPU-waits before returning a host pointer.
- * 3. **Read-done event** -- tracks when ALL consumers have finished reading
+ * 3. **Read-done** -- tracks when ALL consumers have finished reading
  *    so the producer can safely overwrite.
  *
  * \section usage Usage from GPU blocks
@@ -119,28 +119,22 @@ public:
     /*!
      * \brief Record a device-ready event after producing data on the GPU.
      */
-    virtual void mark_device_ready(cudaStream_t producer_stream);
+    void mark_device_ready(cudaStream_t producer_stream);
     /*!
-     * \brief GPU-wait on all device-ready events before consuming GPU data.
+     * \brief GPU-wait for device-ready before consuming GPU data.
      */
-    virtual void wait_device_ready(cudaStream_t consumer_stream);
+    void wait_device_ready(cudaStream_t consumer_stream);
     /*!
      * \brief Record that a consumer has finished reading from this buffer.
+     *
+     * Thread-safe: serialised by d_read_done_mutex to support fan-out
+     * (multiple consumers chaining through a single event).
      */
-    virtual void mark_read_done(cudaStream_t consumer_stream);
+    void mark_read_done(cudaStream_t consumer_stream);
     /*!
      * \brief GPU-wait until all consumers have finished reading.
      */
-    virtual void wait_read_done(cudaStream_t stream);
-
-    /*!
-     * \brief Record a host-ready event after a D2H copy completes.
-     */
-    void mark_host_ready(cudaStream_t copy_stream);
-    /*!
-     * \brief CPU-wait until the D2H copy has landed in host memory.
-     */
-    void wait_host_ready();
+    void wait_read_done(cudaStream_t producer_stream);
 
     /*!
      * \brief Factory method used by GNU Radio's buffer allocation machinery.
@@ -183,31 +177,20 @@ private:
 
     [[noreturn]] void throw_unexpected_transfer_type();
 
-    /*!
-     * CUDA Driver VMM double-mapped device memory ownership.
-     */
+    void mark_host_ready(cudaStream_t copy_stream);
+    void wait_host_ready();
+
     std::unique_ptr<detail::device_vmm_ring> d_device_ring;
     char* d_cuda_buf = nullptr;
 
-    /*!
-     * POSIX mmap double-mapped host memory ownership (incl. pinning).
-     */
     std::unique_ptr<detail::host_mmap_ring> d_host_ring;
 
-    cudaStream_t d_stream = nullptr; // dedicated stream for H2D / D2H DMA
+    cudaStream_t d_stream = nullptr;
 
-    /*!
-     * Event pipeline.
-     * Ring-buffered CUDA events for pipelined overlap (PIPELINE_DEPTH deep).
-     */
-    static constexpr int PIPELINE_DEPTH = 2;
-    cudaEvent_t d_dev_ready_evt[PIPELINE_DEPTH] = {};
-    cudaEvent_t d_host_ready_evt[PIPELINE_DEPTH] = {};
-    uint32_t d_dev_ready_next = 0;   // next slot index for device-ready ring
-    uint32_t d_host_ready_next = 0;  // next slot index for host-ready ring
-
-    cudaEvent_t d_read_done_evt = nullptr; // single event: all consumers done
-    std::mutex d_read_done_mutex;          // serialises mark_read_done calls
+    cudaEvent_t d_dev_ready_evt = nullptr;
+    cudaEvent_t d_host_ready_evt = nullptr;
+    cudaEvent_t d_read_done_evt = nullptr;
+    std::mutex d_read_done_mutex;
 
     cuda_buffer(int nitems,
                 size_t sizeof_item,

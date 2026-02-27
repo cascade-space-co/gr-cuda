@@ -42,38 +42,30 @@ cuda_buffer::cuda_buffer(int nitems,
     cudaError_t rc = cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking);
     check_cuda_errors(rc, "cuda_buffer: cudaStreamCreateWithFlags", d_logger);
 
-    for (int i = 0; i < PIPELINE_DEPTH; i++) {
-        rc = cudaEventCreateWithFlags(&d_dev_ready_evt[i], cudaEventDisableTiming);
-        check_cuda_errors(rc, "cuda_buffer: device-ready event create", d_logger);
-        rc = cudaEventCreateWithFlags(&d_host_ready_evt[i], cudaEventDisableTiming);
-        check_cuda_errors(rc, "cuda_buffer: host-ready event create", d_logger);
-    }
-
+    rc = cudaEventCreateWithFlags(&d_dev_ready_evt, cudaEventDisableTiming);
+    check_cuda_errors(rc, "cuda_buffer: device-ready event create", d_logger);
+    rc = cudaEventCreateWithFlags(&d_host_ready_evt, cudaEventDisableTiming);
+    check_cuda_errors(rc, "cuda_buffer: host-ready event create", d_logger);
     rc = cudaEventCreateWithFlags(&d_read_done_evt, cudaEventDisableTiming);
     check_cuda_errors(rc, "cuda_buffer: read-done event create", d_logger);
 }
 
 cuda_buffer::~cuda_buffer()
 {
-    for (int i = 0; i < PIPELINE_DEPTH; i++) {
-        if (d_dev_ready_evt[i])
-            cudaStreamWaitEvent(d_stream, d_dev_ready_evt[i], 0);
-        if (d_host_ready_evt[i])
-            cudaStreamWaitEvent(d_stream, d_host_ready_evt[i], 0);
-    }
+    if (d_dev_ready_evt)
+        cudaStreamWaitEvent(d_stream, d_dev_ready_evt, 0);
+    if (d_host_ready_evt)
+        cudaStreamWaitEvent(d_stream, d_host_ready_evt, 0);
     if (d_read_done_evt)
         cudaStreamWaitEvent(d_stream, d_read_done_evt, 0);
 
     cudaStreamSynchronize(d_stream);
-
     cudaStreamDestroy(d_stream);
 
-    for (int i = 0; i < PIPELINE_DEPTH; i++) {
-        if (d_dev_ready_evt[i])
-            cudaEventDestroy(d_dev_ready_evt[i]);
-        if (d_host_ready_evt[i])
-            cudaEventDestroy(d_host_ready_evt[i]);
-    }
+    if (d_dev_ready_evt)
+        cudaEventDestroy(d_dev_ready_evt);
+    if (d_host_ready_evt)
+        cudaEventDestroy(d_host_ready_evt);
     if (d_read_done_evt)
         cudaEventDestroy(d_read_done_evt);
 
@@ -262,7 +254,7 @@ void cuda_buffer::post_work_h2d(unsigned wi, unsigned tail, unsigned nitems)
 
     // Wait until all downstream GPU consumers have finished reading
     // from device memory before we overwrite it with new data.
-    cudaStreamWaitEvent(d_stream, d_read_done_evt, 0);
+    wait_read_done(d_stream);
 
     char* h_src = &d_base[wi * d_sizeof_item];
     char* d_dst = &d_cuda_buf[wi * d_sizeof_item];
@@ -330,37 +322,24 @@ void cuda_buffer::post_work_d2d(unsigned, unsigned, unsigned)
     // D2D has no host/device DMA here.
 }
 
-// Event pipeline (ring-buffer, PIPELINE_DEPTH deep)
-
 void cuda_buffer::mark_device_ready(cudaStream_t producer_stream)
 {
-    int slot = d_dev_ready_next % PIPELINE_DEPTH;
-    cudaEvent_t evt = d_dev_ready_evt[slot];
-
-    if (cudaEventQuery(evt) != cudaSuccess)
-        cudaEventSynchronize(evt);
-
-    cudaEventRecord(evt, producer_stream);
-    d_dev_ready_next++;
+    cudaEventRecord(d_dev_ready_evt, producer_stream);
 }
 
 void cuda_buffer::wait_device_ready(cudaStream_t consumer_stream)
 {
-    for (int i = 0; i < PIPELINE_DEPTH; i++)
-        cudaStreamWaitEvent(consumer_stream, d_dev_ready_evt[i], 0);
+    cudaStreamWaitEvent(consumer_stream, d_dev_ready_evt, 0);
 }
 
 void cuda_buffer::mark_host_ready(cudaStream_t copy_stream)
 {
-    int slot = d_host_ready_next % PIPELINE_DEPTH;
-    cudaEventRecord(d_host_ready_evt[slot], copy_stream);
-    d_host_ready_next++;
+    cudaEventRecord(d_host_ready_evt, copy_stream);
 }
 
 void cuda_buffer::wait_host_ready()
 {
-    for (int i = 0; i < PIPELINE_DEPTH; i++)
-        cudaEventSynchronize(d_host_ready_evt[i]);
+    cudaEventSynchronize(d_host_ready_evt);
 }
 
 void cuda_buffer::mark_read_done(cudaStream_t consumer_stream)
@@ -370,9 +349,9 @@ void cuda_buffer::mark_read_done(cudaStream_t consumer_stream)
     cudaEventRecord(d_read_done_evt, consumer_stream);
 }
 
-void cuda_buffer::wait_read_done(cudaStream_t stream)
+void cuda_buffer::wait_read_done(cudaStream_t producer_stream)
 {
-    cudaStreamWaitEvent(stream, d_read_done_evt, 0);
+    cudaStreamWaitEvent(producer_stream, d_read_done_evt, 0);
 }
 
 // Factory
