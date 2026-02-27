@@ -1,7 +1,6 @@
 /* -*- c++ -*- */
 /*
  * Copyright 2004,2009,2010,2013 Free Software Foundation, Inc.
- * Copyright 2021 BlackLynx, Inc.
  * Copyright 2026 Cascade Space.
  *
  * This file is part of GNU Radio
@@ -17,6 +16,7 @@
 #include <memory>
 
 namespace gr {
+class logger;
 namespace detail {
 
 /*!
@@ -36,7 +36,9 @@ public:
     host_mmap_ring(host_mmap_ring&&) = delete;
     host_mmap_ring& operator=(host_mmap_ring&&) = delete;
 
-    static std::unique_ptr<host_mmap_ring> create(size_t requested_bytes);
+    static std::unique_ptr<host_mmap_ring> create(
+        size_t requested_bytes,
+        const std::shared_ptr<gr::logger>& logger = nullptr);
 
     void register_pinned();
     char* base_ptr();
@@ -45,6 +47,7 @@ private:
     host_mmap_ring() = default;
     void reset();
 
+    std::shared_ptr<gr::logger> d_logger;
     void* d_base = nullptr; // start of the 2N virtual address region
     size_t d_bytes = 0;     // N (one half), page-aligned
     bool d_registered = false;

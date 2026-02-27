@@ -12,8 +12,9 @@
 #include "device_vmm_ring.h"
 
 #include <gnuradio/cuda/cuda_error.h>
+#include <gnuradio/logger.h>
 
-#include <stdexcept>
+#include <cassert>
 
 namespace gr {
 namespace detail {
@@ -24,28 +25,27 @@ size_t query_vmm_granularity_for_current_device()
     check_cuda_errors(cudaGetDevice(&device), "vmm: cudaGetDevice");
 
     CUdevice cu_dev;
-    CUresult res = cuDeviceGet(&cu_dev, device);
-    if (res != CUDA_SUCCESS)
-        throw std::runtime_error("vmm: cuDeviceGet failed");
+    check_cuda_errors(cuDeviceGet(&cu_dev, device), "vmm: cuDeviceGet");
 
-    // Pinned, device-local, matches what vmm_create_double_mapped will use.
     CUmemAllocationProp prop = {};
     prop.type = CU_MEM_ALLOCATION_TYPE_PINNED;
     prop.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
     prop.location.id = cu_dev;
 
     size_t granularity = 0;
-    res = cuMemGetAllocationGranularity(
-        &granularity, &prop, CU_MEM_ALLOC_GRANULARITY_MINIMUM);
-    if (res != CUDA_SUCCESS)
-        throw std::runtime_error("vmm: cuMemGetAllocationGranularity failed");
+    check_cuda_errors(
+        cuMemGetAllocationGranularity(
+            &granularity, &prop, CU_MEM_ALLOC_GRANULARITY_MINIMUM),
+        "vmm: cuMemGetAllocationGranularity");
 
     return granularity;
 }
 
 device_vmm_ring::~device_vmm_ring() { this->reset(); }
 
-std::unique_ptr<device_vmm_ring> device_vmm_ring::create(size_t requested_bytes)
+std::unique_ptr<device_vmm_ring>
+device_vmm_ring::create(size_t requested_bytes,
+                        const std::shared_ptr<gr::logger>& logger)
 {
     // Create a 2N virtual range where both halves map to one physical allocation:
     // [ ---- half 1 ---- | ---- half 2 ---- ]
@@ -58,52 +58,49 @@ std::unique_ptr<device_vmm_ring> device_vmm_ring::create(size_t requested_bytes)
     // accesses look contiguous up to N bytes.
 
     auto ring = std::unique_ptr<device_vmm_ring>(new device_vmm_ring());
+    ring->d_logger = logger;
 
     int device;
-    check_cuda_errors(cudaGetDevice(&device), "vmm_create: cudaGetDevice");
+    check_cuda_errors(cudaGetDevice(&device), "vmm_create: cudaGetDevice", logger);
 
     CUdevice cu_dev;
-    CUresult res = cuDeviceGet(&cu_dev, device);
-    if (res != CUDA_SUCCESS)
-        throw std::runtime_error("vmm_create: cuDeviceGet failed");
+    check_cuda_errors(cuDeviceGet(&cu_dev, device), "vmm_create: cuDeviceGet", logger);
 
+    // Pinned, device-local, matches what vmm_create_double_mapped will use.
     CUmemAllocationProp prop = {};
     prop.type = CU_MEM_ALLOCATION_TYPE_PINNED;
     prop.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
     prop.location.id = cu_dev;
 
+    // Caller (cuda_buffer::allocate_buffer) already rounds up to VMM
+    // granularity, so requested_bytes should be aligned.
     size_t granularity = query_vmm_granularity_for_current_device();
+    logger->debug("device_vmm_ring: requesting {} bytes (granularity={})",
+                  requested_bytes, granularity);
+    assert(requested_bytes % granularity == 0);
 
-    // Round up to granularity, VMM requires all sizes/offsets to be multiples.
-    ring->d_aligned_bytes =
-        ((requested_bytes + granularity - 1) / granularity) * granularity;
+    ring->d_aligned_bytes = requested_bytes;
 
     // Reserve 2N contiguous VA (no physical memory yet).
-    res = cuMemAddressReserve(&ring->d_ptr, 2 * ring->d_aligned_bytes, 0, 0, 0);
-    if (res != CUDA_SUCCESS)
-        throw std::runtime_error("vmm_create: cuMemAddressReserve failed");
+    check_cuda_errors(
+        cuMemAddressReserve(&ring->d_ptr, 2 * ring->d_aligned_bytes, 0, 0, 0),
+        "vmm_create: cuMemAddressReserve", logger);
 
     // Create one physical allocation of size N.
-    res = cuMemCreate(&ring->d_handle, ring->d_aligned_bytes, &prop, 0);
-    if (res != CUDA_SUCCESS) {
-        ring->reset();
-        throw std::runtime_error("vmm_create: cuMemCreate failed");
-    }
+    check_cuda_errors(
+        cuMemCreate(&ring->d_handle, ring->d_aligned_bytes, &prop, 0),
+        "vmm_create: cuMemCreate", logger);
 
     // Map the physical allocation into the first half [ptr, ptr+N).
-    res = cuMemMap(ring->d_ptr, ring->d_aligned_bytes, 0, ring->d_handle, 0);
-    if (res != CUDA_SUCCESS) {
-        ring->reset();
-        throw std::runtime_error("vmm_create: cuMemMap first half failed");
-    }
+    check_cuda_errors(
+        cuMemMap(ring->d_ptr, ring->d_aligned_bytes, 0, ring->d_handle, 0),
+        "vmm_create: cuMemMap first half", logger);
 
     // Map the same allocation into the second half [ptr+N, ptr+2N).
-    res = cuMemMap(
-        ring->d_ptr + ring->d_aligned_bytes, ring->d_aligned_bytes, 0, ring->d_handle, 0);
-    if (res != CUDA_SUCCESS) {
-        ring->reset();
-        throw std::runtime_error("vmm_create: cuMemMap second half failed");
-    }
+    check_cuda_errors(
+        cuMemMap(ring->d_ptr + ring->d_aligned_bytes, ring->d_aligned_bytes,
+                 0, ring->d_handle, 0),
+        "vmm_create: cuMemMap second half", logger);
 
     // Grant read/write access across the full 2N range.
     CUmemAccessDesc access = {};
@@ -111,11 +108,12 @@ std::unique_ptr<device_vmm_ring> device_vmm_ring::create(size_t requested_bytes)
     access.location.id = cu_dev;
     access.flags = CU_MEM_ACCESS_FLAGS_PROT_READWRITE;
 
-    res = cuMemSetAccess(ring->d_ptr, 2 * ring->d_aligned_bytes, &access, 1);
-    if (res != CUDA_SUCCESS) {
-        ring->reset();
-        throw std::runtime_error("vmm_create: cuMemSetAccess failed");
-    }
+    check_cuda_errors(
+        cuMemSetAccess(ring->d_ptr, 2 * ring->d_aligned_bytes, &access, 1),
+        "vmm_create: cuMemSetAccess", logger);
+
+    logger->debug("device_vmm_ring: mapped 2x{} bytes at VA {:#x}",
+                  ring->d_aligned_bytes, (uintptr_t)ring->d_ptr);
 
     return ring;
 }
@@ -130,13 +128,15 @@ void device_vmm_ring::reset()
     if (!d_ptr)
         return;
 
-    cuMemUnmap(d_ptr, d_aligned_bytes);
-    cuMemUnmap(d_ptr + d_aligned_bytes, d_aligned_bytes);
-    cuMemRelease(d_handle);
+    if (d_handle) {
+        cuMemUnmap(d_ptr, d_aligned_bytes);
+        cuMemUnmap(d_ptr + d_aligned_bytes, d_aligned_bytes);
+        cuMemRelease(d_handle);
+        d_handle = 0;
+    }
     cuMemAddressFree(d_ptr, 2 * d_aligned_bytes);
 
     d_ptr = 0;
-    d_handle = 0;
     d_aligned_bytes = 0;
 }
 

@@ -16,6 +16,7 @@
 #include <memory>
 
 namespace gr {
+class logger;
 namespace detail {
 
 /*!
@@ -40,7 +41,9 @@ public:
     device_vmm_ring(device_vmm_ring&&) = delete;
     device_vmm_ring& operator=(device_vmm_ring&&) = delete;
 
-    static std::unique_ptr<device_vmm_ring> create(size_t requested_bytes);
+    static std::unique_ptr<device_vmm_ring> create(
+        size_t requested_bytes,
+        const std::shared_ptr<gr::logger>& logger = nullptr);
 
     char* data();
 
@@ -48,6 +51,7 @@ private:
     device_vmm_ring() = default;
     void reset();
 
+    std::shared_ptr<gr::logger> d_logger;
     CUdeviceptr d_ptr = 0;
     CUmemGenericAllocationHandle d_handle = 0;
     size_t d_aligned_bytes = 0; // N (one half), aligned to VMM granularity

@@ -1,7 +1,6 @@
 /* -*- c++ -*- */
 /*
  * Copyright 2004,2009,2010,2013 Free Software Foundation, Inc.
- * Copyright 2021 BlackLynx, Inc.
  * Copyright 2026 Cascade Space.
  *
  * This file is part of GNU Radio
@@ -13,7 +12,9 @@
 #include "host_mmap_ring.h"
 
 #include <gnuradio/cuda/cuda_error.h>
+#include <gnuradio/logger.h>
 
+#include <cassert>
 #include <stdexcept>
 
 #include <fcntl.h>
@@ -25,13 +26,21 @@ namespace detail {
 
 host_mmap_ring::~host_mmap_ring() { this->reset(); }
 
-std::unique_ptr<host_mmap_ring> host_mmap_ring::create(size_t requested_bytes)
+std::unique_ptr<host_mmap_ring>
+host_mmap_ring::create(size_t requested_bytes,
+                       const std::shared_ptr<gr::logger>& logger)
 {
     auto ring = std::unique_ptr<host_mmap_ring>(new host_mmap_ring());
+    ring->d_logger = logger;
 
+    // Caller (cuda_buffer::allocate_buffer) already rounds up to VMM
+    // granularity, which is always a multiple of the system page size.
     long page_size = sysconf(_SC_PAGESIZE);
-    ring->d_bytes =
-        ((requested_bytes + page_size - 1) / (size_t)page_size) * (size_t)page_size;
+    assert(requested_bytes % (size_t)page_size == 0);
+
+    ring->d_bytes = requested_bytes;
+    logger->debug("host_mmap_ring: requesting {} bytes (page_size={})",
+                  requested_bytes, page_size);
 
     // Anonymous file backed by RAM, no filesystem path needed.
     int fd = memfd_create("gr_cuda_buf", 0);
@@ -76,14 +85,17 @@ std::unique_ptr<host_mmap_ring> host_mmap_ring::create(size_t requested_bytes)
     // fd can be closed immediately; mappings hold a reference.
     close(fd);
     ring->d_base = region;
+    logger->debug("host_mmap_ring: mapped 2x{} bytes at {}",
+                  ring->d_bytes, ring->d_base);
     return ring;
 }
 
 void host_mmap_ring::register_pinned()
 {
     cudaError_t rc = cudaHostRegister(d_base, 2 * d_bytes, cudaHostRegisterDefault);
-    check_cuda_errors(rc, "host_circ_create: cudaHostRegister failed");
+    check_cuda_errors(rc, "host_circ_create: cudaHostRegister failed", d_logger);
     d_registered = true;
+    d_logger->debug("host_mmap_ring: pinned 2x{} bytes at {}", d_bytes, d_base);
 }
 
 char* host_mmap_ring::base_ptr() { return static_cast<char*>(d_base); }

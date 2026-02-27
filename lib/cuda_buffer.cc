@@ -100,15 +100,23 @@ bool cuda_buffer::do_allocate_buffer(size_t final_nitems, size_t sizeof_item)
         aligned_bytes += vmm_granularity;
 
     d_bufsize = static_cast<unsigned>(aligned_bytes / sizeof_item);
+    d_logger->debug("cuda_buffer: requested {} items x {} bytes = {} bytes, "
+                    "aligned to {} bytes ({} items)",
+                    final_nitems, sizeof_item, raw_bytes, aligned_bytes, d_bufsize);
+
+    if (aligned_bytes < (1 << 20))
+        d_logger->warn("cuda_buffer: buffer is only {} bytes; "
+                       "H2D/D2H transfers are most efficient above 1 MB",
+                       aligned_bytes);
 
     try {
         // 1) Host: mmap double-mapped circular buffer (owned by RAII helper).
-        d_host_ring = detail::host_mmap_ring::create(aligned_bytes);
+        d_host_ring = detail::host_mmap_ring::create(aligned_bytes, d_logger);
         d_host_ring->register_pinned();
         d_base = d_host_ring->base_ptr();
 
         // 2) Device: VMM double-mapped circular buffer (owned by RAII helper).
-        d_device_ring = detail::device_vmm_ring::create(aligned_bytes);
+        d_device_ring = detail::device_vmm_ring::create(aligned_bytes, d_logger);
         d_cuda_buf = d_device_ring->data();
     } catch (const std::exception& e) {
         d_logger->error("cuda_buffer allocation failed: {}", e.what());
