@@ -332,6 +332,7 @@ void cuda_buffer::post_work_d2d(unsigned, unsigned, unsigned)
 
 void cuda_buffer::mark_device_ready(cudaStream_t producer_stream)
 {
+    cudaEventSynchronize(d_dev_ready_evt);
     cudaEventRecord(d_dev_ready_evt, producer_stream);
 }
 
