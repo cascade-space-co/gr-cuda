@@ -65,14 +65,10 @@ cuda_buffer::cuda_buffer(int nitems,
                          size_t sizeof_item,
                          uint64_t downstream_lcm_nitems,
                          uint32_t downstream_max_out_mult,
-                         block_sptr link,
-                         block_sptr buf_owner)
-    : buffer_single_mapped(nitems,
-                           sizeof_item,
-                           downstream_lcm_nitems,
-                           downstream_max_out_mult,
-                           link,
-                           buf_owner)
+                         block_sptr link)
+    : buffer_double_mapped(nitems, sizeof_item, downstream_lcm_nitems,
+                           downstream_max_out_mult, link,
+                           defer_alloc_t::defer_alloc)
 {
     gr::configure_default_loggers(d_logger, d_debug_logger, "cuda");
 
@@ -143,23 +139,22 @@ bool cuda_buffer::allocate_buffer(int nitems)
 /*!
  * \brief Allocate the double-mapped host + device circular buffers.
  *
- * Called by cuda_buffer::allocate_buffer() after it rounds nitems to
- * the VMM alignment boundary.  We set up our own double-mapped
- * host + device regions instead of using buffer_single_mapped's
- * d_buffer.
+ * Called from the cuda_buffer constructor (the base buffer_double_mapped
+ * used defer_alloc_t, so no vmcircbuf was created).  Sets d_base,
+ * d_bufsize, d_cuda_buf from our own CUDA VMM + mmap allocations.
  */
-bool cuda_buffer::do_allocate_buffer(size_t final_nitems, size_t sizeof_item)
+bool cuda_buffer::allocate_buffer(int nitems)
 {
     size_t vmm_granularity = detail::query_vmm_granularity_for_current_device();
 
-    size_t raw_bytes = final_nitems * sizeof_item;
+    size_t raw_bytes = static_cast<size_t>(nitems) * d_sizeof_item;
 
     // GPU batching needs large buffers to amortise kernel launch overhead
     // and saturate PCIe bandwidth.  The scheduler caps each work() call at
     // bufsize/2, so a 32 MB buffer yields ~16 MB per call -- enough to
     // saturate PCIe and amortise launches.
     //
-    // Override in the GR user prefs:
+    // Override in the GR user prefs (gnuradio-config-info --userprefsdir):
     //   [cuda_buffer]
     //   min_buffer_bytes = 16777216   # 16 MB
     static const size_t min_cuda_bytes =
@@ -173,14 +168,14 @@ bool cuda_buffer::do_allocate_buffer(size_t final_nitems, size_t sizeof_item)
 
     // Ensure aligned_bytes is an exact multiple of sizeof_item so that
     // d_bufsize * sizeof_item == aligned_bytes (no partial items).
-    while (aligned_bytes % sizeof_item != 0)
+    while (aligned_bytes % d_sizeof_item != 0)
         aligned_bytes += vmm_granularity;
 
-    d_bufsize = static_cast<unsigned>(aligned_bytes / sizeof_item);
+    d_bufsize = static_cast<unsigned>(aligned_bytes / d_sizeof_item);
     d_logger->debug("cuda_buffer: requested {} items x {} bytes = {} bytes, "
                     "floor {} bytes, aligned to {} bytes ({} items)",
-                    final_nitems,
-                    sizeof_item,
+                    nitems,
+                    d_sizeof_item,
                     raw_bytes,
                     min_cuda_bytes,
                     aligned_bytes,
@@ -198,42 +193,6 @@ bool cuda_buffer::do_allocate_buffer(size_t final_nitems, size_t sizeof_item)
     return true;
 }
 
-
-/*!
- * \brief Return the number of items the writer may produce in this call.
- *
- * Classic ring-buffer rule: the writer must not lap the slowest reader.
- * most_data = max items_available across all readers (i.e. the fullest
- * reader).  The "-1" reserves one sentinel slot so that a completely
- * full buffer is distinguishable from an empty one (write_index never
- * equals read_index unless the buffer is empty).
- */
-int cuda_buffer::space_available()
-{
-    if (d_readers.empty())
-        return d_bufsize - 1;
-
-    int most_data = d_readers[0]->items_available();
-    uint64_t min_items_read = d_readers[0]->nitems_read();
-    for (size_t i = 1; i < d_readers.size(); i++) {
-        most_data = std::max(most_data, d_readers[i]->items_available());
-        min_items_read = std::min(min_items_read, d_readers[i]->nitems_read());
-    }
-
-    // Prune tags that all readers have consumed
-    if (min_items_read != d_last_min_items_read) {
-        prune_tags(d_last_min_items_read);
-        d_last_min_items_read = min_items_read;
-    }
-
-    return d_bufsize - most_data - 1;
-}
-
-// No-op compaction
-bool cuda_buffer::input_blkd_cb_ready(int, unsigned) { return false; }
-bool cuda_buffer::output_blkd_cb_ready(int) { return false; }
-bool cuda_buffer::input_blocked_callback(int, int, unsigned) { return false; }
-bool cuda_buffer::output_blocked_callback(int, bool) { return false; }
 
 /*!
  * \brief Return where the upstream block should write its output.
@@ -435,14 +394,11 @@ buffer_sptr cuda_buffer::make_buffer(int nitems,
                                      uint64_t downstream_lcm_nitems,
                                      uint32_t downstream_max_out_mult,
                                      block_sptr link,
-                                     block_sptr buf_owner)
+                                     block_sptr /*buf_owner*/)
 {
-    return buffer_sptr(new cuda_buffer(nitems,
-                                       sizeof_item,
-                                       downstream_lcm_nitems,
-                                       downstream_max_out_mult,
-                                       link,
-                                       buf_owner));
+    return buffer_sptr(new cuda_buffer(
+        nitems, sizeof_item, downstream_lcm_nitems,
+        downstream_max_out_mult, link));
 }
 
 void cuda_buffer::throw_unexpected_transfer_type()
