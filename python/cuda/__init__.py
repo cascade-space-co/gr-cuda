@@ -20,6 +20,7 @@ except ModuleNotFoundError:
 
 # import python helpers
 from .utils import as_cupy, io_signature_make
+from .cuda_block import cuda_block, gpu_work, sync_block, decim_block, interp_block, basic_block
 
 # import python blocks
 from .multiply_const_cupy import multiply_const_cupy
