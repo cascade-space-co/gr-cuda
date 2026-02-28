@@ -59,7 +59,9 @@ def make_chain(mode, fft_size, output_multiple):
     if mode == "cufft":
         # GPU -> GPU: null_source produces zero vectors on device,
         # cuFFT processes them, null_sink consumes on device.
-        src = cuda.null_source(vlen_bytes)
+        # memset=False avoids saturating GPU memory bandwidth so the
+        # benchmark measures FFT throughput, not memset contention.
+        src = cuda.null_source(vlen_bytes, memset=False)
         fft_blk = cuda.fft(fft_size, forward=True)
         sink = cuda.null_sink(vlen_bytes)
         blk_list = [src, fft_blk, sink]
@@ -68,7 +70,7 @@ def make_chain(mode, fft_size, output_multiple):
 
     elif mode == "cupy":
         # GPU -> GPU: same chain but using the CuPy FFT block.
-        src = cuda.null_source(vlen_bytes)
+        src = cuda.null_source(vlen_bytes, memset=False)
         fft_blk = cuda.fft_cupy(fft_size, forward=True)
         sink = cuda.null_sink(vlen_bytes)
         blk_list = [src, fft_blk, sink]

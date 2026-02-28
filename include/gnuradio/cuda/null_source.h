@@ -38,8 +38,13 @@ public:
    *
    * \param sizeof_stream_item Size of a stream item in bytes
    * \param num_outputs Number of output ports (default: 1)
+   * \param memset If true (default), zero-fill the output buffer on the GPU
+   *               each work() call.  Set to false to skip the memset, which
+   *               avoids saturating GPU memory bandwidth and allows downstream
+   *               compute kernels to overlap freely.
    */
-  static sptr make(size_t sizeof_stream_item, size_t num_outputs = 1);
+  static sptr make(size_t sizeof_stream_item, size_t num_outputs = 1,
+                   bool memset = true);
 };
 
 } // namespace cuda
