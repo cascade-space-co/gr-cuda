@@ -48,7 +48,7 @@ def make_chain(mode, buff_len):
     elif mode == "d2h":
         # GPU -> CPU: null_source produces on device, copy forces the DMA,
         # CPU null_sink reads via cuda_buffer D2H path.
-        src = cuda.null_source(gr.sizeof_gr_complex)
+        src = cuda.null_source(gr.sizeof_gr_complex, memset=False)
         copy = cuda.copy(gr.sizeof_gr_complex, True)
         sink = blocks.null_sink(gr.sizeof_gr_complex)
         blk_list = [src, copy, sink]
