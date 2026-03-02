@@ -4,7 +4,7 @@ category: '[CUDA]'
 
 templates:
   imports: from gnuradio import cuda
-  make: cuda.null_source(${type.size}*${vlen}, ${num_outputs})
+  make: cuda.null_source(${type.size}*${vlen}, ${num_outputs}, ${memset})
 
 parameters:
 - id: type
@@ -24,6 +24,11 @@ parameters:
   dtype: int
   default: '1'
   hide: ${ 'part' if num_outputs == 1 else 'none' }
+- id: memset
+  label: Zero-fill (memset)
+  dtype: bool
+  default: 'True'
+  hide: part
 
 outputs:
 - label: out
