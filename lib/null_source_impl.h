@@ -21,9 +21,10 @@ class null_source_impl : public null_source, public cuda_block {
 private:
   size_t d_itemsize;
   size_t d_num_outputs;
+  bool d_memset;
 
 public:
-  null_source_impl(size_t sizeof_stream_item, size_t num_outputs);
+  null_source_impl(size_t sizeof_stream_item, size_t num_outputs, bool memset);
   ~null_source_impl() override = default;
 
   int work(int noutput_items, gr_vector_const_void_star &input_items,

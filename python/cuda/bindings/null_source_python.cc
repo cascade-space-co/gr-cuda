@@ -24,7 +24,8 @@ void bind_null_source(py::module &m) {
 
       .def(py::init(&null_source::make), 
            py::arg("sizeof_stream_item"),
-           py::arg("num_outputs") = 1)
+           py::arg("num_outputs") = 1,
+           py::arg("memset") = true)
 
       ;
 }
