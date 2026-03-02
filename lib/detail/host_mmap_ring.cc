@@ -19,6 +19,7 @@
 
 #include <fcntl.h>
 #include <sys/mman.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 namespace gr {
@@ -42,8 +43,8 @@ host_mmap_ring::create(size_t requested_bytes,
     logger->debug("host_mmap_ring: requesting {} bytes (page_size={})",
                   requested_bytes, page_size);
 
-    // Anonymous file backed by RAM, no filesystem path needed.
-    int fd = memfd_create("gr_cuda_buf", 0);
+    // Anonymous file backed by RAM
+    int fd = static_cast<int>(syscall(SYS_memfd_create, "gr_cuda_buf", 0));
     if (fd < 0)
         throw std::runtime_error("host_circ_create: memfd_create failed");
 
@@ -92,10 +93,12 @@ host_mmap_ring::create(size_t requested_bytes,
 
 void host_mmap_ring::register_pinned()
 {
-    cudaError_t rc = cudaHostRegister(d_base, 2 * d_bytes, cudaHostRegisterDefault);
+    // Register only one half. post_work() splits wrap-crossing DMA 
+    // into [0, N) segments.
+    cudaError_t rc = cudaHostRegister(d_base, d_bytes, cudaHostRegisterDefault);
     check_cuda_errors(rc, "host_circ_create: cudaHostRegister failed", d_logger);
     d_registered = true;
-    d_logger->debug("host_mmap_ring: pinned 2x{} bytes at {}", d_bytes, d_base);
+    d_logger->debug("host_mmap_ring: pinned {} bytes at {}", d_bytes, d_base);
 }
 
 char* host_mmap_ring::base_ptr() { return static_cast<char*>(d_base); }
