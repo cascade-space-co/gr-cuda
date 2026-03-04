@@ -5,10 +5,7 @@
 #
 
 import numpy as np
-try:
-    import cupy as cp
-except ImportError:
-    cp = None
+import cupy as cp
 from gnuradio import cuda
 
 

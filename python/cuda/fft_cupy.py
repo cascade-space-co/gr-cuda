@@ -7,12 +7,8 @@
 from typing import Optional, Sequence
 
 import numpy as np
-try:
-    import cupy as cp
-    from cupy.cuda import cufft as cp_cufft
-except ImportError:
-    cp = None
-    cp_cufft = None
+import cupy as cp
+from cupy.cuda import cufft as cp_cufft
 from gnuradio import cuda
 
 
