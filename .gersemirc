@@ -1,0 +1,18 @@
+# Gersemi CMake formatter configuration
+# https://github.com/BlankSpruce/gersemi
+#
+# To run manually with GNU Radio custom command support:
+#   gersemi --definitions $CONDA_PREFIX/lib/cmake/gnuradio <files>
+# Or to format all CMake files in the project:
+#   gersemi --definitions $CONDA_PREFIX/lib/cmake/gnuradio -i .
+
+# Line width (matching clang-format and Python ruff settings)
+line_length: 88
+
+# Use 4 spaces for indentation (matching clang-format)
+indent: 4
+
+# List expansion strategy
+# "favour-expansion" puts each list item on its own line which results in fewer merge
+# conflicts when adding GNU Radio blocks on different branches.
+list_expansion: favour-expansion
