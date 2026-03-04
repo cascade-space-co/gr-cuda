@@ -65,11 +65,11 @@ class cuda_block:
             ...
     """
 
-    def __init__(self, name: str, in_sig: Sequence, out_sig: Sequence, *args, **kwargs):
-        if isinstance(in_sig, (list, tuple)):
+    def __init__(self, name: str, in_sig: Sequence | None, out_sig: Sequence | None, *args, **kwargs):
+        if in_sig is not None:
             n = len(in_sig)
             in_sig = cuda.io_signature_make(n, n, in_sig)
-        if isinstance(out_sig, (list, tuple)):
+        if out_sig is not None:
             n = len(out_sig)
             out_sig = cuda.io_signature_make(n, n, out_sig)
         super().__init__(name, in_sig, out_sig, *args, **kwargs)

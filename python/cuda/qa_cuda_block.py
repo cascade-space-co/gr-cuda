@@ -162,6 +162,37 @@ class _accumulate_f32(cuda.basic_block):
         return n_produce
 
 
+class _const_source_f32(cuda.sync_block):
+    """sync_block source (in_sig=None): produces a constant value."""
+    def __init__(self, value: float, count: int):
+        self._value = np.float32(value)
+        self._count = count
+        self._produced = 0
+        cuda.sync_block.__init__(self, "const_source_f32",
+            None, [np.float32])
+
+    def work(self, input_items, output_items):
+        remaining = self._count - self._produced
+        if remaining <= 0:
+            return -1
+        n = min(len(output_items[0]), remaining)
+        output_items[0][:n] = self._value
+        self._produced += n
+        return n
+
+
+class _sum_sink_f32(cuda.sync_block):
+    """sync_block sink (out_sig=None): accumulates sum of all samples."""
+    def __init__(self):
+        self.total = cp.float32(0.0)
+        cuda.sync_block.__init__(self, "sum_sink_f32",
+            [np.float32], None)
+
+    def work(self, input_items, output_items):
+        self.total += cp.sum(input_items[0])
+        return len(input_items[0])
+
+
 # ---------------------------------------------------------------------------
 # Test cases
 # ---------------------------------------------------------------------------
@@ -308,6 +339,26 @@ class qa_cuda_block(gr_unittest.TestCase):
         result = np.array(snk.data(), dtype=np.float32)
         expected = src_data.reshape(-1, acc).sum(axis=1)
         np.testing.assert_array_equal(result, expected)
+
+    def test_012_sync_source(self):
+        N = 10000
+        value = 42.0
+        dut = _const_source_f32(value, N)
+        snk = blocks.vector_sink_f()
+        self.tb.connect(dut, snk)
+        self.tb.run()
+        result = np.array(snk.data(), dtype=np.float32)
+        self.assertEqual(len(result), N)
+        np.testing.assert_array_equal(result, np.full(N, value, dtype=np.float32))
+
+    def test_013_sync_sink(self):
+        # Use a CUDA source so the sink receives device pointers
+        N = 10000
+        src = _const_source_f32(1.0, N)
+        dut = _sum_sink_f32()
+        self.tb.connect(src, dut)
+        self.tb.run()
+        np.testing.assert_allclose(float(dut.total), float(N), rtol=1e-6)
 
 
 if __name__ == '__main__':
