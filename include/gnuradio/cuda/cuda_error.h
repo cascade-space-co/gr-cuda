@@ -32,4 +32,14 @@ void check_cuda_errors(cudaError_t rc,
                        const char* context = "CUDA operation failed",
                        const std::shared_ptr<gr::logger>& logger = nullptr);
 
+/*!
+ * \brief Log (optionally) and throw on CUDA Driver API failure.
+ *
+ * Same behaviour as the runtime-API overload, but for CUresult codes
+ * returned by the CUDA Driver API (cuMem*, cuDevice*, etc.).
+ */
+void check_cuda_errors(CUresult res,
+                       const char* context = "CUDA driver operation failed",
+                       const std::shared_ptr<gr::logger>& logger = nullptr);
+
 #endif

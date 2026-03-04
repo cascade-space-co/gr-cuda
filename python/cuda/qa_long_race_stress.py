@@ -25,10 +25,15 @@ class wrap_check_sink(gr.sync_block):
 
     def _expected_slice(self, n):
         start = self._offset % self._expected_len
-        end = start + n
-        if end <= self._expected_len:
-            return self._expected[start:end]
-        return np.concatenate((self._expected[start:], self._expected[:end - self._expected_len]))
+        result = np.empty(n, dtype=self._expected.dtype)
+        written = 0
+        pos = start
+        while written < n:
+            chunk = min(n - written, self._expected_len - pos)
+            result[written:written + chunk] = self._expected[pos:pos + chunk]
+            written += chunk
+            pos = 0
+        return result
 
     def work(self, input_items, output_items):
         in_data = input_items[0]
@@ -40,7 +45,6 @@ class wrap_check_sink(gr.sync_block):
             self.mismatch_count += 1
             print("Sequence mismatch (possible buffer sync issue), count: ", self.mismatch_count, "not mismatch count: ", self.notmismatch_count)
             raise RuntimeError("Sequence mismatch (possible buffer sync issue)")
-            #print(in_data, expected_slice)
         else:
             self.notmismatch_count += 1
         self._offset += n
