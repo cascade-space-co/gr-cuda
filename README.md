@@ -210,13 +210,14 @@ target_link_libraries(gnuradio-myoot PRIVATE gnuradio-myoot-cu)
 
 Benchmarked on an **NVIDIA DGX Spark (GB10)** and an **NVIDIA RTX PRO 6000 Blackwell**.
 
-| Benchmark | GB10 peak | RTX PRO 6000 peak |
-|-----------|-----------|-------------------|
-| H2D transfer | 58.9 GB/s (99.8% of HW) | 56.5 GB/s (99.4% of HW) |
-| D2H transfer | 50.7 GB/s | 55.4 GB/s |
-| cuFFT (C++ block) | 9.2 Gsps | 64.7 Gsps |
-| CuPy FFT (Python block) | 9.1 Gsps | 63.6 Gsps |
-| FFTW (CPU baseline) | 0.46 Gsps | 1.02 Gsps |
+| Benchmark | GB10 | RTX PRO 6000 |
+|-----------|-----:|-------------:|
+| H2D transfer | 58.3 GB/s | 54.1 GB/s |
+| D2H transfer | 59.1 GB/s | 56.4 GB/s |
+| Full round-trip | 29.2 GB/s | 38.7 GB/s |
+| cuFFT (C++) | 13.9 Gsps | 92.8 Gsps |
+| CuPy FFT (Python) | 13.5 Gsps | 88.3 Gsps |
+| FFTW (CPU baseline) | 0.45 Gsps | 1.01 Gsps |
 
 See **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)** for full tables, methodology, and analysis.
 

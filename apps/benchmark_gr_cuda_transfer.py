@@ -72,6 +72,7 @@ def make_chain(mode, buff_len):
     for b in blk_list:
         b.set_min_output_buffer(BUFFER_MULTIPLE * buff_len)
         b.set_output_multiple(buff_len)
+        b.set_max_noutput_items(buff_len)
 
     return blk_list, conns, meter
 
