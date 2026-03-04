@@ -14,6 +14,12 @@ class multiply_const_cupy(cuda.sync_block):
     Multiplies input stream by a constant value (k) on the GPU using CuPy.
     """
     def __init__(self, k, dtype=np.complex64, vlen=1):
+        """
+        Args:
+            k: Constant to multiply by
+            dtype: Data type (numpy dtype)
+            vlen: Vector length
+        """
         self.k = k
         io_dtype = (np.dtype(dtype), vlen) if vlen > 1 else np.dtype(dtype)
         cuda.sync_block.__init__(self, "multiply_const_cupy",

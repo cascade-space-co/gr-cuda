@@ -22,6 +22,20 @@ class fft_cupy(cuda.sync_block):
                  window: Optional[Sequence[float]] = None,
                  shift: bool = False,
                  real_input: bool = False):
+        """
+        Parameters
+        ----------
+        fft_size : int
+            Size of the FFT.
+        forward : bool
+            True for forward FFT, False for inverse.
+        window : sequence of float, optional
+            Window coefficients (applied as real-valued multiply).
+        shift : bool
+            Apply fftshift (forward) or ifftshift (inverse) around the transform.
+        real_input : bool
+            True for float32 input (float-to-complex FFT).
+        """
         self.fft_size = fft_size
         self.forward = forward
         self.shift = shift
@@ -42,6 +56,8 @@ class fft_cupy(cuda.sync_block):
             with self.stream:
                 self.d_window = cp.asarray(window, dtype=np.float32)
 
+        # Cached cuFFT plans (keyed by batch size) for C2C transforms.
+        # Executes directly into the output buffer -- no temp allocation.
         self._plans = {}
         self._direction = (cp_cufft.CUFFT_FORWARD if forward
                            else cp_cufft.CUFFT_INVERSE)
@@ -72,6 +88,8 @@ class fft_cupy(cuda.sync_block):
                 res *= self.fft_size
             d_out[:] = res
         else:
+            # C2C: direct cuFFT execution into output buffer.
+            # cuFFT INVERSE is already unnormalized (matches GR).
             plan = self._get_plan(len(d_in))
             plan.fft(curr_in, d_out, self._direction)
 
