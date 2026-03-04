@@ -28,6 +28,7 @@ Example::
 """
 
 import functools
+from collections.abc import Sequence
 
 import cupy as cp
 from gnuradio import gr, cuda
@@ -64,7 +65,7 @@ class cuda_block:
             ...
     """
 
-    def __init__(self, name, in_sig, out_sig, *args, **kwargs):
+    def __init__(self, name: str, in_sig: Sequence, out_sig: Sequence, *args, **kwargs):
         if isinstance(in_sig, (list, tuple)):
             n = len(in_sig)
             in_sig = cuda.io_signature_make(n, n, in_sig)

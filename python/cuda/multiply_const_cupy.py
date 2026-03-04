@@ -10,15 +10,18 @@ from gnuradio import cuda
 
 
 class multiply_const_cupy(cuda.sync_block):
-    """
-    Multiplies input stream by a constant value (k) on the GPU using CuPy.
-    """
-    def __init__(self, k, dtype=np.complex64, vlen=1):
+    """Multiplies input stream by a constant value on the GPU using CuPy."""
+
+    def __init__(self, k: float | complex, dtype: np.dtype = np.complex64, vlen: int = 1):
         """
-        Args:
-            k: Constant to multiply by
-            dtype: Data type (numpy dtype)
-            vlen: Vector length
+        Parameters
+        ----------
+        k : float or complex
+            Constant to multiply by.
+        dtype : numpy.dtype
+            Data type of input/output samples.
+        vlen : int
+            Vector length.
         """
         self.k = k
         io_dtype = (np.dtype(dtype), vlen) if vlen > 1 else np.dtype(dtype)
@@ -30,5 +33,5 @@ class multiply_const_cupy(cuda.sync_block):
         cp.multiply(input_items[0], self.k, out=output_items[0])
         return len(output_items[0])
 
-    def set_k(self, k):
+    def set_k(self, k: float | complex):
         self.k = k
