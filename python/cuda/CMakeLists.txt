@@ -23,6 +23,7 @@ GR_PYTHON_INSTALL(
     FILES
     __init__.py
     utils.py
+    cuda_block.py
     multiply_const_cupy.py
     add_cupy.py
     fft_cupy.py
@@ -58,3 +59,4 @@ GR_ADD_TEST(qa_blocked_callbacks ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR
 GR_ADD_TEST(qa_tag_propagation ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tag_propagation.py)
 GR_ADD_TEST(qa_throttle ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_throttle.py)
 GR_ADD_TEST(qa_cuda_buffer_compaction ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_cuda_buffer_compaction.py)
+GR_ADD_TEST(qa_cuda_block ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_cuda_block.py)

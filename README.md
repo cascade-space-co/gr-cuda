@@ -8,7 +8,7 @@ GPU-accelerated signal processing blocks for [GNU Radio](https://www.gnuradio.or
 
 - **Zero-copy GPU pipeline** -- `cuda_buffer` handles H2D/D2H transfers and event-based synchronisation between blocks, so GPU kernels run back-to-back without stalling. Internally it uses a double-buffered scheme so the CPU can fill one half while the GPU processes the other.
 - **C++ blocks** with hand-written CUDA kernels (cuFFT, custom element-wise ops).
-- **Python/CuPy blocks** that run entirely on the GPU using CuPy arrays -- write new GPU blocks in pure Python. Carefully written CuPy blocks achieve throughput within 1-2% of equivalent C++ CUDA blocks (see [Performance](#performance)).
+- **Python/CuPy blocks** that look exactly like regular GNU Radio Python blocks. The only differences: inherit from `cuda.sync_block` (or `cuda.decim_block`, etc.) instead of `gr.sync_block`, and `input_items`/`output_items` are CuPy arrays pointing directly into the underlying CUDA buffers. No manual memory management, no synchronisation code. CuPy blocks achieve throughput within 1-2% of equivalent C++ CUDA blocks (see [Performance](#performance)).
 - **GRC support** -- all blocks ship with GNU Radio Companion block definitions.
 
 ## Included blocks
@@ -88,6 +88,8 @@ cmake .. -GNinja \
 
 ### C++ block
 
+> **Note:** Ongoing work will move the synchronisation logic into `cuda_buffer` itself (via an upstream GNU Radio change), making the C++ API as simple as the Python one -- just inherit and write your kernel, no manual `wait_for_work`/`mark_work_done` calls.
+
 1. **Inherit from `cuda_block`** (alongside your GR block base) to get a managed non-blocking CUDA stream (`d_stream`) and kernel launch helpers:
 
 ```cpp
@@ -130,48 +132,30 @@ int my_block_impl::work(int noutput_items, ...)
 }
 ```
 
-See `cuda_block.h` for the full documentation and `multiply_const_impl.cc` for a complete example.
+See [`cuda_block.h`](include/gnuradio/cuda/cuda_block.h) for the full documentation and [`multiply_const_impl.cc`](lib/multiply_const_impl.cc) for a complete example.
 
 ### Python/CuPy block
 
-Python GPU blocks use CuPy arrays and the same synchronisation helpers:
+Inherit from `cuda.sync_block` instead of `gr.sync_block`. CUDA buffer allocation, synchronisation, and CuPy array conversion are handled automatically -- `input_items` and `output_items` are CuPy arrays:
 
 ```python
 import numpy as np
-import cupy as cp
-from gnuradio import gr, cuda
+from gnuradio import cuda
 
-class my_block_cupy(gr.sync_block):
+class my_block_cupy(cuda.sync_block):    # cuda.sync_block instead of gr.sync_block
     def __init__(self):
-        # Define input and output signatures (can differ if needed)
-        in_sig = cuda.io_signature_make(1, 1, [np.complex64])
-        out_sig = cuda.io_signature_make(1, 1, [np.complex64])
-
-        # Create block as normal, but with CUDA buffers
-        gr.sync_block.__init__(self, "my_block_cupy", in_sig, out_sig)
-
-        # Create a non-blocking CUDA stream for async GPU operations
-        self.stream = cp.cuda.Stream(non_blocking=True)
+        cuda.sync_block.__init__(self, "my_block_cupy",
+            [np.complex64],
+            [np.complex64])
 
     def work(self, input_items, output_items):
-        # Wait for upstream GPU data to be ready
-        cuda.wait_for_work(self.gateway, self.stream.ptr)
-
-        # Do GPU work with CuPy on self.stream
-        with self.stream:
-            # Get CuPy input/output pointers
-            d_in = cuda.as_cupy(input_items[0])
-            d_out = cuda.as_cupy(output_items[0])
-            
-            # Do some GPU work
-            d_out[:] = d_in * 2.0
-
-        # Signal downstream that outputs are ready
-        cuda.mark_work_done(self.gateway, self.stream.ptr)
+        # input_items / output_items are CuPy arrays
+        # use any cp.* operation
+        cp.multiply(input_items[0], 2.0, out=output_items[0])
         return len(output_items[0])
 ```
 
-See `multiply_const_cupy.py` for a complete example.
+`cuda.decim_block`, `cuda.interp_block`, and `cuda.basic_block` are also available for other block types. See [`multiply_const_cupy.py`](python/cuda/multiply_const_cupy.py) for a complete example.
 
 ## Using gr-cuda in your own OOT
 
