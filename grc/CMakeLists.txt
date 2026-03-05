@@ -25,5 +25,6 @@ install(
         cuda_null_sink.block.yml
         cuda_probe_rate.block.yml
         cuda_throttle.block.yml
+        cuda_tee.block.yml
     DESTINATION share/gnuradio/grc/blocks
 )

@@ -23,5 +23,6 @@ install(
         null_source.h
         null_sink.h
         probe_rate.h
+        tee.h
     DESTINATION include/gnuradio/cuda
 )

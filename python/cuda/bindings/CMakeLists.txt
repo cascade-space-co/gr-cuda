@@ -40,6 +40,7 @@ list(
     vector_to_stream_python.cc
     streams_to_vector_python.cc
     vector_to_streams_python.cc
+    tee_python.cc
     python_bindings.cc
 )
 

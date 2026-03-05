@@ -126,3 +126,8 @@ GR_ADD_TEST(
     ${PYTHON_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/qa_cuda_block.py
 )
+GR_ADD_TEST(
+    qa_tee
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_tee.py
+)
