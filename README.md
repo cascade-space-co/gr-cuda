@@ -181,7 +181,7 @@ set_target_properties(gnuradio-myoot-cu PROPERTIES
 )
 
 # Link your OOT to gr-cuda and your kernels
-target_link_libraries(gnuradio-myoot PUBLIC gnuradio::gnuradio-runtime gnuradio-cuda)
+target_link_libraries(gnuradio-myoot PUBLIC gnuradio::gnuradio-runtime gnuradio::gnuradio-cuda)
 target_link_libraries(gnuradio-myoot PRIVATE gnuradio-myoot-cu)
 ```
 
