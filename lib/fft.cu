@@ -14,11 +14,8 @@ namespace {
 constexpr int kBlockSize = 256;
 }
 
-__device__ __forceinline__ void compute_shifted_index(size_t idx,
-                                                      size_t fft_size,
-                                                      size_t shift,
-                                                      size_t* vec,
-                                                      size_t* src)
+__device__ __forceinline__ void compute_shifted_index(
+    size_t idx, size_t fft_size, size_t shift, size_t* vec, size_t* src)
 {
     *vec = idx / fft_size;
     size_t pos = idx % fft_size;
@@ -61,9 +58,8 @@ __global__ void kernel_real_window(const float* in,
 }
 
 // Convert real input to complex for cuFFT.
-__global__ void kernel_real_to_complex(const float* in,
-                                       cufftComplex* out,
-                                       size_t total_items)
+__global__ void
+kernel_real_to_complex(const float* in, cufftComplex* out, size_t total_items)
 {
     size_t idx = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
     if (idx < total_items) {
@@ -150,7 +146,8 @@ void exec_kernel_window(const cufftComplex* in,
                         cudaStream_t stream)
 {
     int grid = static_cast<int>((total_items + kBlockSize - 1) / kBlockSize);
-    kernel_window<<<grid, kBlockSize, 0, stream>>>(in, out, window, total_items, fft_size);
+    kernel_window<<<grid, kBlockSize, 0, stream>>>(
+        in, out, window, total_items, fft_size);
     check_cuda_errors(cudaGetLastError());
 }
 
@@ -162,7 +159,8 @@ void exec_kernel_real_window(const float* in,
                              cudaStream_t stream)
 {
     int grid = static_cast<int>((total_items + kBlockSize - 1) / kBlockSize);
-    kernel_real_window<<<grid, kBlockSize, 0, stream>>>(in, out, window, total_items, fft_size);
+    kernel_real_window<<<grid, kBlockSize, 0, stream>>>(
+        in, out, window, total_items, fft_size);
     check_cuda_errors(cudaGetLastError());
 }
 
@@ -184,11 +182,8 @@ void exec_kernel_ifftshift(const cufftComplex* in,
 {
     int grid = static_cast<int>((total_items + kBlockSize - 1) / kBlockSize);
     // ifftshift uses floor(N/2) for the split point.
-    kernel_shift<<<grid, kBlockSize, 0, stream>>>(in,
-                                                  out,
-                                                  total_items,
-                                                  fft_size,
-                                                  fft_size / 2);
+    kernel_shift<<<grid, kBlockSize, 0, stream>>>(
+        in, out, total_items, fft_size, fft_size / 2);
     check_cuda_errors(cudaGetLastError());
 }
 
@@ -199,7 +194,8 @@ void exec_kernel_real_ifftshift(const float* in,
                                 cudaStream_t stream)
 {
     int grid = static_cast<int>((total_items + kBlockSize - 1) / kBlockSize);
-    kernel_real_ifftshift<<<grid, kBlockSize, 0, stream>>>(in, out, total_items, fft_size);
+    kernel_real_ifftshift<<<grid, kBlockSize, 0, stream>>>(
+        in, out, total_items, fft_size);
     check_cuda_errors(cudaGetLastError());
 }
 
@@ -237,10 +233,7 @@ void exec_kernel_fftshift(const cufftComplex* in,
 {
     int grid = static_cast<int>((total_items + kBlockSize - 1) / kBlockSize);
     // fftshift uses ceil(N/2) for the split point.
-    kernel_shift<<<grid, kBlockSize, 0, stream>>>(in,
-                                                  out,
-                                                  total_items,
-                                                  fft_size,
-                                                  (fft_size + 1) / 2);
+    kernel_shift<<<grid, kBlockSize, 0, stream>>>(
+        in, out, total_items, fft_size, (fft_size + 1) / 2);
     check_cuda_errors(cudaGetLastError());
 }

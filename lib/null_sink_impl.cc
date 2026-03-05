@@ -9,8 +9,8 @@
  */
 
 #include "null_sink_impl.h"
-#include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_block_helper.h>
+#include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/io_signature.h>
 
 namespace gr {
@@ -23,7 +23,8 @@ null_sink::sptr null_sink::make(size_t sizeof_stream_item, size_t num_inputs)
 
 null_sink_impl::null_sink_impl(size_t sizeof_stream_item, size_t num_inputs)
     : sync_block("null_sink",
-                 io_signature::make(num_inputs, num_inputs, sizeof_stream_item, cuda_buffer::type),
+                 io_signature::make(
+                     num_inputs, num_inputs, sizeof_stream_item, cuda_buffer::type),
                  io_signature::make(0, 0, 0)),
       d_itemsize(sizeof_stream_item),
       d_num_inputs(num_inputs)
@@ -31,8 +32,8 @@ null_sink_impl::null_sink_impl(size_t sizeof_stream_item, size_t num_inputs)
 }
 
 int null_sink_impl::work(int noutput_items,
-                        gr_vector_const_void_star& input_items,
-                        gr_vector_void_star& output_items)
+                         gr_vector_const_void_star& input_items,
+                         gr_vector_void_star& output_items)
 {
     // Wait for inputs to be ready
     gr::cuda::wait_for_work(detail(), d_stream);
@@ -46,5 +47,3 @@ int null_sink_impl::work(int noutput_items,
 
 } /* namespace cuda */
 } /* namespace gr */
-
-

@@ -33,5 +33,3 @@ inputs:
   multiplicity: ${num_inputs}
 
 file_format: 1
-
-

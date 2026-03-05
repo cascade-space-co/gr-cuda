@@ -24,27 +24,28 @@ namespace cuda {
  * Generates zeros directly in GPU device memory without any H2D transfer.
  * Useful for benchmarking GPU blocks in isolation.
  */
-class CUDA_API null_source : virtual public gr::sync_block {
+class CUDA_API null_source : virtual public gr::sync_block
+{
 public:
-  typedef std::shared_ptr<null_source> sptr;
+    typedef std::shared_ptr<null_source> sptr;
 
-  /*!
-   * \brief Return a shared_ptr to a new instance of cuda::null_source.
-   *
-   * To avoid accidental use of raw pointers, cuda::null_source's
-   * constructor is in a private implementation
-   * class. cuda::null_source::make is the public interface for
-   * creating new instances.
-   *
-   * \param sizeof_stream_item Size of a stream item in bytes
-   * \param num_outputs Number of output ports (default: 1)
-   * \param memset If true (default), zero-fill the output buffer on the GPU
-   *               each work() call.  Set to false to skip the memset, which
-   *               avoids saturating GPU memory bandwidth and allows downstream
-   *               compute kernels to overlap freely.
-   */
-  static sptr make(size_t sizeof_stream_item, size_t num_outputs = 1,
-                   bool memset = true);
+    /*!
+     * \brief Return a shared_ptr to a new instance of cuda::null_source.
+     *
+     * To avoid accidental use of raw pointers, cuda::null_source's
+     * constructor is in a private implementation
+     * class. cuda::null_source::make is the public interface for
+     * creating new instances.
+     *
+     * \param sizeof_stream_item Size of a stream item in bytes
+     * \param num_outputs Number of output ports (default: 1)
+     * \param memset If true (default), zero-fill the output buffer on the GPU
+     *               each work() call.  Set to false to skip the memset, which
+     *               avoids saturating GPU memory bandwidth and allows downstream
+     *               compute kernels to overlap freely.
+     */
+    static sptr
+    make(size_t sizeof_stream_item, size_t num_outputs = 1, bool memset = true);
 };
 
 } // namespace cuda

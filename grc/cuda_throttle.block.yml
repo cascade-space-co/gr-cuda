@@ -42,14 +42,12 @@ asserts:
 
 documentation: |-
   Limits the average throughput to the specified sample rate.
-  
+
   Operates on GPU buffers without D2H transfers. The throttling is performed
   by delaying the CPU scheduler thread, which effectively limits the rate
   at which GPU kernels are launched.
-  
+
   Useful for simulations or preventing the flowgraph from consuming 100% CPU/GPU
   when no hardware rate-limiting block is present.
 
 file_format: 1
-
-

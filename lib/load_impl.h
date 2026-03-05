@@ -9,8 +9,8 @@
 #ifndef INCLUDED_CUDA_LOAD_IMPL_H
 #define INCLUDED_CUDA_LOAD_IMPL_H
 
-#include <gnuradio/cuda/load.h>
 #include <gnuradio/cuda/cuda_block.h>
+#include <gnuradio/cuda/load.h>
 
 namespace gr {
 namespace cuda {
@@ -21,10 +21,11 @@ private:
     size_t d_iterations;
     size_t d_itemsize;
     bool d_use_cb;
-    uint8_t *d_dev_in = nullptr;
-    uint8_t *d_dev_out = nullptr;
+    uint8_t* d_dev_in = nullptr;
+    uint8_t* d_dev_out = nullptr;
 
-    size_t d_max_buffer_size = 65536*8;
+    size_t d_max_buffer_size = 65536 * 8;
+
 public:
     load_impl(size_t iterations, size_t itemsize, bool use_cb = true);
     ~load_impl() override;

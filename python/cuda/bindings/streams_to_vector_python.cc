@@ -11,7 +11,7 @@
 /* BINDTOOL_GEN_AUTOMATIC(0)                                                       */
 /* BINDTOOL_USE_PYGCCXML(0)                                                        */
 /* BINDTOOL_HEADER_FILE(streams_to_vector.h)                                       */
-/* BINDTOOL_HEADER_FILE_HASH(5c414adf3d23be2eef71345f0910fad1)                                     */
+/* BINDTOOL_HEADER_FILE_HASH(5c414adf3d23be2eef71345f0910fad1) */
 /***********************************************************************************/
 
 #include <pybind11/complex.h>
@@ -35,4 +35,3 @@ void bind_streams_to_vector(py::module& m)
              py::arg("itemsize"),
              py::arg("num_streams"));
 }
-

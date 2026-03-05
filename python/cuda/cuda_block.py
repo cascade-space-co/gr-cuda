@@ -31,11 +31,12 @@ import functools
 from collections.abc import Sequence
 
 import cupy as cp
-from gnuradio import gr, cuda
+from gnuradio import cuda, gr
 
 
 def _wrap_work(fn):
     """Wrap ``work()`` / ``general_work()`` with CUDA sync and CuPy conversion."""
+
     @functools.wraps(fn)
     def wrapped(self, input_items, output_items):
         cuda.wait_for_work(self.gateway, self.stream.ptr)
@@ -45,6 +46,7 @@ def _wrap_work(fn):
             result = fn(self, cp_in, cp_out)
         cuda.mark_work_done(self.gateway, self.stream.ptr)
         return result
+
     wrapped._cuda_wrapped = True
     return wrapped
 
@@ -65,7 +67,14 @@ class cuda_block:
             ...
     """
 
-    def __init__(self, name: str, in_sig: Sequence | None, out_sig: Sequence | None, *args, **kwargs):
+    def __init__(
+        self,
+        name: str,
+        in_sig: Sequence | None,
+        out_sig: Sequence | None,
+        *args,
+        **kwargs,
+    ):
         if in_sig is not None:
             n = len(in_sig)
             in_sig = cuda.io_signature_make(n, n, in_sig)
@@ -77,10 +86,10 @@ class cuda_block:
     def __init_subclass__(cls, **kwargs):
         """Auto-wrap work()/general_work() at class definition time."""
         super().__init_subclass__(**kwargs)
-        for name in ('work', 'general_work'):
+        for name in ("work", "general_work"):
             if name in cls.__dict__:
                 fn = cls.__dict__[name]
-                if not getattr(fn, '_cuda_wrapped', False):
+                if not getattr(fn, "_cuda_wrapped", False):
                     setattr(cls, name, _wrap_work(fn))
 
     @property
@@ -93,7 +102,17 @@ class cuda_block:
             return self._cuda_stream
 
 
-class sync_block(cuda_block, gr.sync_block): pass
-class decim_block(cuda_block, gr.decim_block): pass
-class interp_block(cuda_block, gr.interp_block): pass
-class basic_block(cuda_block, gr.basic_block): pass
+class sync_block(cuda_block, gr.sync_block):
+    pass
+
+
+class decim_block(cuda_block, gr.decim_block):
+    pass
+
+
+class interp_block(cuda_block, gr.interp_block):
+    pass
+
+
+class basic_block(cuda_block, gr.basic_block):
+    pass

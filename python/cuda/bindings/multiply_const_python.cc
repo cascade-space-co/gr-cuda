@@ -52,10 +52,3 @@ void bind_multiply_const(py::module& m)
     bind_multiply_const_template<float>(m, "multiply_const_ff");
     bind_multiply_const_template<gr_complex>(m, "multiply_const_cc");
 }
-
-
-
-
-
-
-

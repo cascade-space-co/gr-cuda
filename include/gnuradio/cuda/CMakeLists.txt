@@ -9,17 +9,19 @@
 ########################################################################
 # Install public header files
 ########################################################################
-install(FILES
-    api.h
-    cuda_block.h
-    cuda_error.h
-    cuda_buffer.h
-    cuda_block_helper.h
-    copy.h
-    fft.h
-    multiply_const.h
-    load.h
-    null_source.h
-    null_sink.h
-    probe_rate.h DESTINATION include/gnuradio/cuda
+install(
+    FILES
+        api.h
+        cuda_block.h
+        cuda_error.h
+        cuda_buffer.h
+        cuda_block_helper.h
+        copy.h
+        fft.h
+        multiply_const.h
+        load.h
+        null_source.h
+        null_sink.h
+        probe_rate.h
+    DESTINATION include/gnuradio/cuda
 )

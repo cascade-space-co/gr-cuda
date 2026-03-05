@@ -11,7 +11,7 @@
 /* BINDTOOL_GEN_AUTOMATIC(0)                                                       */
 /* BINDTOOL_USE_PYGCCXML(0)                                                        */
 /* BINDTOOL_HEADER_FILE(vector_to_stream.h)                                        */
-/* BINDTOOL_HEADER_FILE_HASH(c034fbee5858bf385886e0d9f077e17b)                                     */
+/* BINDTOOL_HEADER_FILE_HASH(c034fbee5858bf385886e0d9f077e17b) */
 /***********************************************************************************/
 
 #include <pybind11/complex.h>
@@ -36,4 +36,3 @@ void bind_vector_to_stream(py::module& m)
              py::arg("itemsize"),
              py::arg("vlen"));
 }
-

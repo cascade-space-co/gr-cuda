@@ -9,8 +9,8 @@
 #define INCLUDED_CUDA_FFT_H
 
 #include <gnuradio/cuda/api.h>
-#include <gnuradio/sync_block.h>
 #include <gnuradio/gr_complex.h>
+#include <gnuradio/sync_block.h>
 #include <vector>
 
 namespace gr {

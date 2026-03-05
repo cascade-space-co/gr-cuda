@@ -15,7 +15,8 @@ find_package(CUDAToolkit REQUIRED)
 ###############################################################################
 # CUDA Dependency is required - compile all sources directly into shared lib
 ###############################################################################
-list(APPEND cuda_sources
+list(
+    APPEND cuda_sources
     cuda_error.cc
     cuda_buffer.cc
     detail/device_vmm_ring.cc
@@ -42,28 +43,41 @@ list(APPEND cuda_sources
 
 set(cuda_sources "${cuda_sources}" PARENT_SCOPE)
 if(NOT cuda_sources)
-    MESSAGE(STATUS "No C++ sources... skipping lib/")
+    message(STATUS "No C++ sources... skipping lib/")
     return()
 endif(NOT cuda_sources)
 
 add_library(gnuradio-cuda SHARED ${cuda_sources})
 
-target_link_libraries(gnuradio-cuda PUBLIC
-    gnuradio::gnuradio-runtime
-    CUDA::cudart
-    CUDA::cuda_driver
-    CUDA::cufft
-    )
+target_link_libraries(
+    gnuradio-cuda
+    PUBLIC
+        gnuradio::gnuradio-runtime
+        CUDA::cudart
+        CUDA::cuda_driver
+        CUDA::cufft
+)
 
-target_include_directories(gnuradio-cuda
-    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
-    PUBLIC $<INSTALL_INTERFACE:include>
-  )
-set_target_properties(gnuradio-cuda PROPERTIES DEFINE_SYMBOL "gnuradio_cuda_EXPORTS")
+target_include_directories(
+    gnuradio-cuda
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
+    PUBLIC
+        $<INSTALL_INTERFACE:include>
+)
+set_target_properties(
+    gnuradio-cuda
+    PROPERTIES
+        DEFINE_SYMBOL
+            "gnuradio_cuda_EXPORTS"
+)
 
 if(APPLE)
-    set_target_properties(gnuradio-cuda PROPERTIES
-        INSTALL_NAME_DIR "${CMAKE_INSTALL_PREFIX}/lib"
+    set_target_properties(
+        gnuradio-cuda
+        PROPERTIES
+            INSTALL_NAME_DIR
+                "${CMAKE_INSTALL_PREFIX}/lib"
     )
 endif(APPLE)
 
@@ -73,7 +87,12 @@ if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES OR CMAKE_CUDA_ARCHITECTURES STREQUAL "")
     # Users can override with -DCMAKE_CUDA_ARCHITECTURES="native" or specific values
     set(CMAKE_CUDA_ARCHITECTURES "native")
 endif()
-set_target_properties(gnuradio-cuda PROPERTIES CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}")
+set_target_properties(
+    gnuradio-cuda
+    PROPERTIES
+        CUDA_ARCHITECTURES
+            "${CMAKE_CUDA_ARCHITECTURES}"
+)
 
 ########################################################################
 # Install built library files
@@ -82,10 +101,7 @@ include(GrMiscUtils)
 if(COMMAND GR_INSTALL_LIBRARY)
     # GNU Radio 3.11+ expects explicit install rules.
     GR_REGISTER_LIBRARY(gnuradio-cuda)
-    GR_INSTALL_LIBRARY(
-        TARGET gnuradio-cuda
-        COMPONENT ${CMAKE_PROJECT_NAME}
-    )
+    GR_INSTALL_LIBRARY(TARGET gnuradio-cuda COMPONENT ${CMAKE_PROJECT_NAME})
 else()
     # GNU Radio <3.11 compatibility path.
     GR_LIBRARY_FOO(gnuradio-cuda)
@@ -105,18 +121,15 @@ include(GrTest)
 # If your unit tests require special include paths, add them here
 #include_directories()
 # List all files that contain Boost.UTF unit tests here
-list(APPEND test_cuda_sources
-)
+list(APPEND test_cuda_sources)
 # Anything we need to link to for the unit tests go here
 list(APPEND GR_TEST_TARGET_DEPS gnuradio-cuda)
 
 if(NOT test_cuda_sources)
-    MESSAGE(STATUS "No C++ unit tests... skipping")
+    message(STATUS "No C++ unit tests... skipping")
     return()
 endif(NOT test_cuda_sources)
 
 foreach(qa_file ${test_cuda_sources})
-    GR_ADD_CPP_TEST("cuda_${qa_file}"
-        ${CMAKE_CURRENT_SOURCE_DIR}/${qa_file}
-    )
+    GR_ADD_CPP_TEST("cuda_${qa_file}" ${CMAKE_CURRENT_SOURCE_DIR}/${qa_file})
 endforeach(qa_file)

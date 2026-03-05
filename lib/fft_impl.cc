@@ -5,12 +5,12 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#include "fft_impl.h"
-#include <gnuradio/io_signature.h>
-#include <gnuradio/cuda/cuda_buffer.h>
-#include <gnuradio/cuda/cuda_block_helper.h>
-#include <gnuradio/cuda/cuda_error.h>
 #include "fft.cuh"
+#include "fft_impl.h"
+#include <gnuradio/cuda/cuda_block_helper.h>
+#include <gnuradio/cuda/cuda_buffer.h>
+#include <gnuradio/cuda/cuda_error.h>
+#include <gnuradio/io_signature.h>
 #include <sstream>
 #include <stdexcept>
 
@@ -34,7 +34,8 @@ fft::sptr fft::make(size_t fft_size,
                     bool shift,
                     bool real_input)
 {
-    return gnuradio::make_block_sptr<fft_impl>(fft_size, forward, window, shift, real_input);
+    return gnuradio::make_block_sptr<fft_impl>(
+        fft_size, forward, window, shift, real_input);
 }
 
 fft_impl::fft_impl(size_t fft_size,
@@ -42,13 +43,14 @@ fft_impl::fft_impl(size_t fft_size,
                    const std::vector<float>& window,
                    bool shift,
                    bool real_input)
-    : gr::sync_block("fft",
-                     io_signature::make(1,
-                                        1,
-                                        (real_input ? sizeof(float) : sizeof(gr_complex)) *
-                                            fft_size,
-                                        cuda_buffer::type),
-                     io_signature::make(1, 1, sizeof(gr_complex) * fft_size, cuda_buffer::type)),
+    : gr::sync_block(
+          "fft",
+          io_signature::make(1,
+                             1,
+                             (real_input ? sizeof(float) : sizeof(gr_complex)) *
+                                 fft_size,
+                             cuda_buffer::type),
+          io_signature::make(1, 1, sizeof(gr_complex) * fft_size, cuda_buffer::type)),
       d_fft_size(fft_size),
       d_forward(forward),
       d_shift(shift),
@@ -68,14 +70,17 @@ fft_impl::fft_impl(size_t fft_size,
             throw std::invalid_argument("window length must match fft_size");
         }
         d_window_size = window.size();
-        check_cuda_errors(cudaMalloc((void**)&d_window_dev, d_window_size * sizeof(float)),
-                          "fft: cudaMalloc window", d_logger);
+        check_cuda_errors(
+            cudaMalloc((void**)&d_window_dev, d_window_size * sizeof(float)),
+            "fft: cudaMalloc window",
+            d_logger);
         check_cuda_errors(cudaMemcpyAsync(d_window_dev,
                                           window.data(),
                                           d_window_size * sizeof(float),
                                           cudaMemcpyHostToDevice,
                                           d_stream),
-                          "fft: cudaMemcpyAsync H2D window", d_logger);
+                          "fft: cudaMemcpyAsync H2D window",
+                          d_logger);
     }
 }
 
@@ -102,8 +107,10 @@ void fft_impl::ensure_work_buffers(size_t total_items)
         d_work_dev = nullptr;
         d_work_items = 0;
     }
-    check_cuda_errors(cudaMalloc((void**)&d_work_dev, total_items * sizeof(cufftComplex)),
-                      "fft: cudaMalloc work buffer", d_logger);
+    check_cuda_errors(
+        cudaMalloc((void**)&d_work_dev, total_items * sizeof(cufftComplex)),
+        "fft: cudaMalloc work buffer",
+        d_logger);
     d_work_items = total_items;
 }
 
@@ -187,7 +194,8 @@ int fft_impl::work(int noutput_items,
                 exec_kernel_window_ifftshift(
                     in, d_work_dev, d_window_dev, total_items, d_fft_size, d_stream);
             } else {
-                exec_kernel_ifftshift(in, d_work_dev, total_items, d_fft_size, d_stream);
+                exec_kernel_ifftshift(
+                    in, d_work_dev, total_items, d_fft_size, d_stream);
             }
         }
         fft_in = d_work_dev;
@@ -196,14 +204,19 @@ int fft_impl::work(int noutput_items,
         if (d_real_input) {
             const auto real_in = static_cast<const float*>(input_items[0]);
             if (d_has_window) {
-                exec_kernel_real_window(
-                    real_in, d_work_dev, d_window_dev, total_items, d_fft_size, d_stream);
+                exec_kernel_real_window(real_in,
+                                        d_work_dev,
+                                        d_window_dev,
+                                        total_items,
+                                        d_fft_size,
+                                        d_stream);
             } else {
                 exec_kernel_real_to_complex(real_in, d_work_dev, total_items, d_stream);
             }
             fft_in = d_work_dev;
         } else if (d_has_window) {
-            exec_kernel_window(in, d_work_dev, d_window_dev, total_items, d_fft_size, d_stream);
+            exec_kernel_window(
+                in, d_work_dev, d_window_dev, total_items, d_fft_size, d_stream);
             fft_in = d_work_dev;
         }
 
@@ -215,11 +228,9 @@ int fft_impl::work(int noutput_items,
     // Execute the cuFFT plan on this block's stream.
     cufftHandle plan = get_plan(noutput_items);
     check_cufft(cufftSetStream(plan, d_stream), "cufftSetStream");
-    check_cufft(cufftExecC2C(plan,
-                              fft_in,
-                              fft_out,
-                              d_forward ? CUFFT_FORWARD : CUFFT_INVERSE),
-                "cufftExecC2C");
+    check_cufft(
+        cufftExecC2C(plan, fft_in, fft_out, d_forward ? CUFFT_FORWARD : CUFFT_INVERSE),
+        "cufftExecC2C");
 
     // Post-FFT path: optional fftshift.
     if (d_shift && d_forward) {

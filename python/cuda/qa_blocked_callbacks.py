@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright 2026 Cascade Space.
 #
@@ -40,15 +39,16 @@
 #   triggering input_blocked_callback.
 
 import numpy as np
-from gnuradio import gr, gr_unittest, blocks, cuda
+from gnuradio import blocks, cuda, gr, gr_unittest
 
 SEQ_LEN = 256
 
 
 def _make_sequence(n):
     """Repeating complex64 ramp: 0, 1, ..., SEQ_LEN-1, 0, 1, ..."""
-    pattern = (np.arange(SEQ_LEN, dtype=np.float32)
-               + 1j * np.zeros(SEQ_LEN, dtype=np.float32)).astype(np.complex64)
+    pattern = (
+        np.arange(SEQ_LEN, dtype=np.float32) + 1j * np.zeros(SEQ_LEN, dtype=np.float32)
+    ).astype(np.complex64)
     return pattern, np.tile(pattern, (n // SEQ_LEN) + 1)[:n]
 
 
@@ -60,9 +60,9 @@ class sequence_sink(gr.sync_block):
     The Python per-element validation loop is naturally slower than the
     GPU producer, creating enough backpressure to fill the tiny buffer.
     """
+
     def __init__(self, expected, hist=2):
-        gr.sync_block.__init__(self, "sequence_sink",
-                               in_sig=[np.complex64], out_sig=[])
+        gr.sync_block.__init__(self, "sequence_sink", in_sig=[np.complex64], out_sig=[])
         self._expected = np.asarray(expected, dtype=np.complex64)
         self._len = len(self._expected)
         self._offset = 0
@@ -81,7 +81,8 @@ class sequence_sink(gr.sync_block):
             if got != exp:
                 raise RuntimeError(
                     f"Sequence mismatch at index {self._offset + i}: "
-                    f"got {got}, expected {exp}")
+                    f"got {got}, expected {exp}"
+                )
         self._offset += consume
         return consume
 
@@ -99,9 +100,11 @@ class demanding_sink(gr.basic_block):
     the GPU's output_multiple this controls where the read pointer lands
     relative to the buffer boundary.
     """
+
     def __init__(self, expected, min_demand=48, max_consume=50):
-        gr.basic_block.__init__(self, name="demanding_sink",
-                                in_sig=[np.complex64], out_sig=[])
+        gr.basic_block.__init__(
+            self, name="demanding_sink", in_sig=[np.complex64], out_sig=[]
+        )
         self._expected = np.asarray(expected, dtype=np.complex64)
         self._len = len(self._expected)
         self._offset = 0
@@ -120,7 +123,8 @@ class demanding_sink(gr.basic_block):
             if input_items[0][i] != exp:
                 raise RuntimeError(
                     f"Sequence mismatch at index {self._offset + i}: "
-                    f"got {input_items[0][i]}, expected {exp}")
+                    f"got {input_items[0][i]}, expected {exp}"
+                )
         self._offset += n
         self.consume(0, n)
         return 0

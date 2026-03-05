@@ -9,18 +9,14 @@
 # Check if there is C++ code at all
 ########################################################################
 if(NOT cuda_sources)
-    MESSAGE(STATUS "No C++ sources... skipping python bindings")
+    message(STATUS "No C++ sources... skipping python bindings")
     return()
 endif(NOT cuda_sources)
 
 ########################################################################
 # Check for pygccxml
 ########################################################################
-GR_PYTHON_CHECK_MODULE_RAW(
-    "pygccxml"
-    "import pygccxml"
-    PYGCCXML_FOUND
-    )
+GR_PYTHON_CHECK_MODULE_RAW("pygccxml" "import pygccxml" PYGCCXML_FOUND)
 
 include(GrPybind)
 
@@ -28,7 +24,8 @@ include(GrPybind)
 # Python Bindings
 ########################################################################
 
-list(APPEND cuda_python_files
+list(
+    APPEND cuda_python_files
     add_python.cc
     copy_python.cc
     fft_python.cc
@@ -43,19 +40,25 @@ list(APPEND cuda_python_files
     vector_to_stream_python.cc
     streams_to_vector_python.cc
     vector_to_streams_python.cc
-    python_bindings.cc)
+    python_bindings.cc
+)
 
-GR_PYBIND_MAKE_OOT(cuda 
-   ../../..
-   gr::cuda
-   "${cuda_python_files}")
+GR_PYBIND_MAKE_OOT(cuda ../../.. gr::cuda "${cuda_python_files}")
 
 # copy in bindings .so file for use in QA test module
 add_custom_target(
-  copy_bindings_for_tests ALL
-  COMMAND
-    ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_BINARY_DIR}/*.so"
-    ${CMAKE_BINARY_DIR}/test_modules/gnuradio/cuda/
-  DEPENDS cuda_python)
+    copy_bindings_for_tests
+    ALL
+    COMMAND
+        ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_BINARY_DIR}/*.so"
+        ${CMAKE_BINARY_DIR}/test_modules/gnuradio/cuda/
+    DEPENDS
+        cuda_python
+)
 
-install(TARGETS cuda_python DESTINATION ${GR_PYTHON_DIR}/gnuradio/cuda COMPONENT pythonapi)
+install(
+    TARGETS
+        cuda_python
+    DESTINATION ${GR_PYTHON_DIR}/gnuradio/cuda
+    COMPONENT pythonapi
+)

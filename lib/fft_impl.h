@@ -8,11 +8,11 @@
 #ifndef INCLUDED_CUDA_FFT_IMPL_H
 #define INCLUDED_CUDA_FFT_IMPL_H
 
-#include <gnuradio/cuda/fft.h>
 #include <gnuradio/cuda/cuda_block.h>
+#include <gnuradio/cuda/fft.h>
 #include <cufft.h>
-#include <mutex>
 #include <unordered_map>
+#include <mutex>
 
 namespace gr {
 namespace cuda {

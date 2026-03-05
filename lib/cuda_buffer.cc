@@ -10,11 +10,11 @@
  *
  */
 
+#include "detail/device_vmm_ring.h"
+#include "detail/host_mmap_ring.h"
 #include <gnuradio/block.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_error.h>
-#include "detail/device_vmm_ring.h"
-#include "detail/host_mmap_ring.h"
 
 #include <algorithm>
 #include <cassert>
@@ -31,8 +31,12 @@ cuda_buffer::cuda_buffer(int nitems,
                          uint32_t downstream_max_out_mult,
                          block_sptr link,
                          block_sptr buf_owner)
-    : buffer_single_mapped(nitems, sizeof_item, downstream_lcm_nitems,
-                           downstream_max_out_mult, link, buf_owner)
+    : buffer_single_mapped(nitems,
+                           sizeof_item,
+                           downstream_lcm_nitems,
+                           downstream_max_out_mult,
+                           link,
+                           buf_owner)
 {
     gr::configure_default_loggers(d_logger, d_debug_logger, "cuda");
 
@@ -102,7 +106,11 @@ bool cuda_buffer::do_allocate_buffer(size_t final_nitems, size_t sizeof_item)
     d_bufsize = static_cast<unsigned>(aligned_bytes / sizeof_item);
     d_logger->debug("cuda_buffer: requested {} items x {} bytes = {} bytes, "
                     "aligned to {} bytes ({} items)",
-                    final_nitems, sizeof_item, raw_bytes, aligned_bytes, d_bufsize);
+                    final_nitems,
+                    sizeof_item,
+                    raw_bytes,
+                    aligned_bytes,
+                    d_bufsize);
 
     if (aligned_bytes < (1 << 20))
         d_logger->warn("cuda_buffer: buffer is only {} bytes; "
@@ -337,10 +345,7 @@ void cuda_buffer::mark_host_ready(cudaStream_t copy_stream)
     cudaEventRecord(d_host_ready_evt, copy_stream);
 }
 
-void cuda_buffer::wait_host_ready()
-{
-    cudaEventSynchronize(d_host_ready_evt);
-}
+void cuda_buffer::wait_host_ready() { cudaEventSynchronize(d_host_ready_evt); }
 
 void cuda_buffer::mark_read_done(cudaStream_t consumer_stream)
 {
@@ -363,9 +368,12 @@ buffer_sptr cuda_buffer::make_buffer(int nitems,
                                      block_sptr link,
                                      block_sptr buf_owner)
 {
-    return buffer_sptr(new cuda_buffer(
-        nitems, sizeof_item, downstream_lcm_nitems,
-        downstream_max_out_mult, link, buf_owner));
+    return buffer_sptr(new cuda_buffer(nitems,
+                                       sizeof_item,
+                                       downstream_lcm_nitems,
+                                       downstream_max_out_mult,
+                                       link,
+                                       buf_owner));
 }
 
 void cuda_buffer::throw_unexpected_transfer_type()

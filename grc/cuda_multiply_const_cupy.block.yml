@@ -43,4 +43,3 @@ templates:
     - set_k(${const})
 
 file_format: 1
-

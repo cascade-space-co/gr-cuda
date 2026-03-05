@@ -7,10 +7,10 @@
  */
 
 #include "multiply_const_impl.h"
-#include <gnuradio/io_signature.h>
-#include <gnuradio/cuda/cuda_error.h>
-#include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_block_helper.h>
+#include <gnuradio/cuda/cuda_buffer.h>
+#include <gnuradio/cuda/cuda_error.h>
+#include <gnuradio/io_signature.h>
 
 template <typename T>
 void exec_kernel_multiply_const(const T* in,
@@ -56,13 +56,8 @@ int multiply_const_impl<T>::work(int noutput_items,
     auto out = static_cast<T*>(output_items[0]);
     size_t total_elements = static_cast<size_t>(noutput_items) * d_vlen;
     int gridSize = (total_elements + d_block_size - 1) / d_block_size;
-    exec_kernel_multiply_const<T>(in,
-                                  out,
-                                  d_k,
-                                  gridSize,
-                                  d_block_size,
-                                  total_elements,
-                                  d_stream);
+    exec_kernel_multiply_const<T>(
+        in, out, d_k, gridSize, d_block_size, total_elements, d_stream);
 
 
     // Notify downstream CUDA buffers that output is ready.

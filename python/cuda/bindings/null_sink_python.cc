@@ -15,17 +15,20 @@ namespace py = pybind11;
 
 #include <gnuradio/cuda/null_sink.h>
 
-void bind_null_sink(py::module &m) {
+void bind_null_sink(py::module& m)
+{
 
-  using null_sink = ::gr::cuda::null_sink;
+    using null_sink = ::gr::cuda::null_sink;
 
-  py::class_<null_sink, gr::sync_block, gr::block, gr::basic_block,
-             std::shared_ptr<null_sink>>(m, "null_sink")
+    py::class_<null_sink,
+               gr::sync_block,
+               gr::block,
+               gr::basic_block,
+               std::shared_ptr<null_sink>>(m, "null_sink")
 
-      .def(py::init(&null_sink::make), 
-           py::arg("sizeof_stream_item"),
-           py::arg("num_inputs") = 1)
+        .def(py::init(&null_sink::make),
+             py::arg("sizeof_stream_item"),
+             py::arg("num_inputs") = 1)
 
-      ;
+        ;
 }
-

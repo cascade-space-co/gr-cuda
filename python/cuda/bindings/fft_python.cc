@@ -23,11 +23,8 @@ void bind_fft(py::module& m)
 {
     using fft = gr::cuda::fft;
 
-    py::class_<fft,
-               gr::sync_block,
-               gr::block,
-               gr::basic_block,
-               std::shared_ptr<fft>>(m, "fft")
+    py::class_<fft, gr::sync_block, gr::block, gr::basic_block, std::shared_ptr<fft>>(
+        m, "fft")
         .def(py::init(&gr::cuda::fft::make),
              py::arg("fft_size"),
              py::arg("forward") = true,

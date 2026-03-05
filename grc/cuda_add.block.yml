@@ -37,6 +37,3 @@ templates:
     make: cuda.add_${type.fcn}(${num_inputs}, ${vlen})
 
 file_format: 1
-
-
-

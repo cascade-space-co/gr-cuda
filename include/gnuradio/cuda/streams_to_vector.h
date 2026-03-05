@@ -35,4 +35,3 @@ public:
 } // namespace gr
 
 #endif /* INCLUDED_CUDA_STREAMS_TO_VECTOR_H */
-

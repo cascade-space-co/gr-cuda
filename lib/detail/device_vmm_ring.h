@@ -41,9 +41,8 @@ public:
     device_vmm_ring(device_vmm_ring&&) = delete;
     device_vmm_ring& operator=(device_vmm_ring&&) = delete;
 
-    static std::unique_ptr<device_vmm_ring> create(
-        size_t requested_bytes,
-        const std::shared_ptr<gr::logger>& logger = nullptr);
+    static std::unique_ptr<device_vmm_ring>
+    create(size_t requested_bytes, const std::shared_ptr<gr::logger>& logger = nullptr);
 
     char* data();
 

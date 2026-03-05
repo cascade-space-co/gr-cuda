@@ -25,18 +25,15 @@ namespace py = pybind11;
 
 #include <gnuradio/cuda/add.h>
 // pydoc.h is automatically generated in the build directory
-// #include <add_pydoc.h> 
+// #include <add_pydoc.h>
 
 template <typename T>
 void bind_add_template(py::module& m, const char* classname)
 {
     using add = gr::cuda::add<T>;
 
-    py::class_<add,
-               gr::sync_block,
-               gr::block,
-               gr::basic_block,
-               std::shared_ptr<add>>(m, classname)
+    py::class_<add, gr::sync_block, gr::block, gr::basic_block, std::shared_ptr<add>>(
+        m, classname)
         .def(py::init(&gr::cuda::add<T>::make),
              py::arg("num_inputs"),
              py::arg("vlen") = 1);
@@ -49,4 +46,3 @@ void bind_add(py::module& m)
     bind_add_template<float>(m, "add_ff");
     bind_add_template<gr_complex>(m, "add_cc");
 }
-

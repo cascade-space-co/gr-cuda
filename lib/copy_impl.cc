@@ -11,10 +11,10 @@
  */
 
 #include "copy_impl.h"
-#include <gnuradio/cuda/cuda_buffer.h>
-#include <gnuradio/io_signature.h>
 #include <gnuradio/block_detail.h>
 #include <gnuradio/cuda/cuda_block_helper.h>
+#include <gnuradio/cuda/cuda_buffer.h>
+#include <gnuradio/io_signature.h>
 
 namespace gr {
 namespace cuda {
@@ -46,9 +46,13 @@ int copy_impl::work(int noutput_items,
     if (!d_noop) {
         auto in = static_cast<const uint8_t*>(input_items[0]);
         auto out = static_cast<uint8_t*>(output_items[0]);
-        check_cuda_errors(cudaMemcpyAsync(
-            out, in, noutput_items * d_itemsize, cudaMemcpyDeviceToDevice, d_stream),
-            "copy: cudaMemcpyAsync D2D", d_logger);
+        check_cuda_errors(cudaMemcpyAsync(out,
+                                          in,
+                                          noutput_items * d_itemsize,
+                                          cudaMemcpyDeviceToDevice,
+                                          d_stream),
+                          "copy: cudaMemcpyAsync D2D",
+                          d_logger);
     }
 
     // 3. Mark outputs

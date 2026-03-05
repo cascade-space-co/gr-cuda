@@ -6,10 +6,10 @@
  */
 
 #include "stream_to_vector_impl.h"
-#include <gnuradio/io_signature.h>
-#include <gnuradio/cuda/cuda_error.h>
-#include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_block_helper.h>
+#include <gnuradio/cuda/cuda_buffer.h>
+#include <gnuradio/cuda/cuda_error.h>
+#include <gnuradio/io_signature.h>
 
 namespace gr {
 namespace cuda {
@@ -50,13 +50,11 @@ int stream_to_vector_impl::work(int noutput_items,
         // where block_size is the size of the output vector (itemsize * vlen).
         // Since the input is a stream of scalars, copying N vectors worth of bytes
         // effectively groups the scalars into vectors in the output buffer.
-        
-        check_cuda_errors(cudaMemcpyAsync(out, 
-                                          in, 
-                                          total_bytes, 
-                                          cudaMemcpyDeviceToDevice, 
-                                          d_stream),
-                          "stream_to_vector: cudaMemcpyAsync D2D", d_logger);
+
+        check_cuda_errors(
+            cudaMemcpyAsync(out, in, total_bytes, cudaMemcpyDeviceToDevice, d_stream),
+            "stream_to_vector: cudaMemcpyAsync D2D",
+            d_logger);
     }
 
     // Mark outputs ready
@@ -67,4 +65,3 @@ int stream_to_vector_impl::work(int noutput_items,
 
 } /* namespace cuda */
 } /* namespace gr */
-

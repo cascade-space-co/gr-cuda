@@ -8,8 +8,8 @@
 #ifndef INCLUDED_CUDA_STREAM_TO_VECTOR_IMPL_H
 #define INCLUDED_CUDA_STREAM_TO_VECTOR_IMPL_H
 
-#include <gnuradio/cuda/stream_to_vector.h>
 #include <gnuradio/cuda/cuda_block.h>
+#include <gnuradio/cuda/stream_to_vector.h>
 
 namespace gr {
 namespace cuda {
@@ -33,4 +33,3 @@ public:
 } // namespace gr
 
 #endif /* INCLUDED_CUDA_STREAM_TO_VECTOR_IMPL_H */
-
