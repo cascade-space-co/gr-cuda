@@ -149,6 +149,11 @@ public:
 
 protected:
     /*!
+     * \brief Bypass buffer_single_mapped sizing; see cuda_buffer.cc.
+     */
+    bool allocate_buffer(int nitems) override;
+
+    /*!
      * \brief Allocate double-mapped host + device circular buffers.
      */
     bool do_allocate_buffer(size_t final_nitems, size_t sizeof_item) override;
