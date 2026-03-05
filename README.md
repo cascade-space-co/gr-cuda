@@ -78,6 +78,8 @@ int my_block_impl::work(int noutput_items, ...)
 
 See [`cuda_block.h`](include/gnuradio/cuda/cuda_block.h) and [`multiply_const_impl.cc`](lib/multiply_const_impl.cc) for a full example.
 
+> Want to use gr-cuda blocks in your own out-of-tree module? See **[docs/OOT_INTEGRATION.md](docs/OOT_INTEGRATION.md)**.
+
 ## Performance
 
 Benchmarked on an **NVIDIA DGX Spark (GB10)** and an **NVIDIA RTX PRO 6000 Blackwell** (PCIe 5.0 x16).
@@ -93,7 +95,7 @@ Benchmarked on an **NVIDIA DGX Spark (GB10)** and an **NVIDIA RTX PRO 6000 Black
 
 CuPy blocks track within 5% of C++ CUDA blocks -- write your GPU blocks in Python with no meaningful performance penalty.
 
-See **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)** for more details.
+See **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)** for more details and **[docs/LIMITATIONS.md](docs/LIMITATIONS.md)** for known limitations.
 
 ## Acknowledgements
 
