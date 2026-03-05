@@ -27,6 +27,7 @@ GR_PYTHON_INSTALL(
         multiply_const_cupy.py
         complex_to_mag_cupy.py
         complex_to_mag_squared_cupy.py
+        nlog10_cupy.py
         add_cupy.py
         fft_cupy.py
     DESTINATION ${GR_PYTHON_DIR}/gnuradio/cuda
@@ -127,4 +128,9 @@ GR_ADD_TEST(
     qa_cuda_block
     ${PYTHON_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/qa_cuda_block.py
+)
+GR_ADD_TEST(
+    qa_cupy_math
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_cupy_math.py
 )

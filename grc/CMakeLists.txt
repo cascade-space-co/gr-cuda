@@ -17,6 +17,7 @@ install(
         cuda_add_cupy.block.yml
         cuda_complex_to_mag_cupy.block.yml
         cuda_complex_to_mag_squared_cupy.block.yml
+        cuda_nlog10_cupy.block.yml
         cuda_add.block.yml
         cuda_load.block.yml
         cuda_stream_to_vector.block.yml

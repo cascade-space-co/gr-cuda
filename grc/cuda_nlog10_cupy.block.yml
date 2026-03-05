@@ -1,0 +1,39 @@
+id: cuda_nlog10_cupy
+label: Log10 (CuPy)
+flags: [ python ]
+category: '[CUDA]'
+
+parameters:
+-   id: n
+    label: n
+    dtype: real
+    default: '10'
+-   id: vlen
+    label: Vector Length
+    dtype: int
+    default: '1'
+    hide: ${ 'part' if vlen == 1 else 'none' }
+-   id: k
+    label: k
+    dtype: real
+    default: '0'
+
+inputs:
+-   domain: cuda
+    dtype: float
+    vlen: ${ vlen }
+
+outputs:
+-   domain: cuda
+    dtype: float
+    vlen: ${ vlen }
+
+asserts:
+- ${ vlen > 0 }
+
+templates:
+    imports: |-
+        from gnuradio import cuda
+    make: cuda.nlog10_cupy(n=${n}, vlen=${vlen}, k=${k})
+
+file_format: 1

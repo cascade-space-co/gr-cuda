@@ -29,3 +29,4 @@ from .fft_cupy import fft_cupy
 from .complex_to_mag_cupy import complex_to_mag_cupy
 from .complex_to_mag_squared_cupy import complex_to_mag_squared_cupy
 from .multiply_const_cupy import multiply_const_cupy
+from .nlog10_cupy import nlog10_cupy
