@@ -24,22 +24,23 @@ namespace cuda {
  * Consumes data directly from GPU device memory without any D2H transfer.
  * Useful for benchmarking GPU blocks in isolation.
  */
-class CUDA_API null_sink : virtual public gr::sync_block {
+class CUDA_API null_sink : virtual public gr::sync_block
+{
 public:
-  typedef std::shared_ptr<null_sink> sptr;
+    typedef std::shared_ptr<null_sink> sptr;
 
-  /*!
-   * \brief Return a shared_ptr to a new instance of cuda::null_sink.
-   *
-   * To avoid accidental use of raw pointers, cuda::null_sink's
-   * constructor is in a private implementation
-   * class. cuda::null_sink::make is the public interface for
-   * creating new instances.
-   *
-   * \param sizeof_stream_item Size of a stream item in bytes
-   * \param num_inputs Number of input ports (default: 1)
-   */
-  static sptr make(size_t sizeof_stream_item, size_t num_inputs = 1);
+    /*!
+     * \brief Return a shared_ptr to a new instance of cuda::null_sink.
+     *
+     * To avoid accidental use of raw pointers, cuda::null_sink's
+     * constructor is in a private implementation
+     * class. cuda::null_sink::make is the public interface for
+     * creating new instances.
+     *
+     * \param sizeof_stream_item Size of a stream item in bytes
+     * \param num_inputs Number of input ports (default: 1)
+     */
+    static sptr make(size_t sizeof_stream_item, size_t num_inputs = 1);
 };
 
 } // namespace cuda

@@ -14,7 +14,7 @@
 /* BINDTOOL_GEN_AUTOMATIC(0)                                                       */
 /* BINDTOOL_USE_PYGCCXML(0)                                                        */
 /* BINDTOOL_HEADER_FILE(add.h)                                                     */
-/* BINDTOOL_HEADER_FILE_HASH(44fd29e210eb7fdd71de7ce798d759c9)                     */
+/* BINDTOOL_HEADER_FILE_HASH(678f47e794d688f851a8b9b6d5be169b)                     */
 /***********************************************************************************/
 
 #include <pybind11/complex.h>
@@ -25,18 +25,15 @@ namespace py = pybind11;
 
 #include <gnuradio/cuda/add.h>
 // pydoc.h is automatically generated in the build directory
-// #include <add_pydoc.h> 
+// #include <add_pydoc.h>
 
 template <typename T>
 void bind_add_template(py::module& m, const char* classname)
 {
     using add = gr::cuda::add<T>;
 
-    py::class_<add,
-               gr::sync_block,
-               gr::block,
-               gr::basic_block,
-               std::shared_ptr<add>>(m, classname)
+    py::class_<add, gr::sync_block, gr::block, gr::basic_block, std::shared_ptr<add>>(
+        m, classname)
         .def(py::init(&gr::cuda::add<T>::make),
              py::arg("num_inputs"),
              py::arg("vlen") = 1);
@@ -49,4 +46,3 @@ void bind_add(py::module& m)
     bind_add_template<float>(m, "add_ff");
     bind_add_template<gr_complex>(m, "add_cc");
 }
-

@@ -37,4 +37,3 @@ templates:
     make: cuda.add_cupy(${num_inputs}, ${type.dtype}, ${vlen})
 
 file_format: 1
-

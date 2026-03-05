@@ -31,33 +31,18 @@ namespace py = pybind11;
 void bind_load(py::module& m)
 {
 
-    using load    = ::gr::cuda::load;
+    using load = ::gr::cuda::load;
 
 
-    py::class_<load, gr::sync_block, gr::block, gr::basic_block,
-        std::shared_ptr<load>>(m, "load", D(load))
+    py::class_<load, gr::sync_block, gr::block, gr::basic_block, std::shared_ptr<load>>(
+        m, "load", D(load))
 
         .def(py::init(&load::make),
-           py::arg("iterations"),
-           py::arg("itemsize"),
-           py::arg("use_cb") = true,
-           D(load,make)
-        )
-        
-
+             py::arg("iterations"),
+             py::arg("itemsize"),
+             py::arg("use_cb") = true,
+             D(load, make))
 
 
         ;
-
-
-
-
 }
-
-
-
-
-
-
-
-

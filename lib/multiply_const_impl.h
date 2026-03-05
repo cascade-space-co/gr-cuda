@@ -9,8 +9,8 @@
 #ifndef INCLUDED_CUDA_MULTIPLY_CONST_IMPL_H
 #define INCLUDED_CUDA_MULTIPLY_CONST_IMPL_H
 
-#include <gnuradio/cuda/multiply_const.h>
 #include <gnuradio/cuda/cuda_block.h>
+#include <gnuradio/cuda/multiply_const.h>
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 
@@ -22,7 +22,6 @@ class multiply_const_impl : public multiply_const<T>, public cuda_block
 {
 
 private:
-
     T d_k;
     const size_t d_vlen;
 

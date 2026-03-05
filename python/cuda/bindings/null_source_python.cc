@@ -15,18 +15,21 @@ namespace py = pybind11;
 
 #include <gnuradio/cuda/null_source.h>
 
-void bind_null_source(py::module &m) {
+void bind_null_source(py::module& m)
+{
 
-  using null_source = ::gr::cuda::null_source;
+    using null_source = ::gr::cuda::null_source;
 
-  py::class_<null_source, gr::sync_block, gr::block, gr::basic_block,
-             std::shared_ptr<null_source>>(m, "null_source")
+    py::class_<null_source,
+               gr::sync_block,
+               gr::block,
+               gr::basic_block,
+               std::shared_ptr<null_source>>(m, "null_source")
 
-      .def(py::init(&null_source::make), 
-           py::arg("sizeof_stream_item"),
-           py::arg("num_outputs") = 1,
-           py::arg("memset") = true)
+        .def(py::init(&null_source::make),
+             py::arg("sizeof_stream_item"),
+             py::arg("num_outputs") = 1,
+             py::arg("memset") = true)
 
-      ;
+        ;
 }
-

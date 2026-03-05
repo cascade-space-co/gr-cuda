@@ -7,10 +7,11 @@
 
 # The presence of this file turns this directory into a Python package
 
-'''
+"""
 This is the GNU Radio CUDA module. Place your Python package
 description here (python/__init__.py).
-'''
+"""
+
 # import pybind11 generated symbols into the cuda namespace
 try:
     # this might fail if the module is python-only
@@ -20,10 +21,9 @@ except ModuleNotFoundError:
 
 # import python helpers
 from .utils import as_cupy, io_signature_make
-from .cuda_block import sync_block, decim_block, interp_block, basic_block
+from .cuda_block import basic_block, decim_block, interp_block, sync_block
 
-# import python blocks
-from .multiply_const_cupy import multiply_const_cupy
+# import python blocks (these depend on cuda_block via cuda.sync_block)
 from .add_cupy import add_cupy
 from .fft_cupy import fft_cupy
-
+from .multiply_const_cupy import multiply_const_cupy

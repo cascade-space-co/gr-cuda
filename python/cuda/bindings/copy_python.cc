@@ -17,7 +17,7 @@
 /* BINDTOOL_GEN_AUTOMATIC(0) */
 /* BINDTOOL_USE_PYGCCXML(0) */
 /* BINDTOOL_HEADER_FILE(copy.h)                                        */
-/* BINDTOOL_HEADER_FILE_HASH(4294957090943fa0092a8fca2d8d5718) */
+/* BINDTOOL_HEADER_FILE_HASH(1ce3bf93b4994b15d254cab3ee5e5e4f) */
 /***********************************************************************************/
 
 #include <pybind11/complex.h>
@@ -30,17 +30,18 @@ namespace py = pybind11;
 // pydoc.h is automatically generated in the build directory
 #include <copy_pydoc.h>
 
-void bind_copy(py::module &m) {
+void bind_copy(py::module& m)
+{
 
-  using copy = ::gr::cuda::copy;
+    using copy = ::gr::cuda::copy;
 
-  py::class_<copy, gr::sync_block, gr::block, gr::basic_block,
-             std::shared_ptr<copy>>(m, "copy", D(copy))
+    py::class_<copy, gr::sync_block, gr::block, gr::basic_block, std::shared_ptr<copy>>(
+        m, "copy", D(copy))
 
-      .def(py::init(&copy::make), 
-           py::arg("itemsize"), 
-           py::arg("noop") = false,
-           D(copy, make))
+        .def(py::init(&copy::make),
+             py::arg("itemsize"),
+             py::arg("noop") = false,
+             D(copy, make))
 
-      ;
+        ;
 }

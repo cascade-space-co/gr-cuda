@@ -46,16 +46,14 @@ The minimum trigger conditions are:
     3. That reader also sets delay = history - 1  (forces d_has_history=false)
 
 The test uses ``cuda.null_source`` feeding a tiny Python sink that sets
-``history=2`` and ``declare_sample_delay(1)`` to trigger the deadlock 
+``history=2`` and ``declare_sample_delay(1)`` to trigger the deadlock
 deterministically.
 """
 
 import time
+
 import numpy as np
-
-from gnuradio import gr, gr_unittest
-from gnuradio import cuda
-
+from gnuradio import cuda, gr, gr_unittest
 
 _SETTLE_S = 0.25
 _WINDOW_S = 0.50
@@ -71,9 +69,7 @@ class _history_sink(gr.sync_block):
     """
 
     def __init__(self):
-        gr.sync_block.__init__(
-            self, "history_sink", in_sig=[np.complex64], out_sig=[]
-        )
+        gr.sync_block.__init__(self, "history_sink", in_sig=[np.complex64], out_sig=[])
         self.set_history(2)
         self.declare_sample_delay(1)
 

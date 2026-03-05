@@ -5,12 +5,12 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#include "vector_to_streams_impl.h"
-#include <gnuradio/io_signature.h>
-#include <gnuradio/cuda/cuda_error.h>
-#include <gnuradio/cuda/cuda_buffer.h>
-#include <gnuradio/cuda/cuda_block_helper.h>
 #include "interleave.cuh"
+#include "vector_to_streams_impl.h"
+#include <gnuradio/cuda/cuda_block_helper.h>
+#include <gnuradio/cuda/cuda_buffer.h>
+#include <gnuradio/cuda/cuda_error.h>
+#include <gnuradio/io_signature.h>
 
 namespace gr {
 namespace cuda {
@@ -21,20 +21,24 @@ vector_to_streams::sptr vector_to_streams::make(size_t itemsize, size_t num_stre
 }
 
 vector_to_streams_impl::vector_to_streams_impl(size_t itemsize, size_t num_streams)
-    : gr::sync_block("vector_to_streams",
-                     io_signature::make(1, 1, itemsize * num_streams, cuda_buffer::type),
-                     io_signature::make(num_streams, num_streams, itemsize, cuda_buffer::type)),
+    : gr::sync_block(
+          "vector_to_streams",
+          io_signature::make(1, 1, itemsize * num_streams, cuda_buffer::type),
+          io_signature::make(num_streams, num_streams, itemsize, cuda_buffer::type)),
       d_itemsize(itemsize),
       d_num_streams(num_streams)
 {
     get_deinterleave_block_and_grid(&d_min_grid_size, &d_block_size);
-    check_cuda_errors(cudaMalloc((void**)&d_output_ptrs_dev, sizeof(void*) * d_num_streams),
-                      "vector_to_streams: cudaMalloc output_ptrs", d_logger);
+    check_cuda_errors(
+        cudaMalloc((void**)&d_output_ptrs_dev, sizeof(void*) * d_num_streams),
+        "vector_to_streams: cudaMalloc output_ptrs",
+        d_logger);
 }
 
 vector_to_streams_impl::~vector_to_streams_impl()
 {
-    if (d_output_ptrs_dev) cudaFree(d_output_ptrs_dev);
+    if (d_output_ptrs_dev)
+        cudaFree(d_output_ptrs_dev);
 }
 
 int vector_to_streams_impl::work(int noutput_items,
@@ -47,17 +51,18 @@ int vector_to_streams_impl::work(int noutput_items,
 
     // Copy output pointers to device
     // output_items is vector<void*>
-    check_cuda_errors(cudaMemcpyAsync(d_output_ptrs_dev, 
-                                      output_items.data(), 
-                                      sizeof(void*) * d_num_streams, 
-                                      cudaMemcpyHostToDevice, 
+    check_cuda_errors(cudaMemcpyAsync(d_output_ptrs_dev,
+                                      output_items.data(),
+                                      sizeof(void*) * d_num_streams,
+                                      cudaMemcpyHostToDevice,
                                       d_stream),
-                      "vector_to_streams: cudaMemcpyAsync H2D ptrs", d_logger);
+                      "vector_to_streams: cudaMemcpyAsync H2D ptrs",
+                      d_logger);
 
-    // noutput_items = number of scalars produced per stream (which equals number of input vectors consumed).
-    // This kernel deinterleaves data from one input vector stream into N output scalar streams.
-    // Equivalent CPU logic:
-    // for (i = 0; i < noutput_items; i++) {
+    // noutput_items = number of scalars produced per stream (which equals number of
+    // input vectors consumed). This kernel deinterleaves data from one input vector
+    // stream into N output scalar streams. Equivalent CPU logic: for (i = 0; i <
+    // noutput_items; i++) {
     //     for (j = 0; j < nstreams; j++) {
     //         memcpy(output_items[j], in, itemsize);
     //         ...
@@ -83,4 +88,3 @@ int vector_to_streams_impl::work(int noutput_items,
 
 } /* namespace cuda */
 } /* namespace gr */
-

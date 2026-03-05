@@ -33,10 +33,9 @@ size_t query_vmm_granularity_for_current_device()
     prop.location.id = cu_dev;
 
     size_t granularity = 0;
-    check_cuda_errors(
-        cuMemGetAllocationGranularity(
-            &granularity, &prop, CU_MEM_ALLOC_GRANULARITY_MINIMUM),
-        "vmm: cuMemGetAllocationGranularity");
+    check_cuda_errors(cuMemGetAllocationGranularity(
+                          &granularity, &prop, CU_MEM_ALLOC_GRANULARITY_MINIMUM),
+                      "vmm: cuMemGetAllocationGranularity");
 
     return granularity;
 }
@@ -76,7 +75,8 @@ device_vmm_ring::create(size_t requested_bytes,
     // granularity, so requested_bytes should be aligned.
     size_t granularity = query_vmm_granularity_for_current_device();
     logger->debug("device_vmm_ring: requesting {} bytes (granularity={})",
-                  requested_bytes, granularity);
+                  requested_bytes,
+                  granularity);
     assert(requested_bytes % granularity == 0);
 
     ring->d_aligned_bytes = requested_bytes;
@@ -84,23 +84,28 @@ device_vmm_ring::create(size_t requested_bytes,
     // Reserve 2N contiguous VA (no physical memory yet).
     check_cuda_errors(
         cuMemAddressReserve(&ring->d_ptr, 2 * ring->d_aligned_bytes, 0, 0, 0),
-        "vmm_create: cuMemAddressReserve", logger);
+        "vmm_create: cuMemAddressReserve",
+        logger);
 
     // Create one physical allocation of size N.
-    check_cuda_errors(
-        cuMemCreate(&ring->d_handle, ring->d_aligned_bytes, &prop, 0),
-        "vmm_create: cuMemCreate", logger);
+    check_cuda_errors(cuMemCreate(&ring->d_handle, ring->d_aligned_bytes, &prop, 0),
+                      "vmm_create: cuMemCreate",
+                      logger);
 
     // Map the physical allocation into the first half [ptr, ptr+N).
     check_cuda_errors(
         cuMemMap(ring->d_ptr, ring->d_aligned_bytes, 0, ring->d_handle, 0),
-        "vmm_create: cuMemMap first half", logger);
+        "vmm_create: cuMemMap first half",
+        logger);
 
     // Map the same allocation into the second half [ptr+N, ptr+2N).
-    check_cuda_errors(
-        cuMemMap(ring->d_ptr + ring->d_aligned_bytes, ring->d_aligned_bytes,
-                 0, ring->d_handle, 0),
-        "vmm_create: cuMemMap second half", logger);
+    check_cuda_errors(cuMemMap(ring->d_ptr + ring->d_aligned_bytes,
+                               ring->d_aligned_bytes,
+                               0,
+                               ring->d_handle,
+                               0),
+                      "vmm_create: cuMemMap second half",
+                      logger);
 
     // Grant read/write access across the full 2N range.
     CUmemAccessDesc access = {};
@@ -110,10 +115,12 @@ device_vmm_ring::create(size_t requested_bytes,
 
     check_cuda_errors(
         cuMemSetAccess(ring->d_ptr, 2 * ring->d_aligned_bytes, &access, 1),
-        "vmm_create: cuMemSetAccess", logger);
+        "vmm_create: cuMemSetAccess",
+        logger);
 
     logger->debug("device_vmm_ring: mapped 2x{} bytes at VA {:#x}",
-                  ring->d_aligned_bytes, (uintptr_t)ring->d_ptr);
+                  ring->d_aligned_bytes,
+                  (uintptr_t)ring->d_ptr);
 
     return ring;
 }

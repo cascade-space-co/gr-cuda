@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright 2021 Josh Morman.
 # Copyright 2026 Cascade Space.
@@ -7,19 +6,20 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-from gnuradio import gr, gr_unittest
-from gnuradio import blocks
+from gnuradio import blocks, gr, gr_unittest
+
 try:
     from gnuradio.cuda import copy
 except ImportError:
     import os
     import sys
+
     dirname, filename = os.path.split(os.path.abspath(__file__))
     sys.path.append(os.path.join(dirname, "bindings"))
     from gnuradio.cuda import copy
 
-class qa_copy(gr_unittest.TestCase):
 
+class qa_copy(gr_unittest.TestCase):
     def setUp(self):
         self.tb = gr.top_block()
 
@@ -27,7 +27,7 @@ class qa_copy(gr_unittest.TestCase):
         self.tb = None
 
     def test_instance(self):
-        instance = copy(gr.sizeof_gr_complex)
+        copy(gr.sizeof_gr_complex)
 
     def test_001_descriptive_test_name(self):
         nsamples = 10000
@@ -41,9 +41,8 @@ class qa_copy(gr_unittest.TestCase):
 
         self.tb.run()
 
-
         self.assertEqual(snk.data(), input_data)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     gr_unittest.run(qa_copy)

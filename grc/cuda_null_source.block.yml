@@ -38,5 +38,3 @@ outputs:
   multiplicity: ${num_outputs}
 
 file_format: 1
-
-

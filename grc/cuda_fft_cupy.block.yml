@@ -51,4 +51,3 @@ templates:
     make: cuda.fft_cupy(${fft_size}, forward=${forward}, window=${window}, shift=${shift}, real_input=${input_type.is_real})
 
 file_format: 1
-

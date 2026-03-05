@@ -29,17 +29,17 @@ import argparse
 import csv
 import os
 import time
-from gnuradio import gr, blocks, cuda
+
+from gnuradio import blocks, cuda, gr
 from gnuradio import fft as gr_fft
-from gnuradio.fft import window as gr_window
 
 # Each work() call processes ~WORK_BATCH_BYTES of data, which also determines
 # the cuFFT batch size (vectors per call).  Adjusting this value (inherently
 # the batch size of the cuFFT plan) might or might not produce better
 # performance.  The buffer is BUFFER_MULTIPLE times larger to give the
 # producer headroom over the consumer.
-WORK_BATCH_BYTES = 64 * 1024 * 1024    # 64 MiB per work() call
-BUFFER_MULTIPLE = 16                    # buffer = 16 work() calls = ~1 GiB
+WORK_BATCH_BYTES = 64 * 1024 * 1024  # 64 MiB per work() call
+BUFFER_MULTIPLE = 16  # buffer = 16 work() calls = ~1 GiB
 
 
 def _auto_output_multiple(fft_size):
@@ -127,6 +127,7 @@ def run_benchmark(mode, fft_size, output_multiple, duration, warmup=1.0):
 
     if mode == "cupy":
         import cupy
+
         # Free all CuPy memory blocks to avoid memory leaks.
         cupy.get_default_memory_pool().free_all_blocks()
 
@@ -135,8 +136,8 @@ def run_benchmark(mode, fft_size, output_multiple, duration, warmup=1.0):
 
 MODE_LABELS = {
     "cufft": "cuFFT  (GPU, C++)",
-    "cupy":  "CuPy FFT  (GPU, Python)",
-    "cpu":   "FFTW  (CPU)",
+    "cupy": "CuPy FFT  (GPU, Python)",
+    "cpu": "FFTW  (CPU)",
 }
 
 ALL_MODES = ["cufft", "cupy", "cpu"]
@@ -150,33 +151,62 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--duration", type=float, default=10.0,
-        help="Measurement duration per config in seconds (default: 10)")
+        "--duration",
+        type=float,
+        default=10.0,
+        help="Measurement duration per config in seconds (default: 10)",
+    )
     parser.add_argument(
-        "--warmup", type=float, default=1.0,
-        help="Warmup before measuring in seconds (default: 1)")
+        "--warmup",
+        type=float,
+        default=1.0,
+        help="Warmup before measuring in seconds (default: 1)",
+    )
     parser.add_argument(
-        "--mode", choices=ALL_MODES + ["all"], default="all",
-        help="FFT engine to test (default: all)")
+        "--mode",
+        choices=ALL_MODES + ["all"],
+        default="all",
+        help="FFT engine to test (default: all)",
+    )
     parser.add_argument(
-        "--fft-exp-min", type=int, default=8,
-        help="Min FFT size as power of 2 (default: 8 = 256 points)")
+        "--fft-exp-min",
+        type=int,
+        default=8,
+        help="Min FFT size as power of 2 (default: 8 = 256 points)",
+    )
     parser.add_argument(
-        "--fft-exp-max", type=int, default=20,
-        help="Max FFT size as power of 2 (default: 20 = 1M points)")
+        "--fft-exp-max",
+        type=int,
+        default=20,
+        help="Max FFT size as power of 2 (default: 20 = 1M points)",
+    )
     parser.add_argument(
-        "--output-multiple", type=int, default=None,
+        "--output-multiple",
+        type=int,
+        default=None,
         help="output_multiple for scheduler (vectors per work call). "
-             "Default: auto-scaled to ~64 MiB/call for all engines")
+        "Default: auto-scaled to ~64 MiB/call for all engines",
+    )
     parser.add_argument(
-        "--csv", type=str, default=None, metavar="FILE",
-        help="Write results to a CSV file")
+        "--csv",
+        type=str,
+        default=None,
+        metavar="FILE",
+        help="Write results to a CSV file",
+    )
     parser.add_argument(
-        "--plot", type=str, default=None, metavar="FILE",
-        help="Save a benchmark plot (PNG) to the given path")
+        "--plot",
+        type=str,
+        default=None,
+        metavar="FILE",
+        help="Save a benchmark plot (PNG) to the given path",
+    )
     parser.add_argument(
-        "--title", type=str, default=None,
-        help="Title for the plot and CSV comment (default: GPU device name)")
+        "--title",
+        type=str,
+        default=None,
+        help="Title for the plot and CSV comment (default: GPU device name)",
+    )
     args = parser.parse_args()
 
     modes = ALL_MODES if args.mode == "all" else [args.mode]
@@ -186,20 +216,25 @@ def main():
     title = args.title
     if title is None:
         try:
-            import pycuda.autoinit
             import pycuda.driver as drv
+
             title = drv.Device(0).name()
         except Exception:
             import socket
+
             title = socket.gethostname()
 
     print("FFT benchmark")
     print(f"  Device:          {title}")
-    print(f"  Duration:        {args.duration}s per measurement ({args.warmup}s warmup)")
+    print(
+        f"  Duration:        {args.duration}s per measurement ({args.warmup}s warmup)"
+    )
     if args.output_multiple is not None:
         print(f"  Output multiple: {args.output_multiple} vectors per work() call")
     else:
-        print(f"  Output multiple: auto (~{WORK_BATCH_BYTES // (1024*1024)} MiB/call)")
+        print(
+            f"  Output multiple: auto (~{WORK_BATCH_BYTES // (1024 * 1024)} MiB/call)"
+        )
     print(f"  FFT sizes:       2^{args.fft_exp_min} .. 2^{args.fft_exp_max} points")
     print()
 
@@ -210,27 +245,30 @@ def main():
     for mode in modes:
         results[mode] = []
         print(f"--- {MODE_LABELS[mode]} ---")
-        print(f"  {'fft_size':<12s}  {'out_mult':>8s}  {'total_ffts':<18s}"
-              f"  {'FFTs/s':<12s}  {'Gsps':<8s}")
+        print(
+            f"  {'fft_size':<12s}  {'out_mult':>8s}  {'total_ffts':<18s}"
+            f"  {'FFTs/s':<12s}  {'Gsps':<8s}"
+        )
         print(f"  {'─' * 12}  {'─' * 8}  {'─' * 18}  {'─' * 12}  {'─' * 8}")
 
         for exp in fft_exps:
-            fft_size = 2 ** exp
+            fft_size = 2**exp
             if args.output_multiple is not None:
                 om = args.output_multiple
             else:
                 om = _auto_output_multiple(fft_size)
 
             total_vectors, elapsed = run_benchmark(
-                mode, fft_size, om,
-                args.duration, args.warmup)
+                mode, fft_size, om, args.duration, args.warmup
+            )
             ffts_per_sec = total_vectors / elapsed
             gsps = (total_vectors * fft_size) / elapsed / 1e9
-            print(f"  2^{exp:<9d} {om:>8d}  {total_vectors:>18,d}"
-                  f"  {ffts_per_sec:>12,.0f}  {gsps:>8.2f}")
+            print(
+                f"  2^{exp:<9d} {om:>8d}  {total_vectors:>18,d}"
+                f"  {ffts_per_sec:>12,.0f}  {gsps:>8.2f}"
+            )
 
-            results[mode].append(
-                (exp, fft_size, om, total_vectors, ffts_per_sec, gsps))
+            results[mode].append((exp, fft_size, om, total_vectors, ffts_per_sec, gsps))
         print()
 
     # ---- CSV output ----
@@ -241,13 +279,22 @@ def main():
                 f.write(f"# {title}\n")
             writer = csv.writer(f)
             if write_header:
-                writer.writerow([
-                    "engine", "fft_exp", "fft_size", "output_multiple",
-                    "total_ffts", "ffts_per_sec", "gsps"])
+                writer.writerow(
+                    [
+                        "engine",
+                        "fft_exp",
+                        "fft_size",
+                        "output_multiple",
+                        "total_ffts",
+                        "ffts_per_sec",
+                        "gsps",
+                    ]
+                )
             for mode in modes:
-                for (exp, fft_size, om, total, fps, gsps) in results[mode]:
-                    writer.writerow([mode, exp, fft_size, om,
-                                     total, f"{fps:.2f}", f"{gsps:.4f}"])
+                for exp, fft_size, om, total, fps, gsps in results[mode]:
+                    writer.writerow(
+                        [mode, exp, fft_size, om, total, f"{fps:.2f}", f"{gsps:.4f}"]
+                    )
         print(f"Results written to {args.csv}")
 
     # ---- Plot ----
@@ -259,22 +306,34 @@ def _generate_plot(results, fft_exps, title, plot_path):
     """Generate a 2-subplot benchmark plot and save as PNG."""
     try:
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
     except ImportError:
         print("WARNING: matplotlib not available, skipping plot generation.")
         return
 
-    fig, (ax_gsps, ax_ffts) = plt.subplots(
-        2, 1, figsize=(10, 8), sharex=True)
+    fig, (ax_gsps, ax_ffts) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
 
     style_map = {
-        "cufft": {"color": "#1f77b4", "linestyle": "-", "marker": "o",
-                   "label": "cuFFT (GPU, C++)"},
-        "cupy":  {"color": "#ff7f0e", "linestyle": "-", "marker": "^",
-                   "label": "CuPy FFT (GPU, Python)"},
-        "cpu":   {"color": "#2ca02c", "linestyle": "-", "marker": "D",
-                   "label": "FFTW (CPU)"},
+        "cufft": {
+            "color": "#1f77b4",
+            "linestyle": "-",
+            "marker": "o",
+            "label": "cuFFT (GPU, C++)",
+        },
+        "cupy": {
+            "color": "#ff7f0e",
+            "linestyle": "-",
+            "marker": "^",
+            "label": "CuPy FFT (GPU, Python)",
+        },
+        "cpu": {
+            "color": "#2ca02c",
+            "linestyle": "-",
+            "marker": "D",
+            "label": "FFTW (CPU)",
+        },
     }
 
     for mode, rows in results.items():
@@ -283,12 +342,27 @@ def _generate_plot(results, fft_exps, title, plot_path):
         exps = [r[0] for r in rows]
         gsps = [r[5] for r in rows]
         ffts = [r[4] for r in rows]
-        s = style_map.get(mode, {"color": "black", "linestyle": "-",
-                                  "marker": "x", "label": mode})
-        ax_gsps.plot(exps, gsps, color=s["color"], linestyle=s["linestyle"],
-                     marker=s["marker"], label=s["label"], markersize=5)
-        ax_ffts.plot(exps, ffts, color=s["color"], linestyle=s["linestyle"],
-                     marker=s["marker"], label=s["label"], markersize=5)
+        s = style_map.get(
+            mode, {"color": "black", "linestyle": "-", "marker": "x", "label": mode}
+        )
+        ax_gsps.plot(
+            exps,
+            gsps,
+            color=s["color"],
+            linestyle=s["linestyle"],
+            marker=s["marker"],
+            label=s["label"],
+            markersize=5,
+        )
+        ax_ffts.plot(
+            exps,
+            ffts,
+            color=s["color"],
+            linestyle=s["linestyle"],
+            marker=s["marker"],
+            label=s["label"],
+            markersize=5,
+        )
 
     # Top subplot: Gsps
     ax_gsps.set_ylabel("Throughput (Gsps)")
@@ -307,8 +381,7 @@ def _generate_plot(results, fft_exps, title, plot_path):
 
     # X-axis ticks as 2^N labels
     ax_ffts.set_xticks(fft_exps)
-    ax_ffts.set_xticklabels([f"2^{e}" for e in fft_exps], fontsize=8,
-                             rotation=45)
+    ax_ffts.set_xticklabels([f"2^{e}" for e in fft_exps], fontsize=8, rotation=45)
 
     fig.tight_layout()
 

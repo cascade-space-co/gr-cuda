@@ -6,22 +6,24 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-install(FILES
-    cuda.domain.yml
-    cuda_copy.block.yml
-    cuda_fft_cupy.block.yml
-    cuda_fft.block.yml
-    cuda_multiply_const_xx.block.yml
-    cuda_multiply_const_cupy.block.yml
-    cuda_add_cupy.block.yml
-    cuda_add.block.yml
-    cuda_load.block.yml
-    cuda_stream_to_vector.block.yml
-    cuda_vector_to_stream.block.yml
-    cuda_streams_to_vector.block.yml
-    cuda_vector_to_streams.block.yml
-    cuda_null_source.block.yml
-    cuda_null_sink.block.yml
-    cuda_probe_rate.block.yml
-    cuda_throttle.block.yml DESTINATION share/gnuradio/grc/blocks
+install(
+    FILES
+        cuda.domain.yml
+        cuda_copy.block.yml
+        cuda_fft_cupy.block.yml
+        cuda_fft.block.yml
+        cuda_multiply_const_xx.block.yml
+        cuda_multiply_const_cupy.block.yml
+        cuda_add_cupy.block.yml
+        cuda_add.block.yml
+        cuda_load.block.yml
+        cuda_stream_to_vector.block.yml
+        cuda_vector_to_stream.block.yml
+        cuda_streams_to_vector.block.yml
+        cuda_vector_to_streams.block.yml
+        cuda_null_source.block.yml
+        cuda_null_sink.block.yml
+        cuda_probe_rate.block.yml
+        cuda_throttle.block.yml
+    DESTINATION share/gnuradio/grc/blocks
 )

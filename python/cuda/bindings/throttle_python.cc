@@ -15,13 +15,15 @@ namespace py = pybind11;
 
 #include <gnuradio/cuda/throttle.h>
 
-void bind_throttle(py::module &m) {
-  using throttle = ::gr::cuda::throttle;
+void bind_throttle(py::module& m)
+{
+    using throttle = ::gr::cuda::throttle;
 
-  py::class_<throttle, gr::sync_block, gr::block, gr::basic_block,
-             std::shared_ptr<throttle>>(m, "throttle")
-      .def(py::init(&throttle::make), py::arg("itemsize"), py::arg("sample_rate"))
-      .def("set_sample_rate", &throttle::set_sample_rate, py::arg("rate"));
+    py::class_<throttle,
+               gr::sync_block,
+               gr::block,
+               gr::basic_block,
+               std::shared_ptr<throttle>>(m, "throttle")
+        .def(py::init(&throttle::make), py::arg("itemsize"), py::arg("sample_rate"))
+        .def("set_sample_rate", &throttle::set_sample_rate, py::arg("rate"));
 }
-
-

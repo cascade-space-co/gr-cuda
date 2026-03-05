@@ -5,12 +5,12 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#include "add_impl.h"
-#include <gnuradio/io_signature.h>
-#include <gnuradio/cuda/cuda_error.h>
-#include <gnuradio/cuda/cuda_buffer.h>
-#include <gnuradio/cuda/cuda_block_helper.h>
 #include "add.cuh"
+#include "add_impl.h"
+#include <gnuradio/cuda/cuda_block_helper.h>
+#include <gnuradio/cuda/cuda_buffer.h>
+#include <gnuradio/cuda/cuda_error.h>
+#include <gnuradio/io_signature.h>
 
 
 namespace gr {
@@ -25,7 +25,8 @@ typename add<T>::sptr add<T>::make(size_t num_inputs, size_t vlen)
 template <class T>
 add_impl<T>::add_impl(size_t num_inputs, size_t vlen)
     : gr::sync_block("add",
-                     io_signature::make(num_inputs, num_inputs, sizeof(T) * vlen, cuda_buffer::type),
+                     io_signature::make(
+                         num_inputs, num_inputs, sizeof(T) * vlen, cuda_buffer::type),
                      io_signature::make(1, 1, sizeof(T) * vlen, cuda_buffer::type)),
       d_num_inputs(num_inputs),
       d_vlen(vlen)
@@ -34,7 +35,8 @@ add_impl<T>::add_impl(size_t num_inputs, size_t vlen)
 
     // Allocate memory for input pointers on device
     check_cuda_errors(cudaMalloc((void**)&d_input_ptrs_dev, sizeof(T*) * d_num_inputs),
-                      "add: cudaMalloc input_ptrs", this->d_logger);
+                      "add: cudaMalloc input_ptrs",
+                      this->d_logger);
 }
 
 template <class T>
@@ -54,7 +56,7 @@ int add_impl<T>::work(int noutput_items,
     gr::cuda::wait_for_work(this->detail(), d_stream);
 
     auto out = static_cast<T*>(output_items[0]);
-    
+
     // Prepare input pointers
     // NOTE: input_items is a std::vector on the CPU holding pointers to GPU buffers.
     // The GPU kernel cannot access this CPU vector directly to iterate over inputs.
@@ -64,18 +66,19 @@ int add_impl<T>::work(int noutput_items,
     for (size_t i = 0; i < d_num_inputs; i++) {
         host_input_ptrs[i] = const_cast<T*>(static_cast<const T*>(input_items[i]));
     }
-    
+
     // Copy input pointers to device
-    check_cuda_errors(cudaMemcpyAsync(d_input_ptrs_dev, 
-                                      host_input_ptrs.data(), 
-                                      sizeof(T*) * d_num_inputs, 
-                                      cudaMemcpyHostToDevice, 
+    check_cuda_errors(cudaMemcpyAsync(d_input_ptrs_dev,
+                                      host_input_ptrs.data(),
+                                      sizeof(T*) * d_num_inputs,
+                                      cudaMemcpyHostToDevice,
                                       d_stream),
-                      "add: cudaMemcpyAsync H2D ptrs", this->d_logger);
+                      "add: cudaMemcpyAsync H2D ptrs",
+                      this->d_logger);
 
     size_t total_elements = static_cast<size_t>(noutput_items) * d_vlen;
     int gridSize = (total_elements + d_block_size - 1) / d_block_size;
-    
+
     exec_kernel_add<T>(d_input_ptrs_dev,
                        out,
                        d_num_inputs,
@@ -83,7 +86,7 @@ int add_impl<T>::work(int noutput_items,
                        d_block_size,
                        total_elements,
                        d_stream);
-    
+
     // Mark outputs ready
     gr::cuda::mark_work_done(this->detail(), d_stream);
 
@@ -98,4 +101,3 @@ template class add<gr_complex>;
 
 } /* namespace cuda */
 } /* namespace gr */
-

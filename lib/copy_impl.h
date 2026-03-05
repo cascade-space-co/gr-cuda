@@ -19,18 +19,20 @@
 namespace gr {
 namespace cuda {
 
-class copy_impl : public copy, public cuda_block {
+class copy_impl : public copy, public cuda_block
+{
 private:
-  size_t d_itemsize;
-  bool d_noop;
+    size_t d_itemsize;
+    bool d_noop;
 
 public:
-  copy_impl(size_t itemsize, bool noop);
-  ~copy_impl() override = default;
+    copy_impl(size_t itemsize, bool noop);
+    ~copy_impl() override = default;
 
-  // Where all the action really happens
-  int work(int noutput_items, gr_vector_const_void_star &input_items,
-           gr_vector_void_star &output_items);
+    // Where all the action really happens
+    int work(int noutput_items,
+             gr_vector_const_void_star& input_items,
+             gr_vector_void_star& output_items);
 };
 
 } // namespace cuda

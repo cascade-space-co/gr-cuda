@@ -12,4 +12,3 @@ templates:
     connect: self.connect(${ make_port_sig(source) }, ${ make_port_sig(sink) })
 -   type: [stream, cuda]
     connect: self.connect(${ make_port_sig(source) }, ${ make_port_sig(sink) })
-

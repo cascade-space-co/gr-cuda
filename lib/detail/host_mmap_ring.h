@@ -36,9 +36,8 @@ public:
     host_mmap_ring(host_mmap_ring&&) = delete;
     host_mmap_ring& operator=(host_mmap_ring&&) = delete;
 
-    static std::unique_ptr<host_mmap_ring> create(
-        size_t requested_bytes,
-        const std::shared_ptr<gr::logger>& logger = nullptr);
+    static std::unique_ptr<host_mmap_ring>
+    create(size_t requested_bytes, const std::shared_ptr<gr::logger>& logger = nullptr);
 
     void register_pinned();
     char* base_ptr();

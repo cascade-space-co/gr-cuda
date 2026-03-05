@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright 2026 Cascade Space.
 #
@@ -10,14 +9,14 @@ Test GPU throttle block.
 """
 
 import time
-from gnuradio import gr, gr_unittest
-from gnuradio import blocks
-from gnuradio import cuda
+
+from gnuradio import blocks, cuda, gr, gr_unittest
 
 try:
     import pmt
 except Exception:  # pragma: no cover
     pmt = None
+
 
 class test_throttle(gr_unittest.TestCase):
     def setUp(self):
@@ -67,7 +66,9 @@ class test_throttle(gr_unittest.TestCase):
 
         src = cuda.null_source(gr.sizeof_gr_complex)
         throttle = cuda.throttle(gr.sizeof_gr_complex, sample_rate)
-        probe = cuda.probe_rate(gr.sizeof_gr_complex, update_rate_ms, alpha, "throttle_test")
+        probe = cuda.probe_rate(
+            gr.sizeof_gr_complex, update_rate_ms, alpha, "throttle_test"
+        )
         dbg = blocks.message_debug(True, gr.log_levels.info)
 
         self.tb.connect(src, throttle)
@@ -81,7 +82,9 @@ class test_throttle(gr_unittest.TestCase):
 
         # message_debug API varies by GNU Radio version; handle common cases.
         if not hasattr(dbg, "num_messages") or not hasattr(dbg, "get_message"):
-            self.skipTest("message_debug does not expose num_messages/get_message in this GNU Radio build")
+            self.skipTest(
+                "message_debug does not expose num_messages/get_message in this build"
+            )
 
         nmsgs = int(dbg.num_messages())
         # Expect multiple updates for a stable estimate.
@@ -102,7 +105,6 @@ class test_throttle(gr_unittest.TestCase):
         self.assertGreater(rate_now, 0.0)
         self.assertAlmostEqual(rate_avg, sample_rate, delta=sample_rate * tol)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     gr_unittest.run(test_throttle)
-
-

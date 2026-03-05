@@ -106,4 +106,3 @@ inline void mark_work_done(const gr::block_detail_sptr& detail, cudaStream_t str
 } /* namespace gr */
 
 #endif /* INCLUDED_GR_CUDA_BLOCK_HELPER_H */
-

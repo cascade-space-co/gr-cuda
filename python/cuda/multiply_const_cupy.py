@@ -4,15 +4,17 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-import numpy as np
 import cupy as cp
+import numpy as np
 from gnuradio import cuda
 
 
 class multiply_const_cupy(cuda.sync_block):
     """Multiplies input stream by a constant value on the GPU using CuPy."""
 
-    def __init__(self, k: float | complex, dtype: np.dtype = np.complex64, vlen: int = 1):
+    def __init__(
+        self, k: float | complex, dtype: np.dtype = np.complex64, vlen: int = 1
+    ):
         """
         Parameters
         ----------
@@ -25,9 +27,7 @@ class multiply_const_cupy(cuda.sync_block):
         """
         self.k = k
         io_dtype = (np.dtype(dtype), vlen) if vlen > 1 else np.dtype(dtype)
-        cuda.sync_block.__init__(self, "multiply_const_cupy",
-            [io_dtype],
-            [io_dtype])
+        cuda.sync_block.__init__(self, "multiply_const_cupy", [io_dtype], [io_dtype])
 
     def work(self, input_items, output_items):
         cp.multiply(input_items[0], self.k, out=output_items[0])

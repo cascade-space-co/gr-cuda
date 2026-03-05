@@ -18,8 +18,8 @@
 
 #include <cuda.h>
 #include <cuda_runtime_api.h>
-#include <mutex>
 #include <memory>
+#include <mutex>
 
 namespace gr {
 namespace detail {
@@ -109,7 +109,8 @@ public:
     /*!
      * \brief No-op -- compaction is never needed with double-mapping.
      */
-    bool input_blocked_callback(int items_required, int items_avail,
+    bool input_blocked_callback(int items_required,
+                                int items_avail,
                                 unsigned read_index) override;
     /*!
      * \brief No-op -- compaction is never needed with double-mapping.

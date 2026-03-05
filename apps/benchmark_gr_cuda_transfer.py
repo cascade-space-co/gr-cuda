@@ -20,7 +20,8 @@ Usage:
 
 import argparse
 import time
-from gnuradio import gr, blocks, cuda
+
+from gnuradio import blocks, cuda, gr
 
 # Buffer is BUFFER_MULTIPLE times the output_multiple.  Larger buffers reduce
 # compaction frequency in cuda_buffer (single-mapped), avoiding costly full
@@ -110,7 +111,7 @@ def run_benchmark(mode, num_chains, buff_len, duration, warmup=1.0):
     tb.wait()
 
     elapsed = t1 - t0
-    total_items = sum(after - before for before, after in zip(n0, n1))
+    total_items = sum(after - before for before, after in zip(n0, n1, strict=True))
     return total_items, elapsed
 
 
@@ -124,8 +125,8 @@ def format_bytes(n):
 
 
 MODE_LABELS = {
-    "h2d":  "CPU -> GPU  (Host-to-Device)",
-    "d2h":  "GPU -> CPU  (Device-to-Host)",
+    "h2d": "CPU -> GPU  (Host-to-Device)",
+    "d2h": "GPU -> CPU  (Device-to-Host)",
     "full": "CPU -> GPU -> CPU  (full round-trip)",
 }
 
@@ -139,23 +140,38 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--chains", type=int, default=1,
-        help="Number of parallel chains (default: 1)")
+        "--chains", type=int, default=1, help="Number of parallel chains (default: 1)"
+    )
     parser.add_argument(
-        "--duration", type=float, default=10.0,
-        help="Measurement duration per config in seconds (default: 10)")
+        "--duration",
+        type=float,
+        default=10.0,
+        help="Measurement duration per config in seconds (default: 10)",
+    )
     parser.add_argument(
-        "--warmup", type=float, default=1.0,
-        help="Warmup before measuring in seconds (default: 1)")
+        "--warmup",
+        type=float,
+        default=1.0,
+        help="Warmup before measuring in seconds (default: 1)",
+    )
     parser.add_argument(
-        "--mode", choices=["h2d", "d2h", "full", "all"], default="all",
-        help="Transfer direction to test (default: all)")
+        "--mode",
+        choices=["h2d", "d2h", "full", "all"],
+        default="all",
+        help="Transfer direction to test (default: all)",
+    )
     parser.add_argument(
-        "--buff-exp-min", type=int, default=16,
-        help="Min buffer size as power of 2 (default: 16 = 64K items)")
+        "--buff-exp-min",
+        type=int,
+        default=16,
+        help="Min buffer size as power of 2 (default: 16 = 64K items)",
+    )
     parser.add_argument(
-        "--buff-exp-max", type=int, default=22,
-        help="Max buffer size as power of 2 (default: 22 = 4M items)")
+        "--buff-exp-max",
+        type=int,
+        default=22,
+        help="Max buffer size as power of 2 (default: 22 = 4M items)",
+    )
     args = parser.parse_args()
 
     modes = ["h2d", "d2h", "full"] if args.mode == "all" else [args.mode]
@@ -171,19 +187,24 @@ def main():
 
     for mode in modes:
         print(f"--- {MODE_LABELS[mode]} ---")
-        print(f"  {'buf_items':<12s}  {'buf_bytes':>10s}"
-              f"  {'total_items':<18s}  {'Gsps':<8s}  {'GB/s':<8s}")
+        print(
+            f"  {'buf_items':<12s}  {'buf_bytes':>10s}"
+            f"  {'total_items':<18s}  {'Gsps':<8s}  {'GB/s':<8s}"
+        )
         print(f"  {'─' * 12}  {'─' * 10}  {'─' * 18}  {'─' * 8}  {'─' * 8}")
 
         for exp in buff_exps:
-            buff_len = 2 ** exp
+            buff_len = 2**exp
             buf_bytes_str = format_bytes(buff_len * item_bytes)
             total_items, elapsed = run_benchmark(
-                mode, args.chains, buff_len, args.duration, args.warmup)
+                mode, args.chains, buff_len, args.duration, args.warmup
+            )
             gsps = total_items / elapsed / 1e9
             gbps = gsps * item_bytes
-            print(f"  2^{exp:<9d} {buf_bytes_str:>10s}"
-                  f"  {total_items:>18,d}  {gsps:>8.2f}  {gbps:>8.2f}")
+            print(
+                f"  2^{exp:<9d} {buf_bytes_str:>10s}"
+                f"  {total_items:>18,d}  {gsps:>8.2f}  {gbps:>8.2f}"
+            )
         print()
 
     print("Note: NVIDIA profiling tools (nsys, ncu) may report higher raw DMA")

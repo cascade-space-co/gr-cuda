@@ -4,10 +4,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
-import numpy as np
 import cupy as cp
+import numpy as np
 from cupy.cuda import cufft as cp_cufft
 from gnuradio import cuda
 
@@ -16,12 +16,15 @@ class fft_cupy(cuda.sync_block):
     """
     Performs FFT/IFFT on the GPU using CuPy.
     """
-    def __init__(self,
-                 fft_size: int,
-                 forward: bool = True,
-                 window: Optional[Sequence[float]] = None,
-                 shift: bool = False,
-                 real_input: bool = False):
+
+    def __init__(
+        self,
+        fft_size: int,
+        forward: bool = True,
+        window: Sequence[float] | None = None,
+        shift: bool = False,
+        real_input: bool = False,
+    ):
         """
         Parameters
         ----------
@@ -47,9 +50,7 @@ class fft_cupy(cuda.sync_block):
             in_dtype = (np.complex64, fft_size)
         out_dtype = (np.complex64, fft_size)
 
-        cuda.sync_block.__init__(self, "fft_cupy",
-            [in_dtype],
-            [out_dtype])
+        cuda.sync_block.__init__(self, "fft_cupy", [in_dtype], [out_dtype])
 
         self.d_window = None
         if window:
@@ -59,15 +60,13 @@ class fft_cupy(cuda.sync_block):
         # Cached cuFFT plans (keyed by batch size) for C2C transforms.
         # Executes directly into the output buffer -- no temp allocation.
         self._plans = {}
-        self._direction = (cp_cufft.CUFFT_FORWARD if forward
-                           else cp_cufft.CUFFT_INVERSE)
+        self._direction = cp_cufft.CUFFT_FORWARD if forward else cp_cufft.CUFFT_INVERSE
 
     def _get_plan(self, batch_size: int) -> cp_cufft.Plan1d:
         """Get or create a cuFFT plan for the given batch size."""
         plan = self._plans.get(batch_size)
         if plan is None:
-            plan = cp_cufft.Plan1d(self.fft_size, cp_cufft.CUFFT_C2C,
-                                   batch_size)
+            plan = cp_cufft.Plan1d(self.fft_size, cp_cufft.CUFFT_C2C, batch_size)
             self._plans[batch_size] = plan
         return plan
 

@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 #
 # Copyright 2026 Cascade Space.
 #
@@ -9,7 +8,7 @@
 
 import numpy as np
 import pmt
-from gnuradio import gr, gr_unittest, blocks
+from gnuradio import blocks, gr, gr_unittest
 from gnuradio.cuda import copy, multiply_const_ff
 
 
@@ -24,13 +23,12 @@ def make_tag(key, value, offset, srcid=None):
 
 
 def tags_equal(a, b):
-    return (a.offset == b.offset
-            and pmt.equal(a.key, b.key)
-            and pmt.equal(a.value, b.value))
+    return (
+        a.offset == b.offset and pmt.equal(a.key, b.key) and pmt.equal(a.value, b.value)
+    )
 
 
 class qa_tag_propagation(gr_unittest.TestCase):
-
     def setUp(self):
         self.tb = gr.top_block()
 
@@ -40,7 +38,7 @@ class qa_tag_propagation(gr_unittest.TestCase):
     def test_001_single_tag_through_copy(self):
         """One tag at offset 0 should pass through a GPU copy block."""
         src_data = [float(x) for x in range(1000)]
-        src_tags = [make_tag('key', 'val', 0, 'src')]
+        src_tags = [make_tag("key", "val", 0, "src")]
 
         src = blocks.vector_source_f(src_data, repeat=False, tags=src_tags)
         op = copy(gr.sizeof_float)
@@ -60,9 +58,9 @@ class qa_tag_propagation(gr_unittest.TestCase):
         N = 10_000
         src_data = [float(x) for x in range(N)]
         src_tags = [
-            make_tag('start', 'begin', 0),
-            make_tag('mid', 42, N // 2),
-            make_tag('end', 'done', N - 1),
+            make_tag("start", "begin", 0),
+            make_tag("mid", 42, N // 2),
+            make_tag("end", "done", N - 1),
         ]
 
         src = blocks.vector_source_f(src_data, repeat=False, tags=src_tags)
@@ -76,17 +74,19 @@ class qa_tag_propagation(gr_unittest.TestCase):
 
         result_tags = snk.tags()
         self.assertEqual(len(result_tags), 3)
-        for expected, actual in zip(src_tags, result_tags):
-            self.assertTrue(tags_equal(expected, actual),
-                            f"Tag mismatch at offset {expected.offset}")
+        for expected, actual in zip(src_tags, result_tags, strict=True):
+            self.assertTrue(
+                tags_equal(expected, actual),
+                f"Tag mismatch at offset {expected.offset}",
+            )
 
     def test_003_tags_through_chained_copies(self):
         """Tags through 3 cascaded GPU copy blocks."""
         src_data = [float(x) for x in range(5000)]
         src_tags = [
-            make_tag('a', 1, 0),
-            make_tag('b', 2, 1000),
-            make_tag('c', 3, 4999),
+            make_tag("a", 1, 0),
+            make_tag("b", 2, 1000),
+            make_tag("c", 3, 4999),
         ]
 
         src = blocks.vector_source_f(src_data, repeat=False, tags=src_tags)
@@ -104,17 +104,19 @@ class qa_tag_propagation(gr_unittest.TestCase):
 
         result_tags = snk.tags()
         self.assertEqual(len(result_tags), 3)
-        for expected, actual in zip(src_tags, result_tags):
-            self.assertTrue(tags_equal(expected, actual),
-                            f"Tag mismatch at offset {expected.offset}")
+        for expected, actual in zip(src_tags, result_tags, strict=True):
+            self.assertTrue(
+                tags_equal(expected, actual),
+                f"Tag mismatch at offset {expected.offset}",
+            )
 
     def test_004_tags_through_multiply_const(self):
         """Tags through a GPU compute block (multiply_const)."""
         N = 10_000
         src_data = np.arange(N, dtype=np.float32)
         src_tags = [
-            make_tag('rate', 1e6, 0),
-            make_tag('burst', True, 5000),
+            make_tag("rate", 1e6, 0),
+            make_tag("burst", True, 5000),
         ]
 
         src = blocks.vector_source_f(src_data, repeat=False, tags=src_tags)
@@ -130,19 +132,21 @@ class qa_tag_propagation(gr_unittest.TestCase):
 
         result_tags = snk.tags()
         self.assertEqual(len(result_tags), 2)
-        for expected, actual in zip(src_tags, result_tags):
-            self.assertTrue(tags_equal(expected, actual),
-                            f"Tag mismatch at offset {expected.offset}")
+        for expected, actual in zip(src_tags, result_tags, strict=True):
+            self.assertTrue(
+                tags_equal(expected, actual),
+                f"Tag mismatch at offset {expected.offset}",
+            )
 
     def test_005_tags_with_repeat(self):
         """Tags should repeat when source repeats (through GPU copy)."""
         length = 100
         total = 2 * length
         src_data = [float(x) for x in range(length)]
-        src_tags = [make_tag('pkt', 0, 0)]
+        src_tags = [make_tag("pkt", 0, 0)]
         expected_tags = [
-            make_tag('pkt', 0, 0),
-            make_tag('pkt', 0, length),
+            make_tag("pkt", 0, 0),
+            make_tag("pkt", 0, length),
         ]
 
         src = blocks.vector_source_f(src_data, repeat=True, tags=src_tags)
@@ -159,16 +163,18 @@ class qa_tag_propagation(gr_unittest.TestCase):
 
         result_tags = snk.tags()
         self.assertEqual(len(result_tags), 2)
-        for expected, actual in zip(expected_tags, result_tags):
-            self.assertTrue(tags_equal(expected, actual),
-                            f"Tag mismatch at offset {expected.offset}")
+        for expected, actual in zip(expected_tags, result_tags, strict=True):
+            self.assertTrue(
+                tags_equal(expected, actual),
+                f"Tag mismatch at offset {expected.offset}",
+            )
 
     def test_006_many_tags_large_buffer(self):
         """100 tags spread across 1M samples through GPU copy."""
         N = 1_000_000
         src_data = np.arange(N, dtype=np.float32)
         tag_offsets = list(range(0, N, N // 100))
-        src_tags = [make_tag('seq', i, off) for i, off in enumerate(tag_offsets)]
+        src_tags = [make_tag("seq", i, off) for i, off in enumerate(tag_offsets)]
 
         src = blocks.vector_source_f(src_data, repeat=False, tags=src_tags)
         op = copy(gr.sizeof_float)
@@ -182,16 +188,19 @@ class qa_tag_propagation(gr_unittest.TestCase):
 
         result_tags = snk.tags()
         self.assertEqual(len(result_tags), len(src_tags))
-        for expected, actual in zip(src_tags, result_tags):
-            self.assertTrue(tags_equal(expected, actual),
-                            f"Tag mismatch at offset {expected.offset}")
+        for expected, actual in zip(src_tags, result_tags, strict=True):
+            self.assertTrue(
+                tags_equal(expected, actual),
+                f"Tag mismatch at offset {expected.offset}",
+            )
 
     def test_007_complex_tags_through_copy(self):
         """Tags on complex data through GPU copy."""
         N = 5000
-        src_data = (np.arange(N, dtype=np.float32)
-                    + 1j * np.arange(N, dtype=np.float32)).astype(np.complex64)
-        src_tags = [make_tag('freq', 1.42e9, 0)]
+        src_data = (
+            np.arange(N, dtype=np.float32) + 1j * np.arange(N, dtype=np.float32)
+        ).astype(np.complex64)
+        src_tags = [make_tag("freq", 1.42e9, 0)]
 
         src = blocks.vector_source_c(src_data, repeat=False, tags=src_tags)
         op = copy(gr.sizeof_gr_complex)
@@ -208,5 +217,5 @@ class qa_tag_propagation(gr_unittest.TestCase):
         self.assertTrue(tags_equal(src_tags[0], result_tags[0]))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     gr_unittest.run(qa_tag_propagation)

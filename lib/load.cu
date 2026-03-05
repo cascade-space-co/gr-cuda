@@ -10,8 +10,8 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
-// The block cuda file is just a wrapper for the kernels that will be launched in the work
-// function
+// The block cuda file is just a wrapper for the kernels that will be launched in the
+// work function
 namespace gr {
 namespace cuda {
 namespace load_cu {
@@ -39,7 +39,8 @@ void exec_kernel(const uint8_t* in,
 
 void get_block_and_grid(int* minGrid, int* minBlock)
 {
-    check_cuda_errors(cudaOccupancyMaxPotentialBlockSize(minGrid, minBlock, load_kernel, 0, 0));
+    check_cuda_errors(
+        cudaOccupancyMaxPotentialBlockSize(minGrid, minBlock, load_kernel, 0, 0));
 }
 
 } // namespace load_cu

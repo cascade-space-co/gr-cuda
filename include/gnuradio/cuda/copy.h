@@ -23,22 +23,24 @@ namespace cuda {
  * \ingroup cuda
  *
  */
-class CUDA_API copy : virtual public gr::sync_block {
+class CUDA_API copy : virtual public gr::sync_block
+{
 public:
-  typedef std::shared_ptr<copy> sptr;
+    typedef std::shared_ptr<copy> sptr;
 
-  /*!
-   * \brief Return a shared_ptr to a new instance of cuda::copy.
-   *
-   * To avoid accidental use of raw pointers, cuda::copy's
-   * constructor is in a private implementation
-   * class. cuda::copy::make is the public interface for
-   * creating new instances.
-   *
-   * \param itemsize Size of a stream item in bytes
-   * \param noop If true, skip the device-to-device memcpy (for benchmarking transfer overhead)
-   */
-  static sptr make(size_t itemsize, bool noop = false);
+    /*!
+     * \brief Return a shared_ptr to a new instance of cuda::copy.
+     *
+     * To avoid accidental use of raw pointers, cuda::copy's
+     * constructor is in a private implementation
+     * class. cuda::copy::make is the public interface for
+     * creating new instances.
+     *
+     * \param itemsize Size of a stream item in bytes
+     * \param noop If true, skip the device-to-device memcpy (for benchmarking transfer
+     * overhead)
+     */
+    static sptr make(size_t itemsize, bool noop = false);
 };
 
 } // namespace cuda

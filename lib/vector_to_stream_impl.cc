@@ -6,10 +6,10 @@
  */
 
 #include "vector_to_stream_impl.h"
-#include <gnuradio/io_signature.h>
-#include <gnuradio/cuda/cuda_error.h>
-#include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_block_helper.h>
+#include <gnuradio/cuda/cuda_buffer.h>
+#include <gnuradio/cuda/cuda_error.h>
+#include <gnuradio/io_signature.h>
 
 namespace gr {
 namespace cuda {
@@ -20,10 +20,11 @@ vector_to_stream::sptr vector_to_stream::make(size_t itemsize, size_t vlen)
 }
 
 vector_to_stream_impl::vector_to_stream_impl(size_t itemsize, size_t vlen)
-    : gr::sync_interpolator("vector_to_stream",
-                            io_signature::make(1, 1, itemsize * vlen, cuda_buffer::type),
-                            io_signature::make(1, 1, itemsize, cuda_buffer::type),
-                            vlen),
+    : gr::sync_interpolator(
+          "vector_to_stream",
+          io_signature::make(1, 1, itemsize * vlen, cuda_buffer::type),
+          io_signature::make(1, 1, itemsize, cuda_buffer::type),
+          vlen),
       d_itemsize(itemsize),
       d_vlen(vlen)
 {
@@ -50,12 +51,10 @@ int vector_to_stream_impl::work(int noutput_items,
         // Here, noutput_items is the number of scalars produced.
         // Since the input is a stream of vectors, copying this many bytes
         // effectively flattens the vectors into a stream of scalars.
-        check_cuda_errors(cudaMemcpyAsync(out, 
-                                          in, 
-                                          total_bytes, 
-                                          cudaMemcpyDeviceToDevice, 
-                                          d_stream),
-                          "vector_to_stream: cudaMemcpyAsync D2D", d_logger);
+        check_cuda_errors(
+            cudaMemcpyAsync(out, in, total_bytes, cudaMemcpyDeviceToDevice, d_stream),
+            "vector_to_stream: cudaMemcpyAsync D2D",
+            d_logger);
     }
 
     // Mark outputs ready
@@ -66,4 +65,3 @@ int vector_to_stream_impl::work(int noutput_items,
 
 } /* namespace cuda */
 } /* namespace gr */
-

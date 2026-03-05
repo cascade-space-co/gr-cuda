@@ -7,10 +7,10 @@
  */
 
 #include "load_impl.h"
-#include <gnuradio/cuda/cuda_buffer.h>
-#include <gnuradio/io_signature.h>
 #include <gnuradio/block_detail.h>
 #include <gnuradio/cuda/cuda_block_helper.h>
+#include <gnuradio/cuda/cuda_buffer.h>
+#include <gnuradio/io_signature.h>
 
 #include "load.cuh"
 
@@ -42,9 +42,11 @@ load_impl::load_impl(size_t iterations, size_t itemsize, bool use_cb)
         set_output_signature(gr::io_signature::make(1, 1, itemsize, cuda_buffer::type));
     } else {
         check_cuda_errors(cudaMalloc((void**)&d_dev_in, d_max_buffer_size),
-                          "load: cudaMalloc dev_in", d_logger);
+                          "load: cudaMalloc dev_in",
+                          d_logger);
         check_cuda_errors(cudaMalloc((void**)&d_dev_out, d_max_buffer_size),
-                          "load: cudaMalloc dev_out", d_logger);
+                          "load: cudaMalloc dev_out",
+                          d_logger);
     }
 }
 
@@ -76,7 +78,8 @@ int load_impl::work(int noutput_items,
                                           noutput_items * d_itemsize,
                                           cudaMemcpyHostToDevice,
                                           d_stream),
-                          "load: cudaMemcpyAsync H2D", d_logger);
+                          "load: cudaMemcpyAsync H2D",
+                          d_logger);
 
         load_cu::exec_kernel(d_dev_in,
                              d_dev_out,
@@ -92,7 +95,8 @@ int load_impl::work(int noutput_items,
                                           noutput_items * d_itemsize,
                                           cudaMemcpyDeviceToHost,
                                           d_stream),
-                          "load: cudaMemcpyAsync D2H", d_logger);
+                          "load: cudaMemcpyAsync D2H",
+                          d_logger);
 
     } else {
         load_cu::exec_kernel(in,

@@ -21,12 +21,12 @@ add_subdirectory(bindings)
 ########################################################################
 GR_PYTHON_INSTALL(
     FILES
-    __init__.py
-    utils.py
-    cuda_block.py
-    multiply_const_cupy.py
-    add_cupy.py
-    fft_cupy.py
+        __init__.py
+        utils.py
+        cuda_block.py
+        multiply_const_cupy.py
+        add_cupy.py
+        fft_cupy.py
     DESTINATION ${GR_PYTHON_DIR}/gnuradio/cuda
 )
 
@@ -38,25 +38,91 @@ include(GrTest)
 # Create a package directory that tests can import. It includes everything
 # from `python/`.
 add_custom_target(
-  copy_module_for_tests ALL
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}
-          ${CMAKE_BINARY_DIR}/test_modules/gnuradio/cuda/
+    copy_module_for_tests
+    ALL
+    COMMAND
+        ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_BINARY_DIR}/test_modules/gnuradio/cuda/
 )
 
 set(GR_TEST_TARGET_DEPS gnuradio-cuda)
-GR_ADD_TEST(qa_copy ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_copy.py)
-GR_ADD_TEST(qa_multiply_const ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_multiply_const.py)
-GR_ADD_TEST(qa_multiply_const_cupy ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_multiply_const_cupy.py)
-GR_ADD_TEST(qa_add_cupy ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_add_cupy.py)
-GR_ADD_TEST(qa_add ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_add.py)
-GR_ADD_TEST(qa_fft ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_fft.py)
-GR_ADD_TEST(qa_stream_operators ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_stream_operators.py)
-GR_ADD_TEST(qa_stress_sync ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_stress_sync.py)
-GR_ADD_TEST(qa_parallel_sync ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_parallel_sync.py)
-GR_ADD_TEST(qa_fanin_sync ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_fanin_sync.py)
-GR_ADD_TEST(qa_long_race_stress ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_long_race_stress.py)
-GR_ADD_TEST(qa_blocked_callbacks ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_blocked_callbacks.py)
-GR_ADD_TEST(qa_tag_propagation ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tag_propagation.py)
-GR_ADD_TEST(qa_throttle ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_throttle.py)
-GR_ADD_TEST(qa_cuda_buffer_compaction ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_cuda_buffer_compaction.py)
-GR_ADD_TEST(qa_cuda_block ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_cuda_block.py)
+GR_ADD_TEST(
+    qa_copy
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_copy.py
+)
+GR_ADD_TEST(
+    qa_multiply_const
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_multiply_const.py
+)
+GR_ADD_TEST(
+    qa_multiply_const_cupy
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_multiply_const_cupy.py
+)
+GR_ADD_TEST(
+    qa_add_cupy
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_add_cupy.py
+)
+GR_ADD_TEST(
+    qa_add
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_add.py
+)
+GR_ADD_TEST(
+    qa_fft
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_fft.py
+)
+GR_ADD_TEST(
+    qa_stream_operators
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_stream_operators.py
+)
+GR_ADD_TEST(
+    qa_stress_sync
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_stress_sync.py
+)
+GR_ADD_TEST(
+    qa_parallel_sync
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_parallel_sync.py
+)
+GR_ADD_TEST(
+    qa_fanin_sync
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_fanin_sync.py
+)
+GR_ADD_TEST(
+    qa_long_race_stress
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_long_race_stress.py
+)
+GR_ADD_TEST(
+    qa_blocked_callbacks
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_blocked_callbacks.py
+)
+GR_ADD_TEST(
+    qa_tag_propagation
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_tag_propagation.py
+)
+GR_ADD_TEST(
+    qa_throttle
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_throttle.py
+)
+GR_ADD_TEST(
+    qa_cuda_buffer_compaction
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_cuda_buffer_compaction.py
+)
+GR_ADD_TEST(
+    qa_cuda_block
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_cuda_block.py
+)

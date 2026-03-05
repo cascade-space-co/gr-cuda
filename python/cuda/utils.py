@@ -4,10 +4,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-from typing import List, Tuple, Union
-
-import numpy as np
 import cupy as cp
+import numpy as np
 from gnuradio import gr
 from gnuradio.gr.gateway import py_io_signature as BasePyIOSignature
 
@@ -15,7 +13,7 @@ from .cuda_python import cuda_buffer
 
 # Accepted dtype arguments:
 # a single numpy dtype/type, or a list/tuple of them.
-DtypeSpec = Union[np.dtype, type, List, Tuple]
+DtypeSpec = np.dtype | type | list | tuple
 
 
 def as_cupy(numpy_array: np.ndarray) -> cp.ndarray:
@@ -40,19 +38,19 @@ def as_cupy(numpy_array: np.ndarray) -> cp.ndarray:
     ValueError
         If the pointer is not a valid CUDA device or managed pointer.
     """
-    ptr, _ = numpy_array.__array_interface__['data']
+    ptr, _ = numpy_array.__array_interface__["data"]
 
     try:
         attrs = cp.cuda.runtime.pointerGetAttributes(ptr)
         # attrs.type: 0=Unregistered Host, 1=Host, 2=Device, 3=Managed
         if attrs.type != 2 and attrs.type != 3:
             raise ValueError(f"Pointer is not a device pointer (type={attrs.type})")
-    except cp.cuda.runtime.CUDARuntimeError:
-        raise ValueError("Pointer is not a valid CUDA pointer")
+    except cp.cuda.runtime.CUDARuntimeError as err:
+        raise ValueError("Pointer is not a valid CUDA pointer") from err
 
     mem = cp.cuda.UnownedMemory(ptr, numpy_array.nbytes, owner=numpy_array)
     mptr = cp.cuda.MemoryPointer(mem, 0)
-    
+
     # Create a cupy array with the same shape/dtype
     return cp.ndarray(
         numpy_array.shape,
@@ -89,10 +87,10 @@ def io_signature_make(
         type_list = dtype
     else:
         type_list = [dtype]
-        
+
     # Create the base object which gateway.py expects
     sig = BasePyIOSignature(min_ports, max_ports, type_list)
-    
+
     # Calculate item sizes
     sizes = [np.dtype(t).itemsize for t in type_list]
     if not sizes:

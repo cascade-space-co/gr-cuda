@@ -43,6 +43,3 @@ typedef add<gr_complex> add_cc;
 } // namespace gr
 
 #endif /* INCLUDED_CUDA_ADD_H */
-
-
-

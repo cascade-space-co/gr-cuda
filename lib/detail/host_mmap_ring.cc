@@ -41,7 +41,8 @@ host_mmap_ring::create(size_t requested_bytes,
 
     ring->d_bytes = requested_bytes;
     logger->debug("host_mmap_ring: requesting {} bytes (page_size={})",
-                  requested_bytes, page_size);
+                  requested_bytes,
+                  page_size);
 
     // Anonymous file backed by RAM
     int fd = static_cast<int>(syscall(SYS_memfd_create, "gr_cuda_buf", 0));
@@ -62,8 +63,8 @@ host_mmap_ring::create(size_t requested_bytes,
     }
 
     // Map the fd into the first half [base, base+N), replacing placeholder.
-    void* p1 =
-        mmap(region, ring->d_bytes, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, fd, 0);
+    void* p1 = mmap(
+        region, ring->d_bytes, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, fd, 0);
     if (p1 == MAP_FAILED) {
         munmap(region, 2 * ring->d_bytes);
         close(fd);
@@ -86,14 +87,14 @@ host_mmap_ring::create(size_t requested_bytes,
     // fd can be closed immediately; mappings hold a reference.
     close(fd);
     ring->d_base = region;
-    logger->debug("host_mmap_ring: mapped 2x{} bytes at {}",
-                  ring->d_bytes, ring->d_base);
+    logger->debug(
+        "host_mmap_ring: mapped 2x{} bytes at {}", ring->d_bytes, ring->d_base);
     return ring;
 }
 
 void host_mmap_ring::register_pinned()
 {
-    // Register only one half. post_work() splits wrap-crossing DMA 
+    // Register only one half. post_work() splits wrap-crossing DMA
     // into [0, N) segments.
     cudaError_t rc = cudaHostRegister(d_base, d_bytes, cudaHostRegisterDefault);
     check_cuda_errors(rc, "host_circ_create: cudaHostRegister failed", d_logger);
