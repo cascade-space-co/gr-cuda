@@ -1,6 +1,5 @@
 id: cuda_tee
 label: Tee
-flags: [ throttle ]
 category: '[CUDA]'
 
 parameters:
