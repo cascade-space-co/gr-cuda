@@ -20,10 +20,10 @@ except ModuleNotFoundError:
     pass
 
 # import python helpers
-from .add_cupy import add_cupy
-from .cuda_block import basic_block, decim_block, interp_block, sync_block
-from .fft_cupy import fft_cupy
-
-# import python blocks
-from .multiply_const_cupy import multiply_const_cupy
 from .utils import as_cupy, io_signature_make
+from .cuda_block import basic_block, decim_block, interp_block, sync_block
+
+# import python blocks (these depend on cuda_block via cuda.sync_block)
+from .add_cupy import add_cupy
+from .fft_cupy import fft_cupy
+from .multiply_const_cupy import multiply_const_cupy
