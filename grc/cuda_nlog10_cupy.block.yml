@@ -8,15 +8,15 @@ parameters:
     label: n
     dtype: real
     default: '10'
+-   id: k
+    label: k
+    dtype: real
+    default: '0'
 -   id: vlen
     label: Vector Length
     dtype: int
     default: '1'
     hide: ${ 'part' if vlen == 1 else 'none' }
--   id: k
-    label: k
-    dtype: real
-    default: '0'
 
 inputs:
 -   domain: cuda
