@@ -81,12 +81,35 @@ cuda_buffer::~cuda_buffer()
 }
 
 /*!
+ * \brief Bypass buffer_single_mapped::allocate_buffer().
+ *
+ * The base class sizes buffers for single-mapped (linear) semantics:
+ * inflation to 4× downstream output_multiple, write-granularity
+ * alignment, etc.  Those constraints don't apply here because
+ * cuda_buffer is double-mapped (wrapping is handled by VA aliasing),
+ * and the output_multiple is in the downstream block's item units
+ * which can differ wildly from this buffer's item units — e.g.
+ * vector_to_stream(vlen=65536) has output_multiple=65536 scalars,
+ * inflating a vector buffer to 128 GB.
+ *
+ * We delegate directly to do_allocate_buffer() which handles
+ * VMM-granularity rounding and sets d_bufsize.  This matches what
+ * buffer_double_mapped::allocate_buffer() does upstream (page-
+ * granularity rounding only).  On the other branch where we
+ * subclass buffer_double_mapped, this override is unnecessary.
+ */
+bool cuda_buffer::allocate_buffer(int nitems)
+{
+    return do_allocate_buffer(nitems, d_sizeof_item);
+}
+
+/*!
  * \brief Allocate the double-mapped host + device circular buffers.
  *
- * Called by buffer_single_mapped::allocate_buffer() after it computes
- * final_nitems from the scheduler's requirements.  We ignore the base
- * class's d_buffer (std::unique_ptr<char[]>) and set up our own
- * double-mapped host + device regions instead.
+ * Called by cuda_buffer::allocate_buffer() after it rounds nitems to
+ * the VMM alignment boundary.  We set up our own double-mapped
+ * host + device regions instead of using buffer_single_mapped's
+ * d_buffer.
  */
 bool cuda_buffer::do_allocate_buffer(size_t final_nitems, size_t sizeof_item)
 {
