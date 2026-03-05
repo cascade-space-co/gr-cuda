@@ -25,6 +25,8 @@ GR_PYTHON_INSTALL(
         utils.py
         cuda_block.py
         multiply_const_cupy.py
+        complex_to_mag_cupy.py
+        complex_to_mag_squared_cupy.py
         add_cupy.py
         fft_cupy.py
     DESTINATION ${GR_PYTHON_DIR}/gnuradio/cuda

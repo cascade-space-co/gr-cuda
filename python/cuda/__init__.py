@@ -26,4 +26,6 @@ from .cuda_block import basic_block, decim_block, interp_block, sync_block
 # import python blocks (these depend on cuda_block via cuda.sync_block)
 from .add_cupy import add_cupy
 from .fft_cupy import fft_cupy
+from .complex_to_mag_cupy import complex_to_mag_cupy
+from .complex_to_mag_squared_cupy import complex_to_mag_squared_cupy
 from .multiply_const_cupy import multiply_const_cupy
