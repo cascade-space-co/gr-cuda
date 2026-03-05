@@ -39,6 +39,7 @@ list(
     null_sink_impl.cc
     probe_rate_impl.cc
     throttle_impl.cc
+    tee_impl.cc
 )
 
 set(cuda_sources "${cuda_sources}" PARENT_SCOPE)

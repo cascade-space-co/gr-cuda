@@ -1,0 +1,49 @@
+id: cuda_tee
+label: Tee
+category: '[CUDA]'
+
+parameters:
+-   id: type
+    label: IO Type
+    dtype: enum
+    options: [complex, float, int, short, byte]
+    option_attributes:
+        size: [gr.sizeof_gr_complex, gr.sizeof_float, gr.sizeof_int, gr.sizeof_short, gr.sizeof_char]
+    hide: part
+-   id: domain
+    label: Domain
+    dtype: enum
+    options: ['GPU', 'CPU']
+    option_labels: ['GPU', 'CPU']
+    default: 'GPU'
+
+inputs:
+-   domain: ${ 'cuda' if domain == 'GPU' else 'cpu' }
+    dtype: ${ type }
+
+outputs:
+-   domain: ${ 'cuda' if domain == 'GPU' else 'cpu' }
+    dtype: ${ type }
+-   domain: ${ 'cuda' if domain == 'GPU' else 'cpu' }
+    dtype: ${ type }
+
+templates:
+    imports: |-
+        from gnuradio import cuda
+    make: cuda.tee(${type.size}, gpu=${domain == 'GPU'})
+
+documentation: |-
+    Splits one input into two identical outputs via explicit memory copy.
+
+    GNU Radio does not support mixed fan-out: a single output port cannot
+    feed downstream blocks that use different buffer types (e.g. GPU and CPU)
+    because all readers share one buffer with one transfer type. This block
+    works around that limitation by copying the input into two separate output
+    buffers, each with its own port. Downstream blocks connect to whichever
+    port they need, and GNU Radio's buffer negotiation handles any cross-domain
+    (H2D / D2H) transfers at the boundaries automatically.
+
+    Domain GPU  – all ports use cuda_buffer; copies are cudaMemcpyAsync D2D.
+    Domain CPU  – all ports use default host buffers; copies are memcpy.
+
+file_format: 1
