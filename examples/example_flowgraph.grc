@@ -1,0 +1,264 @@
+options:
+  parameters:
+    alias: ''
+    author: ''
+    catch_exceptions: 'True'
+    comment: ''
+    copyright: ''
+    description: ''
+    gen_linking: dynamic
+    generate_options: qt_gui
+    generator_class_name: PythonQtGuiGenerator
+    generator_module: gnuradio.grc.workflows.python_qt_gui
+    hier_block_src_path: '.:'
+    id: default
+    max_nouts: '0'
+    output_language: python
+    qt_qss_theme: ''
+    realtime_scheduling: ''
+    run: 'True'
+    run_command: '{python} -u {filename}'
+    thread_safe_setters: ''
+    title: Demo
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [8, 8]
+    rotation: 0
+    state: enabled
+
+blocks:
+- name: analog_fastnoise_source_x_0
+  id: analog_fastnoise_source_x
+  parameters:
+    affinity: ''
+    alias: ''
+    amp: '1'
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    noise_type: analog.GR_GAUSSIAN
+    samples: '8192'
+    seed: '0'
+    type: complex
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [144, 156.0]
+    rotation: 0
+    state: enabled
+- name: blocks_message_debug_0
+  id: blocks_message_debug
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    en_uvec: 'True'
+    log_level: info
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [880, 152.0]
+    rotation: 0
+    state: enabled
+- name: cuda_complex_to_mag_squared_cupy_0
+  id: cuda_complex_to_mag_squared_cupy
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    vlen: '65536'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [872, 420.0]
+    rotation: 0
+    state: enabled
+- name: cuda_fft_0
+  id: cuda_fft
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    fft_size: '65536'
+    forward: 'True'
+    input_type: complex
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    shift: 'True'
+    window: '[]'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [688, 308.0]
+    rotation: 0
+    state: enabled
+- name: cuda_nlog10_cupy_0
+  id: cuda_nlog10_cupy
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    k: '0'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    n: '10'
+    vlen: '65536'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [1088, 316.0]
+    rotation: 0
+    state: enabled
+- name: cuda_probe_rate_0
+  id: cuda_probe_rate
+  parameters:
+    affinity: ''
+    alias: ''
+    alpha: '0.15'
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    mintime: '500.0'
+    name: ''''''
+    type: complex
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [512, 220.0]
+    rotation: 0
+    state: enabled
+- name: cuda_stream_to_vector_0
+  id: cuda_stream_to_vector
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    num_items: '65536'
+    type: complex
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [496, 424.0]
+    rotation: 0
+    state: enabled
+- name: cuda_throttle_0
+  id: cuda_throttle
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    sample_rate: 512e6
+    type: complex
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [328, 316.0]
+    rotation: 0
+    state: enabled
+- name: qtgui_vector_sink_f_0
+  id: qtgui_vector_sink_f
+  parameters:
+    affinity: ''
+    alias: ''
+    alpha1: '1.0'
+    alpha10: '1.0'
+    alpha2: '1.0'
+    alpha3: '1.0'
+    alpha4: '1.0'
+    alpha5: '1.0'
+    alpha6: '1.0'
+    alpha7: '1.0'
+    alpha8: '1.0'
+    alpha9: '1.0'
+    autoscale: 'False'
+    average: '1.0'
+    color1: '"blue"'
+    color10: '"dark blue"'
+    color2: '"red"'
+    color3: '"green"'
+    color4: '"black"'
+    color5: '"cyan"'
+    color6: '"magenta"'
+    color7: '"yellow"'
+    color8: '"dark red"'
+    color9: '"dark green"'
+    comment: ''
+    grid: 'False'
+    gui_hint: ''
+    label1: ''
+    label10: ''
+    label2: ''
+    label3: ''
+    label4: ''
+    label5: ''
+    label6: ''
+    label7: ''
+    label8: ''
+    label9: ''
+    legend: 'True'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    name: '""'
+    nconnections: '1'
+    ref_level: '0'
+    showports: 'False'
+    update_time: '0.10'
+    vlen: '65536'
+    width1: '1'
+    width10: '1'
+    width2: '1'
+    width3: '1'
+    width4: '1'
+    width5: '1'
+    width6: '1'
+    width7: '1'
+    width8: '1'
+    width9: '1'
+    x_axis_label: '"x-Axis"'
+    x_start: '0'
+    x_step: '1.0'
+    x_units: '""'
+    y_axis_label: '"y-Axis"'
+    y_units: '""'
+    ymax: '10'
+    ymin: '-140'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [1256, 180.0]
+    rotation: 0
+    state: enabled
+
+connections:
+- [analog_fastnoise_source_x_0, '0', cuda_throttle_0, '0']
+- [cuda_complex_to_mag_squared_cupy_0, '0', cuda_nlog10_cupy_0, '0']
+- [cuda_fft_0, '0', cuda_complex_to_mag_squared_cupy_0, '0']
+- [cuda_nlog10_cupy_0, '0', qtgui_vector_sink_f_0, '0']
+- [cuda_probe_rate_0, rate, blocks_message_debug_0, print]
+- [cuda_stream_to_vector_0, '0', cuda_fft_0, '0']
+- [cuda_throttle_0, '0', cuda_probe_rate_0, '0']
+- [cuda_throttle_0, '0', cuda_stream_to_vector_0, '0']
+
+metadata:
+  file_format: 1
+  grc_version: v3.11.0.0git-1084-g0711ede3
