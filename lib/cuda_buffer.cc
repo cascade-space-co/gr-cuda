@@ -30,8 +30,11 @@ cuda_buffer::cuda_buffer(int nitems,
                          uint64_t downstream_lcm_nitems,
                          uint32_t downstream_max_out_mult,
                          block_sptr link)
-    : buffer_double_mapped(nitems, sizeof_item, downstream_lcm_nitems,
-                           downstream_max_out_mult, link,
+    : buffer_double_mapped(nitems,
+                           sizeof_item,
+                           downstream_lcm_nitems,
+                           downstream_max_out_mult,
+                           link,
                            defer_alloc_t::defer_alloc)
 {
     gr::configure_default_loggers(d_logger, d_debug_logger, "cuda");
@@ -77,29 +80,6 @@ cuda_buffer::~cuda_buffer()
 }
 
 /*!
- * \brief Bypass buffer_single_mapped::allocate_buffer().
- *
- * The base class sizes buffers for single-mapped (linear) semantics:
- * inflation to 4× downstream output_multiple, write-granularity
- * alignment, etc.  Those constraints don't apply here because
- * cuda_buffer is double-mapped (wrapping is handled by VA aliasing),
- * and the output_multiple is in the downstream block's item units
- * which can differ wildly from this buffer's item units — e.g.
- * vector_to_stream(vlen=65536) has output_multiple=65536 scalars,
- * inflating a vector buffer to 128 GB.
- *
- * We delegate directly to do_allocate_buffer() which handles
- * VMM-granularity rounding and sets d_bufsize.  This matches what
- * buffer_double_mapped::allocate_buffer() does upstream (page-
- * granularity rounding only).  On the other branch where we
- * subclass buffer_double_mapped, this override is unnecessary.
- */
-bool cuda_buffer::allocate_buffer(int nitems)
-{
-    return do_allocate_buffer(nitems, d_sizeof_item);
-}
-
-/*!
  * \brief Allocate the double-mapped host + device circular buffers.
  *
  * Called from the cuda_buffer constructor (the base buffer_double_mapped
@@ -124,7 +104,11 @@ bool cuda_buffer::allocate_buffer(int nitems)
     d_bufsize = static_cast<unsigned>(aligned_bytes / d_sizeof_item);
     d_logger->debug("cuda_buffer: requested {} items x {} bytes = {} bytes, "
                     "aligned to {} bytes ({} items)",
-                    final_nitems, d_sizeof_item, raw_bytes, aligned_bytes, d_bufsize);
+                    nitems,
+                    d_sizeof_item,
+                    raw_bytes,
+                    aligned_bytes,
+                    d_bufsize);
 
     if (aligned_bytes < (1 << 20))
         d_logger->warn("cuda_buffer: buffer is only {} bytes; "
@@ -347,8 +331,7 @@ buffer_sptr cuda_buffer::make_buffer(int nitems,
                                      block_sptr /*buf_owner*/)
 {
     return buffer_sptr(new cuda_buffer(
-        nitems, sizeof_item, downstream_lcm_nitems,
-        downstream_max_out_mult, link));
+        nitems, sizeof_item, downstream_lcm_nitems, downstream_max_out_mult, link));
 }
 
 void cuda_buffer::throw_unexpected_transfer_type()
