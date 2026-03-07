@@ -15,15 +15,19 @@ sufficient for moderate-throughput pipelines; try it first.
 ## 2. Tune buffer sizes and batch counts
 
 If throughput is not sufficient, increase the buffer sizes and tell the
-scheduler to batch more items. The two knobs work together:
+scheduler to batch more items. The three knobs work together:
 
 - `set_output_multiple(buff_size_samples)`: the scheduler will not
   call `work()` until at least this many items are available.
 - `set_min_output_buffer(nbuff * buff_size_samples)`: the buffer
   must be several times larger than `output_multiple` to leave room
   for double buffering.
+- `set_max_noutput_items(buff_size_samples)`: caps the maximum items
+  per `work()` call. Setting this equal to `output_multiple` forces
+  fixed-size batches, which avoids cuFFT plan cache misses and
+  CuPy pool reallocation from varying `noutput_items`.
 
-Both functions take **items** (not bytes). `buff_size_samples` should
+All three functions take **items** (not bytes). `buff_size_samples` should
 target at least 2--8 MB worth of data per `work()` call (e.g. 2^18
 complex64 samples = 2 MB). For vector-length ports, one "item" is one
 full vector, so divide by `vlen` as shown below.
@@ -34,10 +38,12 @@ nbuff = 16                         # buffer holds nbuff batches
 
 # Scalar ports
 block.set_output_multiple(buff_size_samples)
+block.set_max_noutput_items(buff_size_samples)
 block.set_min_output_buffer(nbuff * buff_size_samples)
 
 # Vector-length ports (e.g. after stream_to_vector)
 block.set_output_multiple(buff_size_samples // vlen)
+block.set_max_noutput_items(buff_size_samples // vlen)
 block.set_min_output_buffer(nbuff * buff_size_samples // vlen)
 ```
 
