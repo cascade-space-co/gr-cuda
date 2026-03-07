@@ -152,6 +152,7 @@ bool cuda_buffer::allocate_buffer(int nitems)
         aligned_bytes += vmm_granularity;
 
     d_bufsize = static_cast<unsigned>(aligned_bytes / d_sizeof_item);
+    d_aligned_bytes = aligned_bytes;
     d_logger->debug("cuda_buffer: requested {} items x {} bytes = {} bytes, "
                     "floor {} bytes, aligned to {} bytes ({} items)",
                     nitems,
@@ -162,16 +163,27 @@ bool cuda_buffer::allocate_buffer(int nitems)
                     d_bufsize);
 
 
-    // 1) Host: mmap double-mapped circular buffer (owned by RAII helper).
-    d_host_ring = detail::host_mmap_ring::create(aligned_bytes, d_logger);
-    d_host_ring->register_pinned();
-    d_base = d_host_ring->base_ptr();
-
-    // 2) Device: VMM double-mapped circular buffer (owned by RAII helper).
+    // Device: VMM double-mapped circular buffer (owned by RAII helper).
     d_device_ring = detail::device_vmm_ring::create(aligned_bytes, d_logger);
     d_cuda_buf = d_device_ring->data();
 
+    // Host ring is deferred to on_transfer_type_set(); D2D edges skip it.
     return true;
+}
+
+void cuda_buffer::on_transfer_type_set(const transfer_type& type)
+{
+    if (type == transfer_type::DEVICE_TO_DEVICE) {
+        d_logger->debug("cuda_buffer: D2D edge — skipping host allocation");
+        return;
+    }
+
+    d_host_ring = detail::host_mmap_ring::create(d_aligned_bytes, d_logger);
+    d_host_ring->register_pinned();
+    d_base = d_host_ring->base_ptr();
+    d_logger->debug("cuda_buffer: allocated {} byte host ring for {} edge",
+                    d_aligned_bytes,
+                    (type == transfer_type::HOST_TO_DEVICE) ? "H2D" : "D2H");
 }
 
 
