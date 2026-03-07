@@ -115,11 +115,19 @@ bool cuda_buffer::do_allocate_buffer(size_t final_nitems, size_t sizeof_item)
 {
     size_t vmm_granularity = detail::query_vmm_granularity_for_current_device();
 
-    // Round up to VMM granularity.  This may significantly increase the
-    // buffer size (e.g. 128 items * 8 bytes -> 2 MB).
     size_t raw_bytes = final_nitems * sizeof_item;
+
+    // GPU batching needs large buffers to amortise kernel launch overhead
+    // and saturate PCIe bandwidth.  The scheduler caps each work() call at
+    // bufsize/2, so a 32 MB buffer yields ~16 MB per call -- enough to
+    // saturate PCIe and amortise launches.  Users needing more can call
+    // set_min_output_buffer() on individual blocks.
+    static constexpr size_t min_cuda_bytes = 32 << 20; // 32 MB
+    size_t target_bytes = std::max(raw_bytes, min_cuda_bytes);
+
+    // Round up to VMM granularity.
     size_t aligned_bytes =
-        ((raw_bytes + vmm_granularity - 1) / vmm_granularity) * vmm_granularity;
+        ((target_bytes + vmm_granularity - 1) / vmm_granularity) * vmm_granularity;
 
     // Ensure aligned_bytes is an exact multiple of sizeof_item so that
     // d_bufsize * sizeof_item == aligned_bytes (no partial items).
@@ -128,17 +136,13 @@ bool cuda_buffer::do_allocate_buffer(size_t final_nitems, size_t sizeof_item)
 
     d_bufsize = static_cast<unsigned>(aligned_bytes / sizeof_item);
     d_logger->debug("cuda_buffer: requested {} items x {} bytes = {} bytes, "
-                    "aligned to {} bytes ({} items)",
+                    "floor {} bytes, aligned to {} bytes ({} items)",
                     final_nitems,
                     sizeof_item,
                     raw_bytes,
+                    min_cuda_bytes,
                     aligned_bytes,
                     d_bufsize);
-
-    if (aligned_bytes < (1 << 20))
-        d_logger->warn("cuda_buffer: buffer is only {} bytes; "
-                       "H2D/D2H transfers are most efficient above 1 MB",
-                       aligned_bytes);
 
     // 1) Host: mmap double-mapped circular buffer (owned by RAII helper).
     d_host_ring = detail::host_mmap_ring::create(aligned_bytes, d_logger);
