@@ -19,6 +19,7 @@ list(
     APPEND cuda_sources
     cuda_error.cc
     cuda_buffer.cc
+    cuda_buffer_reader.cc
     detail/device_vmm_ring.cc
     detail/host_mmap_ring.cc
     copy_impl.cc
