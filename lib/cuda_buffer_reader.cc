@@ -1,0 +1,46 @@
+/* -*- c++ -*- */
+/*
+ * Copyright 2026 Cascade Space.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+#include <gnuradio/block.h>
+#include <gnuradio/cuda/cuda_block.h>
+#include <gnuradio/cuda/cuda_buffer.h>
+#include <gnuradio/cuda/cuda_buffer_reader.h>
+
+namespace gr {
+
+cuda_buffer_reader::cuda_buffer_reader(buffer_sptr buf,
+                                       unsigned int read_index,
+                                       block_sptr link)
+    : buffer_reader(buf, read_index, link)
+{
+}
+
+cudaStream_t cuda_buffer_reader::consumer_stream()
+{
+    if (!d_stream_resolved) {
+        d_stream_resolved = true;
+        auto* cb = dynamic_cast<cuda_block*>(link().get());
+        if (cb)
+            d_consumer_stream = cb->get_cuda_stream();
+    }
+    return d_consumer_stream;
+}
+
+void cuda_buffer_reader::update_read_pointer(int nitems)
+{
+    // Auto-sync: mark_read_done; see autosync table in cuda_buffer.h
+    cudaStream_t cs = consumer_stream();
+    if (cs) {
+        auto cbuf = std::dynamic_pointer_cast<cuda_buffer>(d_buffer);
+        if (cbuf)
+            cbuf->mark_read_done(cs);
+    }
+
+    buffer_reader::update_read_pointer(nitems);
+}
+
+} /* namespace gr */

@@ -47,7 +47,6 @@ namespace gr {
  *
  * // my_block_impl.cc
  * #include <gnuradio/cuda/cuda_buffer.h>
- * #include <gnuradio/cuda/cuda_block_helper.h>
  *
  * my_block_impl::my_block_impl(...)
  *     : gr::sync_block("my_block",
@@ -55,43 +54,25 @@ namespace gr {
  *           io_signature::make(1, 1, sizeof(float), cuda_buffer::type))
  * {
  *     // d_stream is created automatically by cuda_block.
- *     // Optionally populate launch config:
- *     // get_my_kernel_block_and_grid(&d_min_grid_size, &d_block_size);
  * }
  *
  * int my_block_impl::work(int noutput_items,
  *                         gr_vector_const_void_star& input_items,
  *                         gr_vector_void_star& output_items)
  * {
- *     // 1. Wait for upstream data to be ready on the GPU
- *     gr::cuda::wait_for_work(detail(), d_stream);
- *
- *     // 2. Launch GPU kernels on d_stream
  *     auto in  = static_cast<const float*>(input_items[0]);
  *     auto out = static_cast<float*>(output_items[0]);
  *     my_kernel<<<grid, block, 0, d_stream>>>(in, out, noutput_items);
- *
- *     // 3. Signal outputs ready and inputs consumed
- *     gr::cuda::mark_work_done(detail(), d_stream);
  *     return noutput_items;
  * }
  * \endcode
  *
- * The two helper calls (from cuda_block_helper.h) handle all event
- * bookkeeping automatically:
- *   - wait_for_work() adds GPU-side waits on each input buffer's
- *     device-ready event (so the kernel does not read stale data) AND
- *     on each output buffer's read-done event (so the kernel does not
- *     overwrite data still being read by a downstream consumer or an
- *     in-flight D2H copy).  These are GPU-side waits that do not block
- *     the CPU thread, allowing H2D and D2H transfers to overlap.
- *   - mark_work_done() records device-ready events on each output
- *     buffer (signalling downstream) AND records read-done events on
- *     each input buffer (signalling the upstream producer that this
- *     consumer is done).
+ * Synchronization is handled automatically by cuda_buffer:
+ * the buffer discovers this block's CUDA stream via get_cuda_stream()
+ * and inserts GPU-side event waits/records in write_pointer(),
+ * _read_pointer(), post_work(), and update_read_pointer().
  *
  * \sa cuda_buffer for the underlying synchronization model.
- * \sa cuda_block_helper.h for wait_for_work() and mark_work_done().
  */
 class cuda_block
 {
@@ -113,6 +94,14 @@ public:
             cudaStreamDestroy(d_stream);
         }
     }
+
+    /*!
+     * \brief Return this block's CUDA stream.
+     *
+     * Used by cuda_buffer for automatic synchronization — the buffer
+     * discovers the producer/consumer stream via dynamic_cast<cuda_block*>.
+     */
+    virtual cudaStream_t get_cuda_stream() const { return d_stream; }
 };
 
 } // namespace gr
