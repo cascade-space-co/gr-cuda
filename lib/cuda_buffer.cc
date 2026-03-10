@@ -15,6 +15,7 @@
 #include <gnuradio/block.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_error.h>
+#include <gnuradio/prefs.h>
 
 #include <algorithm>
 #include <cassert>
@@ -23,6 +24,8 @@
 #include <stdexcept>
 
 namespace gr {
+
+constexpr size_t CUDA_MIN_BUFFER_BYTES = 32 << 20; // 32 MB
 buffer_type cuda_buffer::type(buftype<cuda_buffer, cuda_buffer>{});
 
 cuda_buffer::cuda_buffer(int nitems,
@@ -120,9 +123,14 @@ bool cuda_buffer::do_allocate_buffer(size_t final_nitems, size_t sizeof_item)
     // GPU batching needs large buffers to amortise kernel launch overhead
     // and saturate PCIe bandwidth.  The scheduler caps each work() call at
     // bufsize/2, so a 32 MB buffer yields ~16 MB per call -- enough to
-    // saturate PCIe and amortise launches.  Users needing more can call
-    // set_min_output_buffer() on individual blocks.
-    static constexpr size_t min_cuda_bytes = 32 << 20; // 32 MB
+    // saturate PCIe and amortise launches.
+    //
+    // Override in ~/.gnuradio/config.conf:
+    //   [cuda_buffer]
+    //   min_buffer_bytes = 16777216   # 16 MB
+    static const size_t min_cuda_bytes =
+        static_cast<size_t>(gr::prefs::singleton()->get_long(
+            "cuda_buffer", "min_buffer_bytes", CUDA_MIN_BUFFER_BYTES));
     size_t target_bytes = std::max(raw_bytes, min_cuda_bytes);
 
     // Round up to VMM granularity.
