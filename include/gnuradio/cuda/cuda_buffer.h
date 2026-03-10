@@ -60,7 +60,7 @@ class host_mmap_ring;
  *
  * By default, CPU-side event waits (cudaEventSynchronize) spin-poll,
  * which gives the lowest latency but burns a CPU core while waiting.
- * To put the thread to sleep instead, set in ~/.gnuradio/config.conf:
+ * To put the thread to sleep instead, set in ~/.config/gnuradio/config.conf:
  *
  * @code
  * [cuda_buffer]

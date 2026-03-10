@@ -30,7 +30,7 @@ namespace {
  *
  * By default events use cudaEventDisableTiming (spin-wait on
  * cudaEventSynchronize).  Setting blocking_sync = true in
- * ~/.gnuradio/config.conf trades a small amount of latency for
+ * ~/.config/gnuradio/config.conf trades a small amount of latency for
  * dramatically lower CPU usage when the GPU is the bottleneck:
  *
  *   [cuda_buffer]
@@ -46,7 +46,7 @@ unsigned int cuda_event_flags()
             f |= cudaEventBlockingSync;
 
         gr::logger_ptr log, dlog;
-        gr::configure_default_loggers(log, dlog, "cuda_buffer");
+        gr::configure_default_loggers(log, dlog, "cuda");
         log->debug("CUDA event sync mode: {}",
                    blocking ? "blocking (sleep)" : "spin-wait (default)");
         return f;
