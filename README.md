@@ -6,9 +6,9 @@ GPU-accelerated signal processing blocks for [GNU Radio](https://www.gnuradio.or
 
 ## Key features
 
-- **Zero-copy GPU pipeline**: `cuda_buffer` handles host-device transfers and CUDA-event synchronisation between blocks. GPU kernels run back-to-back without round-tripping through the CPU.
+- **Zero-copy GPU pipeline**: `cuda_buffer` handles host-device transfers and automatic CUDA-event synchronisation between blocks -- no sync boilerplate in `work()`. GPU kernels run back-to-back without round-tripping through the CPU.
 - **Write GPU blocks in Python**: inherit from `cuda.sync_block`, get CuPy arrays in `work()`, done. Ten lines of Python for a new GPU block (see [example below](#pythoncupy-block)). Performance is within 5% of hand-written CUDA C++ (see [benchmarks](#performance)).
-- **C++ GPU blocks**: `cuda_buffer` takes care of memory transfers, buffer management, and keeping the GPU fed; you just write the kernel (see [C++ block](#c-block)).
+- **C++ GPU blocks**: `cuda_buffer` takes care of memory transfers, buffer management, synchronisation, and keeping the GPU fed; you just write the kernel (see [C++ block](#c-block)).
 - **Virtual memory management**: `cuda_buffer` uses CUDA VMM to implement circular buffers on the device, mirroring the same trick GNU Radio uses on the CPU side.
 - **Batteries included**: gr-cuda ships with building-block primitives to get you started (probe rate, GPU null source/sink, stream/vector operators, throttle, and more). All blocks include GRC definitions for drag-and-drop use.
 
@@ -38,7 +38,7 @@ For conda environments, add `-DCMAKE_INSTALL_PREFIX="$CONDA_PREFIX" -DCMAKE_PREF
 
 ### Python/CuPy block
 
-Simply inherit from `cuda.sync_block` instead of `gr.sync_block`. Input/output items are CuPy arrays on the GPU -- use any `cp.*` operation:
+Inherit from `cuda.sync_block` instead of `gr.sync_block`. Input/output items are CuPy arrays on the GPU -- use any `cp.*` operation:
 
 ```python
 import cupy as cp
@@ -58,7 +58,7 @@ class my_cupy_block(cuda.sync_block):   # cuda.sync_block instead of gr.sync_blo
 
 `cuda.decim_block`, `cuda.interp_block`, and `cuda.basic_block` are also available. See [`multiply_const_cupy.py`](python/cuda/multiply_const_cupy.py) for a complete example.
 
-For `general_work()` blocks (`cuda.basic_block`), call `consume_each()` / `consume()` as usual. If you call `produce()` explicitly, the wrapper ensures correct synchronisation ordering automatically:
+For `general_work()` blocks (`cuda.basic_block`), enqueue all GPU work before calling `consume_each()` / `produce()`:
 
 ```python
 class my_resampler(cuda.basic_block):
@@ -71,30 +71,28 @@ class my_resampler(cuda.basic_block):
 
 ### C++ block
 
-Inherit from `cuda_block` to get a managed CUDA stream and launch your own kernels. Synchronisation between blocks is currently explicit (`wait_for_work`/`mark_work_done`) but will be automated in a future release.
+Inherit from `cuda_block` to get the managed `d_stream`. `work()` is just the kernel launch — `cuda_buffer` handles synchronisation between blocks:
 
 ```cpp
 int my_block_impl::work(int noutput_items, ...)
 {
-    gr::cuda::wait_for_work(detail(), d_stream);
-
     auto in  = static_cast<const float*>(input_items[0]);
     auto out = static_cast<float*>(output_items[0]);
     my_kernel<<<grid, block, 0, d_stream>>>(in, out, noutput_items);
-
-    gr::cuda::mark_work_done(detail(), d_stream);
     return noutput_items;
 }
 ```
 
-For `general_work()` blocks, `mark_work_done` **must** be called before `produce()` and `consume()`:
+For `general_work()` blocks, enqueue all GPU work on `d_stream` **before** calling `consume_each()` / `produce()`:
 
 ```cpp
-int my_block_impl::general_work(...)
+int my_block_impl::general_work(int noutput_items,
+                                gr_vector_int& ninput_items,
+                                gr_vector_const_void_star& input_items,
+                                gr_vector_void_star& output_items)
 {
-    gr::cuda::wait_for_work(detail(), d_stream);
-    my_kernel<<<grid, block, 0, d_stream>>>(in, out, n);
-    gr::cuda::mark_work_done(detail(), d_stream);  // before produce/consume
+    my_kernel<<<grid, block, 0, d_stream>>>(in, out, n_produced);
+
     consume_each(n_consumed);
     produce(0, n_produced);
     return WORK_CALLED_PRODUCE;
@@ -102,6 +100,8 @@ int my_block_impl::general_work(...)
 ```
 
 See [`cuda_block.h`](include/gnuradio/cuda/cuda_block.h) and [`multiply_const_impl.cc`](lib/multiply_const_impl.cc) for a full example.
+
+> **Important.** In C++ blocks, pass `d_stream` to every kernel launch and every CUDA / library API call. In Python blocks, sticking to CuPy inside `work()` / `general_work()` works out of the box. See **[docs/LIMITATIONS.md](docs/LIMITATIONS.md)** for the full stream contract and guidance on mixing in other GPU libraries.
 
 > Want to use gr-cuda blocks in your own out-of-tree module? See **[docs/OOT_INTEGRATION.md](docs/OOT_INTEGRATION.md)**.
 
