@@ -9,6 +9,7 @@
 #define INCLUDED_GR_CUDA_BUFFER_READER_H
 
 #include <gnuradio/buffer_reader.h>
+#include <gnuradio/cuda/api.h>
 #include <cuda_runtime_api.h>
 
 namespace gr {
@@ -29,7 +30,7 @@ class cuda_buffer;
  * For non-GPU consumers (e.g. D2H edges to CPU blocks or Python
  * blocks), the cast returns nullptr and the sync is skipped.
  */
-class cuda_buffer_reader : public buffer_reader
+class CUDA_API cuda_buffer_reader : public buffer_reader
 {
     friend class cuda_buffer;
 
@@ -37,6 +38,15 @@ public:
     void update_read_pointer(int nitems) override;
 
     cudaStream_t consumer_stream();
+
+    /*!
+     * \brief Register the consumer's CUDA stream explicitly.
+     *
+     * Used by Python GPU blocks that cannot be discovered via
+     * dynamic_cast<cuda_block*>.  If set, consumer_stream()
+     * returns this stream instead of attempting the cast.
+     */
+    void set_consumer_stream(cudaStream_t s);
 
 private:
     cuda_buffer_reader(buffer_sptr buf, unsigned int read_index, block_sptr link);

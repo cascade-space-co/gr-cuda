@@ -9,7 +9,6 @@
  */
 
 #include "throttle_impl.h"
-#include <gnuradio/cuda/cuda_block_helper.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_error.h>
 #include <gnuradio/io_signature.h>
@@ -71,20 +70,14 @@ int throttle_impl::work(int noutput_items,
     auto in = static_cast<const uint8_t*>(input_items[0]);
     auto out = static_cast<uint8_t*>(output_items[0]);
 
-    // 1. Wait for inputs to be ready on GPU
-    gr::cuda::wait_for_work(detail(), d_stream);
-
-    // 2. Perform copy (throttle is just a pass-through data-wise)
+    // Perform copy (throttle is just a pass-through data-wise)
     check_cuda_errors(
         cudaMemcpyAsync(
             out, in, noutput_items * d_itemsize, cudaMemcpyDeviceToDevice, d_stream),
         "throttle: cudaMemcpyAsync D2D",
         d_logger);
 
-    // 3. Mark outputs as ready (GPU work is queued)
-    gr::cuda::mark_work_done(detail(), d_stream);
-
-    // 4. Throttling Logic (happens on CPU side to delay next scheduler call)
+    // Throttling Logic (happens on CPU side to delay next scheduler call)
     const double rate = d_sample_rate.load(std::memory_order_relaxed);
     if (rate > 0.0) {
         std::chrono::steady_clock::time_point start_time;

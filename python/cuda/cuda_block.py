@@ -10,7 +10,7 @@ Base classes for CuPy-based GPU blocks.
 Drop-in replacements for ``gr.sync_block``, etc. that automatically:
 
 1. Allocate CUDA buffers (via io_signature).
-2. Synchronize CUDA buffers before/after ``work()``.
+2. Register the block's CUDA stream for automatic synchronization.
 3. Convert input/output arrays to CuPy (zero-copy).
 
 Example::
@@ -35,17 +35,14 @@ from gnuradio import cuda, gr
 
 
 def _wrap_work(fn):
-    """Wrap ``work()`` / ``general_work()`` with CUDA sync and CuPy conversion."""
+    """Wrap ``work()`` / ``general_work()`` with CuPy stream and array conversion."""
 
     @functools.wraps(fn)
     def wrapped(self, input_items, output_items):
-        cuda.wait_for_work(self.gateway, self.stream.ptr)
         with self.stream:
             cp_in = [cuda.as_cupy(x) for x in input_items]
             cp_out = [cuda.as_cupy(x) for x in output_items]
-            result = fn(self, cp_in, cp_out)
-        cuda.mark_work_done(self.gateway, self.stream.ptr)
-        return result
+            return fn(self, cp_in, cp_out)
 
     wrapped._cuda_wrapped = True
     return wrapped
@@ -91,6 +88,11 @@ class cuda_block:
                 fn = cls.__dict__[name]
                 if not getattr(fn, "_cuda_wrapped", False):
                     setattr(cls, name, _wrap_work(fn))
+
+    def start(self):
+        """Register CUDA stream with all cuda_buffers for auto-sync."""
+        cuda.register_cuda_stream(self.gateway, self.stream.ptr)
+        return super().start()
 
     @property
     def stream(self):

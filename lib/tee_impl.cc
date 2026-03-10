@@ -6,7 +6,6 @@
  */
 
 #include "tee_impl.h"
-#include <gnuradio/cuda/cuda_block_helper.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_error.h>
 #include <gnuradio/io_signature.h>
@@ -45,8 +44,6 @@ int tee_impl::work(int noutput_items,
     const size_t nbytes = noutput_items * d_itemsize;
 
     if (d_gpu) {
-        gr::cuda::wait_for_work(detail(), d_stream);
-
         auto in = static_cast<const uint8_t*>(input_items[0]);
         auto out0 = static_cast<uint8_t*>(output_items[0]);
         auto out1 = static_cast<uint8_t*>(output_items[1]);
@@ -60,7 +57,6 @@ int tee_impl::work(int noutput_items,
             "tee: D2D copy to port 1",
             d_logger);
 
-        gr::cuda::mark_work_done(detail(), d_stream);
     } else {
         auto in = static_cast<const uint8_t*>(input_items[0]);
         auto out0 = static_cast<uint8_t*>(output_items[0]);

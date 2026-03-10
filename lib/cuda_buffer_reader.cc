@@ -19,6 +19,12 @@ cuda_buffer_reader::cuda_buffer_reader(buffer_sptr buf,
 {
 }
 
+void cuda_buffer_reader::set_consumer_stream(cudaStream_t s)
+{
+    d_consumer_stream = s;
+    d_stream_resolved = true;
+}
+
 cudaStream_t cuda_buffer_reader::consumer_stream()
 {
     if (!d_stream_resolved) {

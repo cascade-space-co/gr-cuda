@@ -151,6 +151,15 @@ public:
                                      int delay) override;
 
     /*!
+     * \brief Register the producer's CUDA stream explicitly.
+     *
+     * Used by Python GPU blocks that cannot be discovered via
+     * dynamic_cast<cuda_block*>.  If set, resolve_producer_stream()
+     * returns this stream instead of attempting the cast.
+     */
+    void set_producer_stream(cudaStream_t s);
+
+    /*!
      * \brief Record a device-ready event after producing data on the GPU.
      */
     void mark_device_ready(cudaStream_t producer_stream);

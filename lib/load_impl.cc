@@ -8,7 +8,6 @@
 
 #include "load_impl.h"
 #include <gnuradio/block_detail.h>
-#include <gnuradio/cuda/cuda_block_helper.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/io_signature.h>
 
@@ -67,9 +66,6 @@ int load_impl::work(int noutput_items,
     auto in = static_cast<const uint8_t*>(input_items[0]);
     auto out = static_cast<uint8_t*>(output_items[0]);
 
-    // 1. Wait on inputs
-    gr::cuda::wait_for_work(detail(), d_stream);
-
     int gridSize = (noutput_items * d_itemsize + d_block_size - 1) / d_block_size;
 
     if (!d_use_cb) {
@@ -108,9 +104,6 @@ int load_impl::work(int noutput_items,
                              d_stream);
         check_cuda_errors(cudaPeekAtLastError(), "load: kernel launch", d_logger);
     }
-
-    // 2. Mark outputs
-    gr::cuda::mark_work_done(detail(), d_stream);
 
     // Tell runtime system how many output items we produced.
     return noutput_items;

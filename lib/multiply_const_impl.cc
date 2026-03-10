@@ -7,7 +7,6 @@
  */
 
 #include "multiply_const_impl.h"
-#include <gnuradio/cuda/cuda_block_helper.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_error.h>
 #include <gnuradio/io_signature.h>
@@ -50,8 +49,6 @@ int multiply_const_impl<T>::work(int noutput_items,
                                  gr_vector_const_void_star& input_items,
                                  gr_vector_void_star& output_items)
 {
-    // Ensure upstream GPU work is complete before reading inputs.
-    gr::cuda::wait_for_work(this->detail(), d_stream);
     auto in = static_cast<const T*>(input_items[0]);
     auto out = static_cast<T*>(output_items[0]);
     size_t total_elements = static_cast<size_t>(noutput_items) * d_vlen;
@@ -60,8 +57,6 @@ int multiply_const_impl<T>::work(int noutput_items,
         in, out, d_k, gridSize, d_block_size, total_elements, d_stream);
 
 
-    // Notify downstream CUDA buffers that output is ready.
-    gr::cuda::mark_work_done(this->detail(), d_stream);
     // Tell runtime system how many output items we produced.
     return noutput_items;
 }
