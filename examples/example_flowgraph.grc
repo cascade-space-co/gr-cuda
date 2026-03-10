@@ -37,7 +37,7 @@ blocks:
       \ Larger values \nimprove GPU throuput at the cost of memory and latency.\n\
       For finer control, buff_size_samples can also be used as\noutput_multiple via\
       \ set_output_multiple(), but this is \nnot exposed in the flowgraph by default."
-    value: 2**20 * 0
+    value: 2**22
   states:
     bus_sink: false
     bus_source: false
@@ -49,7 +49,7 @@ blocks:
   id: variable
   parameters:
     comment: ''
-    value: '16'
+    value: '4'
   states:
     bus_sink: false
     bus_source: false
