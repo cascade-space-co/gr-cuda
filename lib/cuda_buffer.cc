@@ -125,7 +125,7 @@ bool cuda_buffer::do_allocate_buffer(size_t final_nitems, size_t sizeof_item)
     // bufsize/2, so a 32 MB buffer yields ~16 MB per call -- enough to
     // saturate PCIe and amortise launches.
     //
-    // Override in ~/.config/gnuradio/config.conf:
+    // Override in the GR user prefs:
     //   [cuda_buffer]
     //   min_buffer_bytes = 16777216   # 16 MB
     static const size_t min_cuda_bytes =
