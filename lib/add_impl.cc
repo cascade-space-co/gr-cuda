@@ -7,7 +7,6 @@
 
 #include "add.cuh"
 #include "add_impl.h"
-#include <gnuradio/cuda/cuda_block_helper.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_error.h>
 #include <gnuradio/io_signature.h>
@@ -52,9 +51,6 @@ int add_impl<T>::work(int noutput_items,
                       gr_vector_const_void_star& input_items,
                       gr_vector_void_star& output_items)
 {
-    // Wait for inputs
-    gr::cuda::wait_for_work(this->detail(), d_stream);
-
     auto out = static_cast<T*>(output_items[0]);
 
     // Prepare input pointers
@@ -86,9 +82,6 @@ int add_impl<T>::work(int noutput_items,
                        d_block_size,
                        total_elements,
                        d_stream);
-
-    // Mark outputs ready
-    gr::cuda::mark_work_done(this->detail(), d_stream);
 
     return noutput_items;
 }

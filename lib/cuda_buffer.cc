@@ -368,7 +368,7 @@ void cuda_buffer::post_work_d2h(unsigned wi, unsigned tail, unsigned nitems)
     mark_host_ready(d_stream);
 
     // Record that the D2H copy has finished reading from device memory,
-    // so the upstream GPU kernel (via wait_for_work -> wait_read_done)
+    // so the upstream producer (via wait_read_done in write_pointer())
     // knows it's safe to overwrite.
     cudaEventRecord(d_read_done_evt, d_stream);
 }
@@ -409,6 +409,12 @@ void cuda_buffer::wait_read_done(cudaStream_t producer_stream)
 }
 
 // Stream discovery
+
+void cuda_buffer::set_producer_stream(cudaStream_t s)
+{
+    d_producer_stream = s;
+    d_producer_stream_resolved = true;
+}
 
 cudaStream_t cuda_buffer::resolve_producer_stream()
 {

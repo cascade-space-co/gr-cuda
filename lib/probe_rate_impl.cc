@@ -9,7 +9,6 @@
  */
 
 #include "probe_rate_impl.h"
-#include <gnuradio/cuda/cuda_block_helper.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/io_signature.h>
 #include <cmath>
@@ -61,9 +60,6 @@ int probe_rate_impl::work(int noutput_items,
                           gr_vector_const_void_star& input_items,
                           gr_vector_void_star& output_items)
 {
-    // Wait for GPU data to be ready (no D2H transfer!)
-    gr::cuda::wait_for_work(detail(), d_stream);
-
     // Count throughput (data stays on GPU)
     d_lastthru += noutput_items;
     auto now = std::chrono::steady_clock::now();
@@ -97,8 +93,6 @@ int probe_rate_impl::work(int noutput_items,
         }
     }
 
-    // Signal inputs consumed so upstream producers can safely overwrite
-    gr::cuda::mark_work_done(detail(), d_stream);
     return noutput_items;
 }
 

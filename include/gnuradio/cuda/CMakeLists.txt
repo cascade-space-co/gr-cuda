@@ -15,7 +15,7 @@ install(
         cuda_block.h
         cuda_error.h
         cuda_buffer.h
-        cuda_block_helper.h
+        cuda_buffer_reader.h
         copy.h
         fft.h
         multiply_const.h

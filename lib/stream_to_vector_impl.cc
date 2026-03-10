@@ -6,7 +6,6 @@
  */
 
 #include "stream_to_vector_impl.h"
-#include <gnuradio/cuda/cuda_block_helper.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_error.h>
 #include <gnuradio/io_signature.h>
@@ -33,9 +32,6 @@ int stream_to_vector_impl::work(int noutput_items,
                                 gr_vector_const_void_star& input_items,
                                 gr_vector_void_star& output_items)
 {
-    // Wait for inputs
-    gr::cuda::wait_for_work(detail(), d_stream);
-
     auto in = static_cast<const void*>(input_items[0]);
     auto out = static_cast<void*>(output_items[0]);
 
@@ -56,9 +52,6 @@ int stream_to_vector_impl::work(int noutput_items,
             "stream_to_vector: cudaMemcpyAsync D2D",
             d_logger);
     }
-
-    // Mark outputs ready
-    gr::cuda::mark_work_done(detail(), d_stream);
 
     return noutput_items;
 }

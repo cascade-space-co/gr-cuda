@@ -5,7 +5,9 @@
  */
 
 #include <gnuradio/block.h>
-#include <gnuradio/cuda/cuda_block_helper.h>
+#include <gnuradio/block_detail.h>
+#include <gnuradio/cuda/cuda_buffer.h>
+#include <gnuradio/cuda/cuda_buffer_reader.h>
 #include <pybind11/pybind11.h>
 
 namespace py = pybind11;
@@ -25,30 +27,33 @@ struct block_accessor : public gr::block {
     }
 };
 
-void wait_for_work_wrapper(std::shared_ptr<gr::block> block, size_t stream_ptr)
+void register_cuda_stream_wrapper(std::shared_ptr<gr::block> block, size_t stream_ptr)
 {
     auto detail = block_accessor::get_detail(block.get());
-    // CuPy exposes stream.ptr as a Python int; pybind11 passes it as size_t.
-    // cudaStream_t is a pointer type, so reinterpret_cast is required.
-    gr::cuda::wait_for_work(detail, reinterpret_cast<cudaStream_t>(stream_ptr));
-}
+    auto stream = reinterpret_cast<cudaStream_t>(stream_ptr);
 
-void mark_work_done_wrapper(std::shared_ptr<gr::block> block, size_t stream_ptr)
-{
-    auto detail = block_accessor::get_detail(block.get());
-    gr::cuda::mark_work_done(detail, reinterpret_cast<cudaStream_t>(stream_ptr));
+    // Register as producer on all output buffers
+    int noutputs = detail->noutputs();
+    for (int i = 0; i < noutputs; i++) {
+        auto cbuf = std::dynamic_pointer_cast<gr::cuda_buffer>(detail->output(i));
+        if (cbuf)
+            cbuf->set_producer_stream(stream);
+    }
+
+    // Register as consumer on all input buffer readers
+    int ninputs = detail->ninputs();
+    for (int i = 0; i < ninputs; i++) {
+        auto* cbr = dynamic_cast<gr::cuda_buffer_reader*>(detail->input(i).get());
+        if (cbr)
+            cbr->set_consumer_stream(stream);
+    }
 }
 
 void bind_cuda_helpers(py::module& m)
 {
-    m.def("wait_for_work",
-          &wait_for_work_wrapper,
-          "Wait for input CUDA buffers to be ready",
-          py::arg("block"),
-          py::arg("stream_ptr"));
-    m.def("mark_work_done",
-          &mark_work_done_wrapper,
-          "Mark GPU work as done (outputs ready, inputs consumed)",
+    m.def("register_cuda_stream",
+          &register_cuda_stream_wrapper,
+          "Register a CUDA stream with all cuda_buffers on this block for auto-sync",
           py::arg("block"),
           py::arg("stream_ptr"));
 }
