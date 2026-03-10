@@ -12,7 +12,7 @@ The GNU Radio scheduler caps each `work()` call at `bufsize / 2`, so
 out of the box each block processes ~16 MB per call. This is often
 sufficient for moderate-throughput pipelines; try it first.
 
-The floor is configurable in `~/.gnuradio/config.conf`:
+The floor is configurable in `~/.config/gnuradio/config.conf`:
 
 ```ini
 [cuda_buffer]
