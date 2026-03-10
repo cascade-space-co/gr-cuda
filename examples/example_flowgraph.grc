@@ -29,6 +29,46 @@ options:
     state: enabled
 
 blocks:
+- name: buff_size_samples
+  id: variable
+  parameters:
+    comment: "Number of samples per GPU batch. Each block's\nmin_output_buffer is\
+      \ set to nbuff x buff_size_samples\n(divided by nfft for vector-length ports).\
+      \ Larger values \nimprove GPU throuput at the cost of memory and latency.\n\
+      For finer control, buff_size_samples can also be used as\noutput_multiple via\
+      \ set_output_multiple(), but this is \nnot exposed in the flowgraph by default."
+    value: 2**20 * 0
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [312, 28.0]
+    rotation: 0
+    state: enabled
+- name: nbuff
+  id: variable
+  parameters:
+    comment: ''
+    value: '16'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [528, 28.0]
+    rotation: 0
+    state: enabled
+- name: nfft
+  id: variable
+  parameters:
+    comment: ''
+    value: '65536'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [664, 28.0]
+    rotation: 0
+    state: enabled
 - name: analog_fastnoise_source_x_0
   id: analog_fastnoise_source_x
   parameters:
@@ -37,7 +77,7 @@ blocks:
     amp: '1'
     comment: ''
     maxoutbuf: '0'
-    minoutbuf: '0'
+    minoutbuf: nbuff * buff_size_samples
     noise_type: analog.GR_GAUSSIAN
     samples: '8192'
     seed: '0'
@@ -71,8 +111,8 @@ blocks:
     alias: ''
     comment: ''
     maxoutbuf: '0'
-    minoutbuf: '0'
-    vlen: '65536'
+    minoutbuf: nbuff * buff_size_samples // nfft
+    vlen: nfft
   states:
     bus_sink: false
     bus_source: false
@@ -86,11 +126,11 @@ blocks:
     affinity: ''
     alias: ''
     comment: ''
-    fft_size: '65536'
+    fft_size: nfft
     forward: 'True'
     input_type: complex
     maxoutbuf: '0'
-    minoutbuf: '0'
+    minoutbuf: nbuff * buff_size_samples // nfft
     shift: 'True'
     window: '[]'
   states:
@@ -108,9 +148,9 @@ blocks:
     comment: ''
     k: '0'
     maxoutbuf: '0'
-    minoutbuf: '0'
+    minoutbuf: nbuff * buff_size_samples // nfft
     n: '10'
-    vlen: '65536'
+    vlen: nfft
   states:
     bus_sink: false
     bus_source: false
@@ -126,7 +166,7 @@ blocks:
     alpha: '0.15'
     comment: ''
     maxoutbuf: '0'
-    minoutbuf: '0'
+    minoutbuf: nbuff * buff_size_samples
     mintime: '500.0'
     name: ''''''
     type: complex
@@ -145,8 +185,8 @@ blocks:
     alias: ''
     comment: ''
     maxoutbuf: '0'
-    minoutbuf: '0'
-    num_items: '65536'
+    minoutbuf: nbuff * buff_size_samples // nfft
+    num_items: nfft
     type: complex
     vlen: '1'
   states:
@@ -163,8 +203,8 @@ blocks:
     alias: ''
     comment: ''
     maxoutbuf: '0'
-    minoutbuf: '0'
-    sample_rate: 512e6
+    minoutbuf: nbuff * buff_size_samples
+    sample_rate: 1024e8
     type: complex
     vlen: '1'
   states:
@@ -222,7 +262,7 @@ blocks:
     ref_level: '0'
     showports: 'False'
     update_time: '0.10'
-    vlen: '65536'
+    vlen: nfft
     width1: '1'
     width10: '1'
     width2: '1'
@@ -261,4 +301,4 @@ connections:
 
 metadata:
   file_format: 1
-  grc_version: v3.11.0.0git-1084-g0711ede3
+  grc_version: v3.11.0.0git-1084-gcf7c7de2

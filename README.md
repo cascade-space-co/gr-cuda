@@ -95,7 +95,7 @@ Benchmarked on an **NVIDIA DGX Spark (GB10)** and an **NVIDIA RTX PRO 6000 Black
 
 CuPy blocks track within 5% of C++ CUDA blocks -- write your GPU blocks in Python with no meaningful performance penalty.
 
-See **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)** for more details and **[docs/LIMITATIONS.md](docs/LIMITATIONS.md)** for known limitations.
+See **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)** for more details, **[docs/OPTIMIZATIONS.md](docs/OPTIMIZATIONS.md)** for tuning guidance, and **[docs/LIMITATIONS.md](docs/LIMITATIONS.md)** for known limitations.
 
 ## Acknowledgements
 
