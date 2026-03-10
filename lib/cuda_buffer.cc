@@ -15,12 +15,46 @@
 #include <gnuradio/block.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_error.h>
+#include <gnuradio/prefs.h>
 
 #include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <sstream>
 #include <stdexcept>
+
+namespace {
+
+/*!
+ * Return the CUDA event creation flags, reading the user preference once.
+ *
+ * By default events use cudaEventDisableTiming (spin-wait on
+ * cudaEventSynchronize).  Setting blocking_sync = true in
+ * ~/.gnuradio/config.conf trades a small amount of latency for
+ * dramatically lower CPU usage when the GPU is the bottleneck:
+ *
+ *   [cuda_buffer]
+ *   blocking_sync = true
+ */
+unsigned int cuda_event_flags()
+{
+    static const unsigned int flags = [] {
+        unsigned int f = cudaEventDisableTiming;
+        bool blocking =
+            gr::prefs::singleton()->get_bool("cuda_buffer", "blocking_sync", false);
+        if (blocking)
+            f |= cudaEventBlockingSync;
+
+        gr::logger_ptr log, dlog;
+        gr::configure_default_loggers(log, dlog, "cuda_buffer");
+        log->debug("CUDA event sync mode: {}",
+                   blocking ? "blocking (sleep)" : "spin-wait (default)");
+        return f;
+    }();
+    return flags;
+}
+
+} // namespace
 
 namespace gr {
 buffer_type cuda_buffer::type(buftype<cuda_buffer, cuda_buffer>{});
@@ -46,11 +80,12 @@ cuda_buffer::cuda_buffer(int nitems,
     cudaError_t rc = cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking);
     check_cuda_errors(rc, "cuda_buffer: cudaStreamCreateWithFlags", d_logger);
 
-    rc = cudaEventCreateWithFlags(&d_dev_ready_evt, cudaEventDisableTiming);
+    const unsigned int evt_flags = cuda_event_flags();
+    rc = cudaEventCreateWithFlags(&d_dev_ready_evt, evt_flags);
     check_cuda_errors(rc, "cuda_buffer: device-ready event create", d_logger);
-    rc = cudaEventCreateWithFlags(&d_host_ready_evt, cudaEventDisableTiming);
+    rc = cudaEventCreateWithFlags(&d_host_ready_evt, evt_flags);
     check_cuda_errors(rc, "cuda_buffer: host-ready event create", d_logger);
-    rc = cudaEventCreateWithFlags(&d_read_done_evt, cudaEventDisableTiming);
+    rc = cudaEventCreateWithFlags(&d_read_done_evt, evt_flags);
     check_cuda_errors(rc, "cuda_buffer: read-done event create", d_logger);
 }
 

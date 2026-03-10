@@ -56,6 +56,20 @@ class host_mmap_ring;
  * 3. **Read-done** -- tracks when ALL consumers have finished reading
  *    so the producer can safely overwrite.
  *
+ * \section blocking Blocking vs spin-wait synchronization
+ *
+ * By default, CPU-side event waits (cudaEventSynchronize) spin-poll,
+ * which gives the lowest latency but burns a CPU core while waiting.
+ * To put the thread to sleep instead, set in ~/.gnuradio/config.conf:
+ *
+ * @code
+ * [cuda_buffer]
+ * blocking_sync = true
+ * @endcode
+ *
+ * This adds the cudaEventBlockingSync flag to all CUDA events.
+ * Recommended when the GPU is the bottleneck and CPU cores are scarce.
+ *
  * \section usage Usage from GPU blocks
  *
  * See cuda_block.h for the standard pattern, and cuda_block_helper.h for
