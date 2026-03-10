@@ -58,17 +58,16 @@ class host_mmap_ring;
  *
  * \section blocking Blocking vs spin-wait synchronization
  *
- * By default, CPU-side event waits (cudaEventSynchronize) spin-poll,
- * which gives the lowest latency but burns a CPU core while waiting.
- * To put the thread to sleep instead, set in ~/.config/gnuradio/config.conf:
+ * By default, CPU-side event waits (cudaEventSynchronize) use blocking
+ * sync (cudaEventBlockingSync), which puts the thread to sleep and
+ * frees the CPU core while waiting. To switch to spin-polling for
+ * lowest latency at the cost of CPU usage, set in
+ * ~/.config/gnuradio/config.conf:
  *
  * @code
  * [cuda_buffer]
- * blocking_sync = true
+ * blocking_sync = false
  * @endcode
- *
- * This adds the cudaEventBlockingSync flag to all CUDA events.
- * Recommended when the GPU is the bottleneck and CPU cores are scarce.
  *
  * \section usage Usage from GPU blocks
  *
