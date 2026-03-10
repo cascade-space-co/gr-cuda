@@ -62,7 +62,8 @@ class host_mmap_ring;
  * sync (cudaEventBlockingSync), which puts the thread to sleep and
  * frees the CPU core while waiting. To switch to spin-polling for
  * lowest latency at the cost of CPU usage, set in
- * ~/.config/gnuradio/config.conf:
+ * `gnuradio-config-info --userprefsdir`
+ * (usually ~/.config/gnuradio/config.conf for linux):
  *
  * @code
  * [cuda_buffer]

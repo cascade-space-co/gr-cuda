@@ -31,7 +31,7 @@ namespace {
  * By default events use cudaEventBlockingSync (thread sleeps on
  * cudaEventSynchronize), saving CPU when the GPU is the bottleneck.
  * To switch to spin-wait for lowest latency at the cost of CPU usage,
- * set in ~/.config/gnuradio/config.conf:
+ * set in the path returned by `gnuradio-config-info --userprefsdir`:
  *
  *   [cuda_buffer]
  *   blocking_sync = false
