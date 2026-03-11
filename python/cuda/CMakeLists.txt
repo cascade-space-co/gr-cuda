@@ -55,6 +55,11 @@ GR_ADD_TEST(
     ${CMAKE_CURRENT_SOURCE_DIR}/qa_copy.py
 )
 GR_ADD_TEST(
+    qa_nop
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_nop.py
+)
+GR_ADD_TEST(
     qa_multiply_const
     ${PYTHON_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/qa_multiply_const.py
