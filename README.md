@@ -14,7 +14,25 @@ GPU-accelerated signal processing blocks for [GNU Radio](https://www.gnuradio.or
 
 ## Quick start
 
-### Prerequisites
+### Conda (recommended)
+
+An NVIDIA GPU with a working driver is the only host requirement. Everything else is managed by conda:
+
+```bash
+conda env create -f environment.yml -n gr-cuda
+conda activate gr-cuda
+mkdir build && cd build
+cmake .. -GNinja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX="$CONDA_PREFIX" \
+  -DCMAKE_PREFIX_PATH="$CONDA_PREFIX" \
+  -Wno-dev
+ninja && ninja install && ninja test
+```
+
+### Manual install
+
+If you prefer to manage dependencies yourself:
 
 - NVIDIA GPU with CUDA support
 - [CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit) >= 10.2
@@ -22,15 +40,11 @@ GPU-accelerated signal processing blocks for [GNU Radio](https://www.gnuradio.or
 - CMake >= 3.18, Ninja (recommended)
 - [CuPy](https://cupy.dev/) (for Python GPU blocks)
 
-### Build and install
-
 ```bash
 mkdir build && cd build
 cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release -Wno-dev
 ninja && ninja install && ninja test
 ```
-
-For conda environments, add `-DCMAKE_INSTALL_PREFIX="$CONDA_PREFIX" -DCMAKE_PREFIX_PATH="$CONDA_PREFIX"`.
 
 > The build auto-detects your GPU architecture. To override: `-DCMAKE_CUDA_ARCHITECTURES=86`.
 
