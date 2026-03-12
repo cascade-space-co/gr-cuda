@@ -17,15 +17,110 @@
 #include <cassert>
 #include <stdexcept>
 
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+#endif
 
 namespace gr {
 namespace detail {
 
 host_mmap_ring::~host_mmap_ring() { this->reset(); }
+
+#ifdef _WIN32
+// Windows: VirtualAlloc2 + MapViewOfFile3 placeholder mechanism (Win 10 1803+).
+
+std::unique_ptr<host_mmap_ring>
+host_mmap_ring::create(size_t requested_bytes,
+                       const std::shared_ptr<gr::logger>& logger)
+{
+    auto ring = std::unique_ptr<host_mmap_ring>(new host_mmap_ring());
+    ring->d_logger = logger;
+
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
+    assert(requested_bytes % si.dwPageSize == 0);
+
+    ring->d_bytes = requested_bytes;
+    logger->debug("host_mmap_ring: requesting {} bytes (page_size={})",
+                  requested_bytes,
+                  si.dwPageSize);
+
+    HANDLE section = CreateFileMappingW(INVALID_HANDLE_VALUE,
+                                        nullptr,
+                                        PAGE_READWRITE,
+                                        (DWORD)(ring->d_bytes >> 32),
+                                        (DWORD)(ring->d_bytes & 0xFFFFFFFF),
+                                        nullptr);
+    if (!section)
+        throw std::runtime_error("host_mmap_ring: CreateFileMapping failed");
+
+    // Reserve 2N contiguous VA as a placeholder.
+    void* region = VirtualAlloc2(nullptr,
+                                 nullptr,
+                                 2 * ring->d_bytes,
+                                 MEM_RESERVE | MEM_RESERVE_PLACEHOLDER,
+                                 PAGE_NOACCESS,
+                                 nullptr,
+                                 0);
+    if (!region) {
+        CloseHandle(section);
+        throw std::runtime_error("host_mmap_ring: VirtualAlloc2 reserve failed");
+    }
+
+    // Split the 2N placeholder into two N-sized placeholders.
+    if (!VirtualFree(region, ring->d_bytes, MEM_RELEASE | MEM_PRESERVE_PLACEHOLDER)) {
+        VirtualFree(region, 0, MEM_RELEASE);
+        CloseHandle(section);
+        throw std::runtime_error("host_mmap_ring: placeholder split failed");
+    }
+
+    // Map section into first placeholder [base, base+N).
+    void* p1 = MapViewOfFile3(section,
+                              nullptr,
+                              region,
+                              0,
+                              ring->d_bytes,
+                              MEM_REPLACE_PLACEHOLDER,
+                              PAGE_READWRITE,
+                              nullptr,
+                              0);
+    if (!p1) {
+        VirtualFree(region, 0, MEM_RELEASE);
+        VirtualFree(static_cast<char*>(region) + ring->d_bytes, 0, MEM_RELEASE);
+        CloseHandle(section);
+        throw std::runtime_error("host_mmap_ring: MapViewOfFile3 first half failed");
+    }
+
+    // Map same section into second placeholder [base+N, base+2N).
+    void* p2 = MapViewOfFile3(section,
+                              nullptr,
+                              static_cast<char*>(region) + ring->d_bytes,
+                              0,
+                              ring->d_bytes,
+                              MEM_REPLACE_PLACEHOLDER,
+                              PAGE_READWRITE,
+                              nullptr,
+                              0);
+    if (!p2) {
+        UnmapViewOfFile(p1);
+        VirtualFree(static_cast<char*>(region) + ring->d_bytes, 0, MEM_RELEASE);
+        CloseHandle(section);
+        throw std::runtime_error("host_mmap_ring: MapViewOfFile3 second half failed");
+    }
+
+    CloseHandle(section);
+    ring->d_base = region;
+    logger->debug(
+        "host_mmap_ring: mapped 2x{} bytes at {}", ring->d_bytes, ring->d_base);
+    return ring;
+}
+
+#else // POSIX
 
 std::unique_ptr<host_mmap_ring>
 host_mmap_ring::create(size_t requested_bytes,
@@ -92,6 +187,8 @@ host_mmap_ring::create(size_t requested_bytes,
     return ring;
 }
 
+#endif // _WIN32
+
 void host_mmap_ring::register_pinned()
 {
     // Register only one half. post_work() splits wrap-crossing DMA
@@ -111,7 +208,12 @@ void host_mmap_ring::reset()
         d_registered = false;
     }
     if (d_base) {
+#ifdef _WIN32
+        UnmapViewOfFile(d_base);
+        UnmapViewOfFile(static_cast<char*>(d_base) + d_bytes);
+#else
         munmap(d_base, 2 * d_bytes);
+#endif
         d_base = nullptr;
     }
     d_bytes = 0;
