@@ -161,10 +161,6 @@ bool cuda_buffer::allocate_buffer(int nitems)
                     aligned_bytes,
                     d_bufsize);
 
-    if (aligned_bytes < (1 << 20))
-        d_logger->warn("cuda_buffer: buffer is only {} bytes; "
-                       "H2D/D2H transfers are most efficient above 1 MB",
-                       aligned_bytes);
 
     // 1) Host: mmap double-mapped circular buffer (owned by RAII helper).
     d_host_ring = detail::host_mmap_ring::create(aligned_bytes, d_logger);
