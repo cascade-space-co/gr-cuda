@@ -23,6 +23,7 @@
 #include <mutex>
 
 namespace gr {
+class tpb_detail;
 namespace detail {
 class device_vmm_ring;
 class host_mmap_ring;
@@ -257,6 +258,15 @@ private:
 
     cudaStream_t d_notify_stream = nullptr;
     std::atomic<bool> d_dev_notify_pending{ false };
+
+public:
+    struct notify_ctx {
+        std::atomic<bool> alive{ true };
+        tpb_detail* tpb = nullptr;
+    };
+
+private:
+    std::shared_ptr<notify_ctx> d_notify_ctx;
 
     cuda_buffer(int nitems,
                 size_t sizeof_item,

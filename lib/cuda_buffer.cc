@@ -59,7 +59,9 @@ unsigned int cuda_event_flags()
 
 void CUDART_CB gpu_notify_cb(void* user_data)
 {
-    static_cast<gr::tpb_detail*>(user_data)->notify_msg();
+    auto* ctx = static_cast<gr::cuda_buffer::notify_ctx*>(user_data);
+    if (ctx->alive.load(std::memory_order_acquire))
+        ctx->tpb->notify_msg();
 }
 
 } // namespace
@@ -103,7 +105,10 @@ cuda_buffer::cuda_buffer(int nitems,
 
 cuda_buffer::~cuda_buffer()
 {
-    // Drain any pending GPU-notify callbacks before touching events.
+    // Disarm the callback so it becomes a no-op if it fires after
+    // the block's tpb_detail is destroyed, then drain the stream.
+    if (d_notify_ctx)
+        d_notify_ctx->alive.store(false, std::memory_order_release);
     if (d_notify_stream) {
         cudaStreamSynchronize(d_notify_stream);
         cudaStreamDestroy(d_notify_stream);
@@ -211,9 +216,12 @@ int cuda_buffer::space_available()
         if (rc == cudaErrorNotReady) {
             if (!d_dev_notify_pending.load(std::memory_order_acquire)) {
                 d_dev_notify_pending.store(true, std::memory_order_release);
+                if (!d_notify_ctx) {
+                    d_notify_ctx = std::make_shared<notify_ctx>();
+                    d_notify_ctx->tpb = &link()->detail()->d_tpb;
+                }
                 cudaStreamWaitEvent(d_notify_stream, d_dev_ready_evt, 0);
-                cudaLaunchHostFunc(
-                    d_notify_stream, gpu_notify_cb, &link()->detail()->d_tpb);
+                cudaLaunchHostFunc(d_notify_stream, gpu_notify_cb, d_notify_ctx.get());
             }
             return 0;
         }
