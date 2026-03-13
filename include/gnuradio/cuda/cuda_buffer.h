@@ -18,6 +18,7 @@
 
 #include <cuda.h>
 #include <cuda_runtime_api.h>
+#include <atomic>
 #include <memory>
 #include <mutex>
 
@@ -78,13 +79,22 @@ class host_mmap_ring;
  * @code
  * Hook                  | Action                    | When
  * ----------------------|---------------------------|-------------------
+ * space_available()     | query d_dev_ready_evt     | before prod offered space
  * write_pointer()       | wait_read_done(prod)      | before prod writes
  * post_work()           | mark_device_ready(prod)   | after prod writes
  * post_work()           | wait_device_ready(cons)   | after prod writes
+ * _read_pointer()       | wait_host_ready (D2H)     | before cons reads host
  * update_read_pointer() | mark_read_done(cons) [*]  | after cons reads
  *
  * [*] Implemented in cuda_buffer_reader, not cuda_buffer.
  * @endcode
+ *
+ * space_available() uses cudaEventQuery (non-blocking) with a
+ * cudaLaunchHostFunc callback to wake the scheduler thread when
+ * the GPU event fires, eliminating CPU-blocking on the producer
+ * side.  D2H consumer reads still use cudaEventSynchronize in
+ * _read_pointer() since the CPU consumer inherently must wait
+ * for host data to land.
  *
  * wait_device_ready is placed in post_work() rather than
  * _read_pointer() because the GR scheduler guarantees consumers
@@ -118,6 +128,16 @@ public:
 #endif
 
     ~cuda_buffer() override;
+
+    /*!
+     * \brief Non-blocking space check with GPU event backpressure.
+     *
+     * Before returning available space, queries d_dev_ready_evt to
+     * verify the GPU has consumed the previous batch.  If the event
+     * is not ready, registers a cudaLaunchHostFunc callback that
+     * wakes the scheduler thread and returns 0 (triggering BLKD_OUT).
+     */
+    int space_available() override;
 
     /*!
      * \brief Transfer data between host and device after general_work().
@@ -234,6 +254,9 @@ private:
     cudaEvent_t d_host_ready_evt = nullptr;
     cudaEvent_t d_read_done_evt = nullptr;
     std::mutex d_read_done_mutex;
+
+    cudaStream_t d_notify_stream = nullptr;
+    std::atomic<bool> d_dev_notify_pending{ false };
 
     cuda_buffer(int nitems,
                 size_t sizeof_item,

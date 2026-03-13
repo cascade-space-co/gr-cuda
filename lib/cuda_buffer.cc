@@ -13,6 +13,7 @@
 #include "detail/device_vmm_ring.h"
 #include "detail/host_mmap_ring.h"
 #include <gnuradio/block.h>
+#include <gnuradio/block_detail.h>
 #include <gnuradio/cuda/cuda_block.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_buffer_reader.h>
@@ -56,6 +57,11 @@ unsigned int cuda_event_flags()
     return flags;
 }
 
+void CUDART_CB gpu_notify_cb(void* user_data)
+{
+    static_cast<gr::tpb_detail*>(user_data)->notify_msg();
+}
+
 } // namespace
 
 namespace gr {
@@ -83,6 +89,9 @@ cuda_buffer::cuda_buffer(int nitems,
     cudaError_t rc = cudaStreamCreateWithFlags(&d_stream, cudaStreamNonBlocking);
     check_cuda_errors(rc, "cuda_buffer: cudaStreamCreateWithFlags", d_logger);
 
+    rc = cudaStreamCreateWithFlags(&d_notify_stream, cudaStreamNonBlocking);
+    check_cuda_errors(rc, "cuda_buffer: notify stream create", d_logger);
+
     const unsigned int evt_flags = cuda_event_flags();
     rc = cudaEventCreateWithFlags(&d_dev_ready_evt, evt_flags);
     check_cuda_errors(rc, "cuda_buffer: device-ready event create", d_logger);
@@ -94,6 +103,12 @@ cuda_buffer::cuda_buffer(int nitems,
 
 cuda_buffer::~cuda_buffer()
 {
+    // Drain any pending GPU-notify callbacks before touching events.
+    if (d_notify_stream) {
+        cudaStreamSynchronize(d_notify_stream);
+        cudaStreamDestroy(d_notify_stream);
+    }
+
     if (d_dev_ready_evt)
         cudaStreamWaitEvent(d_stream, d_dev_ready_evt, 0);
     if (d_host_ready_evt)
@@ -188,6 +203,24 @@ void cuda_buffer::on_transfer_type_set(const transfer_type& type)
                     (type == transfer_type::HOST_TO_DEVICE) ? "H2D" : "D2H");
 }
 
+
+int cuda_buffer::space_available()
+{
+    if (d_dev_ready_evt) {
+        cudaError_t rc = cudaEventQuery(d_dev_ready_evt);
+        if (rc == cudaErrorNotReady) {
+            if (!d_dev_notify_pending.load(std::memory_order_acquire)) {
+                d_dev_notify_pending.store(true, std::memory_order_release);
+                cudaStreamWaitEvent(d_notify_stream, d_dev_ready_evt, 0);
+                cudaLaunchHostFunc(
+                    d_notify_stream, gpu_notify_cb, &link()->detail()->d_tpb);
+            }
+            return 0;
+        }
+        d_dev_notify_pending.store(false, std::memory_order_release);
+    }
+    return buffer_double_mapped::space_available();
+}
 
 /*!
  * \brief Return where the upstream block should write its output.
@@ -380,7 +413,6 @@ void cuda_buffer::post_work_d2d(unsigned, unsigned, unsigned)
 
 void cuda_buffer::mark_device_ready(cudaStream_t producer_stream)
 {
-    cudaEventSynchronize(d_dev_ready_evt);
     cudaEventRecord(d_dev_ready_evt, producer_stream);
 }
 
