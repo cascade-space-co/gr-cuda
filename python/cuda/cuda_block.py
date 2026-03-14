@@ -10,8 +10,22 @@ Base classes for CuPy-based GPU blocks.
 Drop-in replacements for ``gr.sync_block``, etc. that automatically:
 
 1. Allocate CUDA buffers (via io_signature).
-2. Register the block's CUDA stream for automatic synchronization.
+2. Register the block's CUDA stream with every connected ``cuda_buffer``.
+   This tells the buffer which stream the block submits work on, so
+   ``cuda_buffer`` can insert GPU-side event waits/records between
+   producers and consumers.
 3. Convert input/output arrays to CuPy (zero-copy).
+4. Wrap ``start()`` overrides so stream registration is never skipped.
+
+Auto-sync contract
+------------------
+
+Everything is handled transparently:
+
+- Each block gets its own CUDA stream.
+- ``work()`` / ``general_work()`` run inside that stream automatically.
+- Stream registration and inter-block synchronization are invisible.
+- Custom ``start()`` overrides are safe; registration still happens.
 
 Example::
 
@@ -46,6 +60,23 @@ def _wrap_work(fn):
             return fn(self, cp_in, cp_out)
 
     wrapped._cuda_wrapped = True
+    return wrapped
+
+
+def _wrap_start(fn):
+    """Ensure stream registration when a subclass defines its own ``start()``.
+
+    Users are allowed to write a custom ``start()`` for their own setup.
+    This wrapper runs that code first, then calls ``cuda_block.start()``
+    to handle stream registration and GR base-class propagation.
+    """
+
+    @functools.wraps(fn)
+    def wrapped(self):
+        fn(self)
+        return cuda_block.start(self)
+
+    wrapped._cuda_start_wrapped = True
     return wrapped
 
 
@@ -85,13 +116,17 @@ class cuda_block:
         super().__init__(name, in_sig, out_sig, *args, **kwargs)
 
     def __init_subclass__(cls, **kwargs):
-        """Auto-wrap work()/general_work() at class definition time."""
+        """Auto-wrap work()/general_work()/start() at class definition time."""
         super().__init_subclass__(**kwargs)
         for name in ("work", "general_work"):
             if name in cls.__dict__:
                 fn = cls.__dict__[name]
                 if not getattr(fn, "_cuda_wrapped", False):
                     setattr(cls, name, _wrap_work(fn))
+        if "start" in cls.__dict__:
+            fn = cls.__dict__["start"]
+            if not getattr(fn, "_cuda_start_wrapped", False):
+                cls.start = _wrap_start(fn)
 
     def start(self):
         """Register CUDA stream with all cuda_buffers for auto-sync."""

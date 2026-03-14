@@ -149,3 +149,8 @@ GR_ADD_TEST(
     ${PYTHON_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/qa_general_work_sync.py
 )
+GR_ADD_TEST(
+    qa_autosync
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_autosync.py
+)
