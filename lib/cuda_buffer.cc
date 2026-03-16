@@ -28,20 +28,20 @@ namespace {
 /*!
  * Return the CUDA event creation flags, reading the user preference once.
  *
- * By default events use cudaEventBlockingSync (thread sleeps on
- * cudaEventSynchronize), saving CPU when the GPU is the bottleneck.
- * To switch to spin-wait for lowest latency at the cost of CPU usage,
- * set in the path returned by `gnuradio-config-info --userprefsdir`:
+ * By default events use spin-polling on cudaEventSynchronize, which
+ * yields the lowest latency but burns a CPU core per waiting thread.
+ * To switch to blocking sync (thread sleeps), set in the path returned
+ * by `gnuradio-config-info --userprefsdir`:
  *
  *   [cuda_buffer]
- *   blocking_sync = false
+ *   blocking_sync = true
  */
 unsigned int cuda_event_flags()
 {
     static const unsigned int flags = [] {
         unsigned int f = cudaEventDisableTiming;
         bool blocking =
-            gr::prefs::singleton()->get_bool("cuda_buffer", "blocking_sync", true);
+            gr::prefs::singleton()->get_bool("cuda_buffer", "blocking_sync", false);
         if (blocking)
             f |= cudaEventBlockingSync;
 

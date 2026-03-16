@@ -80,7 +80,32 @@ test between a null source and null sink, attach a probe rate, and
 measure sustained throughput. This lets you identify whether the
 bottleneck is a specific block, buffer sizing, or transfers.
 
-## 4. CuPy temporary allocations
+## 4. Blocking vs spin-wait synchronization
+
+`cuda_buffer` uses CUDA events to synchronize CPU and GPU work. By
+default, `cudaEventSynchronize` spin-polls: the thread busy-waits on
+the CPU, giving the lowest possible latency but consuming a full CPU
+core per waiting thread. This is a good default for throughput-critical
+pipelines where CPU cores are plentiful relative to GPU blocks.
+
+For flowgraphs with many GPU blocks, or on systems where CPU usage
+matters more than shaving microseconds of latency, enable blocking
+sync. This puts the thread to sleep and yields the CPU core while
+waiting:
+
+```ini
+[cuda_buffer]
+blocking_sync = true
+```
+
+> **Note:** The performance impact is system-dependent. Blocking sync
+> introduces OS thread wake-up latency each time an event completes,
+> which can measurably reduce transfer bandwidth on some systems (e.g.
+> PCIe 5.0 → RTX PRO 6000). Profile both modes on your hardware with
+> the transfer benchmark (`benchmark_gr_cuda_transfer.py`) before
+> choosing.
+
+## 5. CuPy temporary allocations
 
 CuPy is convenient for writing GPU blocks in Python, but intermediate
 expressions allocate temporary device arrays behind the scenes. For
