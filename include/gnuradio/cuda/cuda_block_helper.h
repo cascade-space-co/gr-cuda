@@ -74,6 +74,12 @@ inline void wait_for_work(const gr::block_detail_sptr& detail, cudaStream_t stre
  * Output-side operations (mark_device_ready) may briefly block the CPU via
  * cudaEventSynchronize for backpressure when the GPU falls behind.
  *
+ * \note In general_work() blocks that call produce()/consume() explicitly,
+ *       this function **must** be called before produce() and consume().
+ *       produce() advances the write pointer immediately (via post_work +
+ *       update_write_pointer), and for D2D buffers post_work is a no-op —
+ *       without a prior mark_work_done, downstream sees a stale event.
+ *
  * \param detail The block's detail pointer (e.g. call with detail())
  * \param stream The CUDA stream that finished both reading inputs and producing
  *               outputs
