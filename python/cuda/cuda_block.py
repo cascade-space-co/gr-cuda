@@ -45,8 +45,15 @@ def _wrap_work(fn):
 
     @functools.wraps(fn)
     def wrapped(self, input_items, output_items):
+        # GPU-side waits: block until upstream data is ready and
+        # downstream is done reading our previous output.
         cuda.wait_for_work(self.gateway, self.stream.ptr)
 
+        # Intercept self.produce() so that mark_work_done is called
+        # before produce() advances the write pointer.  Without this,
+        # produce() triggers post_work() + update_write_pointer()
+        # immediately, and for D2D buffers post_work is a no-op, so
+        # the downstream block would see a stale device-ready event.
         self._cuda_work_done = False
         orig_produce = self.produce
 
@@ -64,6 +71,7 @@ def _wrap_work(fn):
                 cp_out = [cuda.as_cupy(x) for x in output_items]
                 result = fn(self, cp_in, cp_out)
         finally:
+            # Always restore the original produce, even on exceptions.
             self.produce = orig_produce
 
         if not self._cuda_work_done:
