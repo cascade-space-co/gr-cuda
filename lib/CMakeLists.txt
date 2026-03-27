@@ -41,6 +41,11 @@ list(
     probe_rate_impl.cc
     throttle_impl.cc
     tee_impl.cc
+    ibv_common.cc
+    ibv_source_impl.cc
+    ibv_source.cu
+    ibv_sink_impl.cc
+    ibv_sink.cu
 )
 
 set(cuda_sources "${cuda_sources}" PARENT_SCOPE)
@@ -58,6 +63,7 @@ target_link_libraries(
         CUDA::cudart
         CUDA::cuda_driver
         CUDA::cufft
+        ibverbs
 )
 
 target_include_directories(

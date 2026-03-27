@@ -25,5 +25,7 @@ install(
         null_sink.h
         probe_rate.h
         tee.h
+        ibv_source.h
+        ibv_sink.h
     DESTINATION include/gnuradio/cuda
 )

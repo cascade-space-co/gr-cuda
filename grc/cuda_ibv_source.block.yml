@@ -1,0 +1,42 @@
+id: cuda_ibv_source
+label: IBV Source (CUDA)
+category: '[CUDA]'
+
+templates:
+  imports: from gnuradio import cuda
+  make: cuda.ibv_source(${ibv_device}, ${interface}, ${udp_port}, ${payload_size}, ${mcast_group}, ${gpu_id})
+
+parameters:
+- id: ibv_device
+  label: IB Device
+  dtype: string
+  default: 'rocep119s0f0'
+- id: interface
+  label: Network Interface
+  dtype: string
+  default: 'ens10f0np0'
+- id: udp_port
+  label: UDP Port
+  dtype: int
+  default: '5000'
+- id: payload_size
+  label: Payload Size (bytes)
+  dtype: int
+  default: '8000'
+- id: mcast_group
+  label: Multicast Group
+  dtype: string
+  default: ''
+  hide: ${ 'part' if not mcast_group else 'none' }
+- id: gpu_id
+  label: GPU ID
+  dtype: int
+  default: '0'
+  hide: part
+
+outputs:
+- label: out
+  domain: cuda
+  dtype: byte
+
+file_format: 1
