@@ -152,6 +152,26 @@ endif(APPLE)
 find_package(Doxygen)
 
 ########################################################################
+# Optional: libibverbs for IBV source/sink blocks
+########################################################################
+find_library(IBVERBS_LIBRARY NAMES ibverbs)
+find_path(IBVERBS_INCLUDE_DIR infiniband/verbs.h)
+if(IBVERBS_LIBRARY AND IBVERBS_INCLUDE_DIR)
+    set(IBVERBS_FOUND TRUE)
+else()
+    set(IBVERBS_FOUND FALSE)
+endif()
+option(ENABLE_IBV "Build IBV source/sink blocks (requires libibverbs)" ${IBVERBS_FOUND})
+if(ENABLE_IBV AND NOT IBVERBS_FOUND)
+    message(FATAL_ERROR "ENABLE_IBV is ON but libibverbs was not found")
+endif()
+if(ENABLE_IBV)
+    message(STATUS "IBV blocks: enabled")
+else()
+    message(STATUS "IBV blocks: disabled (libibverbs not found)")
+endif()
+
+########################################################################
 # Setup doxygen option
 ########################################################################
 if(DOXYGEN_FOUND)
