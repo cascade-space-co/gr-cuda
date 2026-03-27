@@ -42,12 +42,18 @@ list(
     probe_rate_impl.cc
     throttle_impl.cc
     tee_impl.cc
-    ibv_common.cc
-    ibv_source_impl.cc
-    ibv_source.cu
-    ibv_sink_impl.cc
-    ibv_sink.cu
 )
+
+if(ENABLE_IBV)
+    list(
+        APPEND cuda_sources
+        ibv_common.cc
+        ibv_source_impl.cc
+        ibv_source.cu
+        ibv_sink_impl.cc
+        ibv_sink.cu
+    )
+endif()
 
 set(cuda_sources "${cuda_sources}" PARENT_SCOPE)
 if(NOT cuda_sources)
@@ -64,8 +70,12 @@ target_link_libraries(
         CUDA::cudart
         CUDA::cuda_driver
         CUDA::cufft
-        ibverbs
 )
+
+if(ENABLE_IBV)
+    target_link_libraries(gnuradio-cuda PUBLIC ibverbs)
+    target_compile_definitions(gnuradio-cuda PUBLIC ENABLE_IBV)
+endif()
 
 target_include_directories(
     gnuradio-cuda

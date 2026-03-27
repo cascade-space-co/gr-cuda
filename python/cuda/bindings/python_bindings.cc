@@ -39,8 +39,10 @@ void bind_null_sink(py::module& m);
 void bind_probe_rate(py::module& m);
 void bind_throttle(py::module& m);
 void bind_tee(py::module& m);
+#ifdef ENABLE_IBV
 void bind_ibv_source(py::module& m);
 void bind_ibv_sink(py::module& m);
+#endif
 // ) END BINDING_FUNCTION_PROTOTYPES
 
 
@@ -94,7 +96,9 @@ PYBIND11_MODULE(cuda_python, m)
     bind_probe_rate(m);
     bind_throttle(m);
     bind_tee(m);
+#ifdef ENABLE_IBV
     bind_ibv_source(m);
     bind_ibv_sink(m);
+#endif
     // ) END BINDING_FUNCTION_CALLS
 }
