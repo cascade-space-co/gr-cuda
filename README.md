@@ -58,6 +58,17 @@ class my_cupy_block(cuda.sync_block):   # cuda.sync_block instead of gr.sync_blo
 
 `cuda.decim_block`, `cuda.interp_block`, and `cuda.basic_block` are also available. See [`multiply_const_cupy.py`](python/cuda/multiply_const_cupy.py) for a complete example.
 
+For `general_work()` blocks (`cuda.basic_block`), call `consume_each()` / `consume()` as usual. If you call `produce()` explicitly, the wrapper ensures correct synchronisation ordering automatically:
+
+```python
+class my_resampler(cuda.basic_block):
+    def general_work(self, input_items, output_items):
+        # ... GPU work with CuPy ...
+        self.consume_each(n_consumed)
+        self.produce(0, n_produced)
+        return -2  # WORK_CALLED_PRODUCE
+```
+
 ### C++ block
 
 Inherit from `cuda_block` to get a managed CUDA stream and launch your own kernels. Synchronisation between blocks is currently explicit (`wait_for_work`/`mark_work_done`) but will be automated in a future release.
@@ -73,6 +84,20 @@ int my_block_impl::work(int noutput_items, ...)
 
     gr::cuda::mark_work_done(detail(), d_stream);
     return noutput_items;
+}
+```
+
+For `general_work()` blocks, `mark_work_done` **must** be called before `produce()` and `consume()`:
+
+```cpp
+int my_block_impl::general_work(...)
+{
+    gr::cuda::wait_for_work(detail(), d_stream);
+    my_kernel<<<grid, block, 0, d_stream>>>(in, out, n);
+    gr::cuda::mark_work_done(detail(), d_stream);  // before produce/consume
+    consume_each(n_consumed);
+    produce(0, n_produced);
+    return WORK_CALLED_PRODUCE;
 }
 ```
 
