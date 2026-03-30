@@ -52,21 +52,12 @@ private:
     struct ibv_sge* d_sges = nullptr;
     struct ibv_recv_wr* d_wrs = nullptr;
 
-    // Slot ring: d_next_slot cycles through all GPU_BUF_SIZE/SLOT_SIZE slots
     uint32_t d_num_slots;
     uint32_t d_next_slot = 0;
 
-    /*
-     * Ready ring: completed-but-not-yet-processed slot indices.
-     * Fixed-size ring buffer (no heap allocations in work()).
-     */
-    uint32_t d_ready_ring[NUM_WR];
-    int d_ready_head = 0;
+    // Sequential completion tracking: slots complete in posting order.
+    uint32_t d_ready_slot = 0;
     int d_ready_count = 0;
-
-    // Pinned-host + device arrays for passing slot indices to the kernel
-    uint32_t* d_slot_indices_host = nullptr;
-    uint32_t* d_slot_indices_dev = nullptr;
 
     int d_igmp_sock = -1;
 

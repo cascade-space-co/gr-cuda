@@ -18,9 +18,7 @@
 namespace gr {
 namespace cuda {
 
-// ─────────────────────────────────────────────────────────────────────
 // ibv_transport
-// ─────────────────────────────────────────────────────────────────────
 
 ibv_transport::ibv_transport(const std::string& device_name, const qp_config& cfg)
 {
