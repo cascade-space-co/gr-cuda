@@ -35,7 +35,40 @@ __global__ void build_frames_kernel(uint8_t* __restrict__ landing_buf,
 
     const uint8_t* src = payload_src + (uint64_t)frame_idx * payload_size;
     uint8_t* dst = slot + header_len;
-    for (int i = threadIdx.x; i < payload_size; i += blockDim.x)
+
+    /*
+     * Vectorized payload copy using 16-byte (uint4) stores.
+     *
+     * dst starts at slot + 42 which is generally not 16-byte aligned, so we
+     * copy in three phases:
+     *
+     *   1. Head: byte-copy 0-15 bytes until dst is 16-byte aligned.
+     *   2. Bulk: aligned uint4 stores (16 B each).  Source may still be
+     *      misaligned, so we load via memcpy into a register-local uint4
+     *      and let the compiler pick the right load width.
+     *   3. Tail: byte-copy the remaining 0-15 bytes.
+     *
+     * Aligned 16-byte stores avoid the read-modify-write penalty that
+     * byte-granularity stores incur on HBM.
+     */
+    int head = (16 - (reinterpret_cast<uintptr_t>(dst) & 15)) & 15;
+    if (head > payload_size)
+        head = payload_size;
+    for (int i = threadIdx.x; i < head; i += blockDim.x)
+        dst[i] = src[i];
+
+    int n16 = (payload_size - head) >> 4;
+    uint4* d4 = reinterpret_cast<uint4*>(dst + head);
+    /* See strip_headers_kernel for why the register-local uint4 matters:
+     * it makes the compiler emit st.global.v4.u32 instead of st.global.u8 ×16. */
+    for (int i = threadIdx.x; i < n16; i += blockDim.x) {
+        uint4 v;
+        memcpy(&v, src + head + i * 16, sizeof(uint4));
+        d4[i] = v;
+    }
+
+    int tail = head + (n16 << 4);
+    for (int i = tail + threadIdx.x; i < payload_size; i += blockDim.x)
         dst[i] = src[i];
 }
 
