@@ -73,16 +73,6 @@ ibv_source_impl::ibv_source_impl(const std::string& ibv_device,
     d_gpu_buf = std::make_unique<ibv_gpu_buffer>(d_gpu_id, GPU_BUF_SIZE, d_xport->pd());
     d_num_slots = GPU_BUF_SIZE / SLOT_SIZE;
 
-    check_cuda_errors(cudaHostAlloc(reinterpret_cast<void**>(&d_slot_indices_host),
-                                    NUM_WR * sizeof(uint32_t),
-                                    cudaHostAllocDefault),
-                      "ibv_source: cudaHostAlloc slot_indices",
-                      d_logger);
-    check_cuda_errors(cudaMalloc(reinterpret_cast<void**>(&d_slot_indices_dev),
-                                 NUM_WR * sizeof(uint32_t)),
-                      "ibv_source: cudaMalloc slot_indices_dev",
-                      d_logger);
-
     d_sges = static_cast<struct ibv_sge*>(calloc(NUM_WR, sizeof(struct ibv_sge)));
     d_wrs =
         static_cast<struct ibv_recv_wr*>(calloc(NUM_WR, sizeof(struct ibv_recv_wr)));
@@ -102,10 +92,6 @@ ibv_source_impl::~ibv_source_impl()
         ibv_destroy_flow(d_flow);
     /* d_gpu_buf and d_xport are destroyed by unique_ptr in reverse
        declaration order (MR deregistered before PD is freed). */
-    if (d_slot_indices_host)
-        cudaFreeHost(d_slot_indices_host);
-    if (d_slot_indices_dev)
-        cudaFree(d_slot_indices_dev);
     free(d_sges);
     free(d_wrs);
 }
@@ -224,37 +210,37 @@ int ibv_source_impl::work(int noutput_items,
                           gr_vector_const_void_star& input_items,
                           gr_vector_void_star& output_items)
 {
-    // Poll CQ first (pure IBV, no CUDA overhead).
-    struct ibv_wc wc[CQ_POLL_BATCH];
-    int n = ibv_poll_cq(d_xport->cq(), CQ_POLL_BATCH, wc);
-    if (n < 0)
-        return 0;
-
+    // Spin-poll CQ to accumulate a full batch before launching a kernel.
+    // Reset the idle counter on progress so we keep spinning as long as
+    // packets are flowing, and only give up after a burst of empty polls.
     const uint32_t expected_len = L2L3L4_HDR_LEN + d_payload_size;
-    int bad_count = 0;
-    for (int i = 0; i < n; i++) {
-        if (wc[i].status != IBV_WC_SUCCESS || wc[i].byte_len != expected_len) {
-            if (wc[i].status != IBV_WC_SUCCESS) {
-                GR_LOG_WARN(d_logger,
-                            "ibv_source: WC error status=" +
-                                std::to_string(wc[i].status));
-            } else {
-                GR_LOG_WARN(d_logger,
-                            "ibv_source: unexpected length " +
-                                std::to_string(wc[i].byte_len));
+    constexpr int IDLE_LIMIT = 4000;
+    int idle = 0;
+    struct ibv_wc wc[CQ_POLL_BATCH];
+
+    while (idle < IDLE_LIMIT && d_ready_count < CQ_POLL_BATCH) {
+        int n = ibv_poll_cq(d_xport->cq(), CQ_POLL_BATCH, wc);
+        if (n < 0)
+            return 0;
+        if (n > 0) {
+            for (int i = 0; i < n; i++) {
+                if (wc[i].status != IBV_WC_SUCCESS) {
+                    GR_LOG_WARN(d_logger,
+                                "ibv_source: WC error status=" +
+                                    std::to_string(wc[i].status));
+                } else if (wc[i].byte_len != expected_len) {
+                    GR_LOG_WARN(d_logger,
+                                "ibv_source: unexpected length " +
+                                    std::to_string(wc[i].byte_len));
+                }
             }
-            bad_count++;
-            continue;
+            d_ready_count += n;
+            idle = 0;
+        } else {
+            idle++;
         }
-        int idx = (d_ready_head + d_ready_count) % NUM_WR;
-        d_ready_ring[idx] = static_cast<uint32_t>(wc[i].wr_id);
-        d_ready_count++;
     }
 
-    if (bad_count > 0)
-        post_recv_batch(bad_count);
-
-    // noutput_items is in packet units (item_size = d_payload_size).
     int num_pkts = std::min(noutput_items, d_ready_count);
     if (num_pkts <= 0)
         return 0;
@@ -263,36 +249,25 @@ int ibv_source_impl::work(int noutput_items,
     gr::cuda::wait_for_work(detail(), d_stream);
     auto out = static_cast<uint8_t*>(output_items[0]);
 
-    for (int i = 0; i < num_pkts; i++)
-        d_slot_indices_host[i] = d_ready_ring[(d_ready_head + i) % NUM_WR];
-
-    check_cuda_errors(cudaMemcpyAsync(d_slot_indices_dev,
-                                      d_slot_indices_host,
-                                      num_pkts * sizeof(uint32_t),
-                                      cudaMemcpyHostToDevice,
-                                      d_stream),
-                      "ibv_source: cudaMemcpyAsync slot_indices",
-                      d_logger);
-
+    const uint32_t first_slot = d_ready_slot;
     exec_strip_headers_kernel(d_gpu_buf->data(),
-                              d_slot_indices_dev,
+                              SLOT_SIZE,
+                              first_slot,
+                              d_num_slots,
                               out,
                               L2L3L4_HDR_LEN,
-                              SLOT_SIZE,
                               d_payload_size,
                               num_pkts,
                               d_min_grid_size,
                               d_block_size,
                               d_stream);
 
-    /*
-     * Sync: the kernel reads from landing-buffer slots; we must not repost
-     * them (allowing the NIC to overwrite) until the kernel is done.
-     */
+    // Sync: the kernel reads from landing-buffer slots; we must not repost
+    // them (allowing the NIC to overwrite) until the kernel is done.
     check_cuda_errors(
         cudaStreamSynchronize(d_stream), "ibv_source: cudaStreamSynchronize", d_logger);
 
-    d_ready_head = (d_ready_head + num_pkts) % NUM_WR;
+    d_ready_slot = (d_ready_slot + num_pkts) % d_num_slots;
     d_ready_count -= num_pkts;
     post_recv_batch(num_pkts);
 

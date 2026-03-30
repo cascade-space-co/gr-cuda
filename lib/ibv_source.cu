@@ -8,10 +8,11 @@
 #include "ibv_source.cuh"
 
 __global__ void strip_headers_kernel(const uint8_t* __restrict__ landing_buf,
-                                     const uint32_t* __restrict__ slot_indices,
+                                     int slot_size,
+                                     uint32_t first_slot,
+                                     uint32_t num_slots,
                                      uint8_t* __restrict__ output,
                                      int header_len,
-                                     int slot_size,
                                      int payload_size,
                                      int num_packets)
 {
@@ -19,7 +20,7 @@ __global__ void strip_headers_kernel(const uint8_t* __restrict__ landing_buf,
     if (pkt_idx >= num_packets)
         return;
 
-    uint32_t slot = slot_indices[pkt_idx];
+    uint32_t slot = (first_slot + (uint32_t)pkt_idx) % num_slots;
     const uint8_t* src = landing_buf + (uint64_t)slot * slot_size + header_len;
     uint8_t* dst = output + (uint64_t)pkt_idx * payload_size;
 
@@ -28,10 +29,11 @@ __global__ void strip_headers_kernel(const uint8_t* __restrict__ landing_buf,
 }
 
 void exec_strip_headers_kernel(const uint8_t* landing_buf,
-                               const uint32_t* slot_indices,
+                               int slot_size,
+                               uint32_t first_slot,
+                               uint32_t num_slots,
                                uint8_t* output,
                                int header_len,
-                               int slot_size,
                                int payload_size,
                                int num_packets,
                                int grid_size,
@@ -41,10 +43,11 @@ void exec_strip_headers_kernel(const uint8_t* landing_buf,
     if (num_packets <= 0)
         return;
     strip_headers_kernel<<<num_packets, block_size, 0, stream>>>(landing_buf,
-                                                                 slot_indices,
+                                                                 slot_size,
+                                                                 first_slot,
+                                                                 num_slots,
                                                                  output,
                                                                  header_len,
-                                                                 slot_size,
                                                                  payload_size,
                                                                  num_packets);
 }

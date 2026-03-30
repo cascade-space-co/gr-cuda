@@ -12,10 +12,11 @@
 #include <cstdint>
 
 void exec_strip_headers_kernel(const uint8_t* landing_buf,
-                               const uint32_t* slot_indices,
+                               int slot_size,
+                               uint32_t first_slot,
+                               uint32_t num_slots,
                                uint8_t* output,
                                int header_len,
-                               int slot_size,
                                int payload_size,
                                int num_packets,
                                int grid_size,
