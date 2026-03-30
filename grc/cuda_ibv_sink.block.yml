@@ -47,5 +47,6 @@ inputs:
 - label: in
   domain: cuda
   dtype: byte
+  vlen: ${payload_size}
 
 file_format: 1

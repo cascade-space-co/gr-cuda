@@ -52,7 +52,7 @@ ibv_sink_impl::ibv_sink_impl(const std::string& ibv_device,
                              const std::string& mcast_group,
                              int gpu_id)
     : sync_block("ibv_sink",
-                 io_signature::make(1, 1, sizeof(char), cuda_buffer::type),
+                 io_signature::make(1, 1, payload_size, cuda_buffer::type),
                  io_signature::make(0, 0, 0)),
       d_payload_size(payload_size),
       d_interface(interface),
@@ -62,13 +62,17 @@ ibv_sink_impl::ibv_sink_impl(const std::string& ibv_device,
       d_mcast_group(mcast_group),
       d_gpu_id(gpu_id)
 {
+    if (d_payload_size <= 0)
+        throw std::runtime_error("ibv_sink: payload_size must be > 0");
+
     d_frame_size = L2L3L4_HDR_LEN + d_payload_size;
     d_slot_size = d_frame_size;
     if (d_slot_size > MAX_SLOT_SIZE)
-        throw std::runtime_error("ibv_sink: frame size exceeds max slot size (" +
-                                 std::to_string(MAX_SLOT_SIZE) + ")");
+        throw std::runtime_error(
+            "ibv_sink: frame size (" + std::to_string(d_slot_size) +
+            ") exceeds max slot size (" + std::to_string(MAX_SLOT_SIZE) + ")");
 
-    set_output_multiple(d_payload_size);
+    set_output_multiple(SIGNAL_BATCH);
     check_cuda_errors(cudaSetDevice(d_gpu_id), "ibv_sink: cudaSetDevice", d_logger);
 
     ibv_transport::qp_config cfg;
@@ -80,8 +84,6 @@ ibv_sink_impl::ibv_sink_impl(const std::string& ibv_device,
 
     d_gpu_buf = std::make_unique<ibv_gpu_buffer>(d_gpu_id, GPU_BUF_SIZE, d_xport->pd());
     d_num_slots = GPU_BUF_SIZE / d_slot_size;
-    if (d_num_slots < static_cast<uint32_t>(NUM_WR))
-        throw std::runtime_error("ibv_sink: GPU_BUF_SIZE too small for NUM_WR slots");
 
     build_header();
 
@@ -119,10 +121,28 @@ ibv_sink_impl::~ibv_sink_impl()
     free(d_wrs);
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// Header template
-// ─────────────────────────────────────────────────────────────────────
+// start() - check scheduler buffer sizing
+bool ibv_sink_impl::start()
+{
+    size_t buf_items = detail()->input(0)->buffer()->bufsize();
+    size_t buf_bytes = buf_items * d_payload_size;
 
+    GR_LOG_INFO(d_logger,
+                "ibv_sink: input buffer " + std::to_string(buf_items) + " packets (" +
+                    std::to_string(buf_bytes / (1024 * 1024)) +
+                    " MB), SIGNAL_BATCH=" + std::to_string(SIGNAL_BATCH));
+
+    if (buf_items < static_cast<size_t>(SIGNAL_BATCH) * 4) {
+        GR_LOG_WARN(d_logger,
+                    "ibv_sink: input buffer holds only " + std::to_string(buf_items) +
+                        " packets — recommend >= " + std::to_string(SIGNAL_BATCH * 4) +
+                        " (4x SIGNAL_BATCH) to avoid scheduler stalls");
+    }
+    return sync_block::start();
+}
+
+
+// Header template
 void ibv_sink_impl::build_header()
 {
     uint8_t src_mac[6], dst_mac_bytes[6];
@@ -181,10 +201,7 @@ void ibv_sink_impl::build_header()
         d_logger);
 }
 
-// ─────────────────────────────────────────────────────────────────────
 // CQ drain
-// ─────────────────────────────────────────────────────────────────────
-
 void ibv_sink_impl::drain_cq()
 {
     struct ibv_wc wc[CQ_POLL_BATCH];
@@ -201,37 +218,33 @@ void ibv_sink_impl::drain_cq()
         d_outstanding = 0;
 }
 
-// ─────────────────────────────────────────────────────────────────────
 // work()
-// ─────────────────────────────────────────────────────────────────────
-
 int ibv_sink_impl::work(int noutput_items,
                         gr_vector_const_void_star& input_items,
                         gr_vector_void_star& output_items)
 {
-    // 1. Drain old completions (non-blocking)
-    drain_cq();
+    // noutput_items is in packet units and always a multiple of SIGNAL_BATCH
+    // (guaranteed by set_output_multiple).
+    int num_pkts = std::min(noutput_items, static_cast<int>(d_num_slots));
+    num_pkts = (num_pkts / SIGNAL_BATCH) * SIGNAL_BATCH;
 
-    // 2. Wait for input data to be ready on the GPU
+    // Bounded spin-wait for NIC send slots (pure IBV, no CUDA overhead).
+    // After the spin, do a partial send with however many slots freed up.
+    constexpr int SPIN_LIMIT = 4000;
+    for (int spin = 0; spin < SPIN_LIMIT; spin++) {
+        drain_cq();
+        if (NUM_WR - d_outstanding >= num_pkts)
+            break;
+    }
+    int available = NUM_WR - d_outstanding;
+    num_pkts = std::min(num_pkts, (available / SIGNAL_BATCH) * SIGNAL_BATCH);
+    if (num_pkts <= 0)
+        return 0;
+
+    // We have packets to send and slots to post into — sync GPU.
     gr::cuda::wait_for_work(detail(), d_stream);
     auto in = static_cast<const uint8_t*>(input_items[0]);
 
-    // 3. Calculate how many packets we can send
-    int available_slots = NUM_WR - d_outstanding;
-    if (available_slots < SIGNAL_BATCH) {
-        gr::cuda::mark_work_done(detail(), d_stream);
-        return 0;
-    }
-
-    int num_pkts = noutput_items / d_payload_size;
-    num_pkts = std::min({ num_pkts, available_slots, static_cast<int>(d_num_slots) });
-    num_pkts = (num_pkts / SIGNAL_BATCH) * SIGNAL_BATCH;
-    if (num_pkts <= 0) {
-        gr::cuda::mark_work_done(detail(), d_stream);
-        return 0;
-    }
-
-    // 4. Build all frames in one kernel launch
     const uint32_t first_slot = d_next_slot;
     exec_build_frames_kernel(d_gpu_buf->data(),
                              d_slot_size,
@@ -246,11 +259,11 @@ int ibv_sink_impl::work(int noutput_items,
                              d_block_size,
                              d_stream);
 
-    // 5. Sync: frames must be in GPU memory before the NIC DMAs them
+    // Frames must be in GPU memory before the NIC DMAs them.
     check_cuda_errors(
         cudaStreamSynchronize(d_stream), "ibv_sink: cudaStreamSynchronize", d_logger);
 
-    // 6. Post send WRs in chained batches of SIGNAL_BATCH
+    // Post send WRs in chained batches of SIGNAL_BATCH.
     int posted_pkts = 0;
     for (int base = 0; base < num_pkts; base += SIGNAL_BATCH) {
         int batch_end = base + SIGNAL_BATCH;
@@ -283,7 +296,7 @@ int ibv_sink_impl::work(int noutput_items,
     }
 
     gr::cuda::mark_work_done(detail(), d_stream);
-    return posted_pkts * d_payload_size;
+    return posted_pkts;
 }
 
 } /* namespace cuda */

@@ -38,5 +38,6 @@ outputs:
 - label: out
   domain: cuda
   dtype: byte
+  vlen: ${payload_size}
 
 file_format: 1
