@@ -35,16 +35,50 @@ from gnuradio import cuda, gr
 
 
 def _wrap_work(fn):
-    """Wrap ``work()`` / ``general_work()`` with CUDA sync and CuPy conversion."""
+    """Wrap ``work()`` / ``general_work()`` with CUDA sync and CuPy conversion.
+
+    If the user calls ``self.produce()`` inside ``general_work()``,
+    ``mark_work_done`` is triggered automatically before the first
+    ``produce()`` call so that the device-ready event is recorded
+    before the write pointer advances.
+    """
 
     @functools.wraps(fn)
     def wrapped(self, input_items, output_items):
+        # GPU-side waits: block until upstream data is ready and
+        # downstream is done reading our previous output.
         cuda.wait_for_work(self.gateway, self.stream.ptr)
-        with self.stream:
-            cp_in = [cuda.as_cupy(x) for x in input_items]
-            cp_out = [cuda.as_cupy(x) for x in output_items]
-            result = fn(self, cp_in, cp_out)
-        cuda.mark_work_done(self.gateway, self.stream.ptr)
+
+        # Intercept self.produce() so that mark_work_done is called
+        # before produce() advances the write pointer.  Without this,
+        # produce() triggers post_work() + update_write_pointer()
+        # immediately, and for D2D buffers post_work is a no-op, so
+        # the downstream block would see a stale device-ready event.
+        self._cuda_work_done = False
+        orig_produce = self.produce
+
+        def _safe_produce(*args, **kwargs):
+            if not self._cuda_work_done:
+                cuda.mark_work_done(self.gateway, self.stream.ptr)
+                self._cuda_work_done = True
+            return orig_produce(*args, **kwargs)
+
+        self.produce = _safe_produce
+
+        try:
+            with self.stream:
+                cp_in = [cuda.as_cupy(x) for x in input_items]
+                cp_out = [cuda.as_cupy(x) for x in output_items]
+                result = fn(self, cp_in, cp_out)
+        finally:
+            # Always restore the original produce, even on exceptions.
+            self.produce = orig_produce
+
+        if not self._cuda_work_done:
+            # User returned a count instead of calling produce() explicitly;
+            # the block_executor will call produce_each() after we return.
+            cuda.mark_work_done(self.gateway, self.stream.ptr)
+
         return result
 
     wrapped._cuda_wrapped = True
