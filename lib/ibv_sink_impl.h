@@ -27,10 +27,20 @@ class ibv_sink_impl : public ibv_sink, public cuda_block
 private:
     static constexpr int MAX_SLOT_SIZE = 9216;
     static constexpr int NUM_WR = 4096;
-    static constexpr int SIGNAL_BATCH = 64;
+    static constexpr int SIGNAL_BATCH = 512;
     static constexpr int CQ_SIZE = NUM_WR * 2;
     static constexpr int CQ_POLL_BATCH = 64;
     static constexpr size_t GPU_BUF_SIZE = 64UL * 1024 * 1024;
+
+    static_assert(SIGNAL_BATCH <= NUM_WR,
+                  "need at least one signaled WR before the send queue wraps");
+    static_assert(NUM_WR % SIGNAL_BATCH == 0,
+                  "NUM_WR must be a multiple of SIGNAL_BATCH for WR pool indexing");
+    static_assert(
+        CQ_SIZE >= NUM_WR / SIGNAL_BATCH,
+        "CQ_SIZE must be >= NUM_WR/SIGNAL_BATCH (max outstanding completions)");
+    static_assert(GPU_BUF_SIZE / MAX_SLOT_SIZE >= NUM_WR,
+                  "GPU_BUF_SIZE must hold at least NUM_WR slots at max frame size");
 
     int d_payload_size;
     std::string d_interface;
@@ -73,6 +83,8 @@ public:
                   const std::string& mcast_group,
                   int gpu_id);
     ~ibv_sink_impl() override;
+
+    bool start() override;
 
     int work(int noutput_items,
              gr_vector_const_void_star& input_items,

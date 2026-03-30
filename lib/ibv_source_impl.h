@@ -27,10 +27,15 @@ class ibv_source_impl : public ibv_source, public cuda_block
 private:
     // One slot holds a full raw Ethernet frame (jumbo)
     static constexpr int SLOT_SIZE = 9216;
-    static constexpr int NUM_WR = 2048;
+    static constexpr int NUM_WR = 4096;
     static constexpr int CQ_SIZE = NUM_WR * 2;
-    static constexpr int CQ_POLL_BATCH = 64;
+    static constexpr int CQ_POLL_BATCH = 512;
     static constexpr size_t GPU_BUF_SIZE = 64UL * 1024 * 1024;
+
+    static_assert(CQ_SIZE >= NUM_WR,
+                  "CQ_SIZE must be >= NUM_WR (every recv WR produces a completion)");
+    static_assert(GPU_BUF_SIZE / SLOT_SIZE >= NUM_WR,
+                  "GPU_BUF_SIZE must hold at least NUM_WR slots of SLOT_SIZE bytes");
 
     int d_payload_size;
     std::string d_interface;
@@ -77,6 +82,8 @@ public:
                     const std::string& mcast_group,
                     int gpu_id);
     ~ibv_source_impl() override;
+
+    bool start() override;
 
     int work(int noutput_items,
              gr_vector_const_void_star& input_items,
