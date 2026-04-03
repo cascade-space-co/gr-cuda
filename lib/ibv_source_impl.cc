@@ -10,7 +10,7 @@
 
 #include "ibv_source.cuh"
 #include "ibv_source_impl.h"
-#include "net_headers.h"
+#include "network/net_headers.h"
 #include <gnuradio/cuda/cuda_block_helper.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_error.h>
@@ -28,55 +28,61 @@ namespace gr {
 namespace cuda {
 
 ibv_source::sptr ibv_source::make(const std::string& ibv_device,
-                                  const std::string& interface,
                                   int udp_port,
                                   int payload_size,
-                                  const std::string& mcast_group,
-                                  int gpu_id)
+                                  const std::string& mcast_group)
 {
     return gnuradio::make_block_sptr<ibv_source_impl>(
-        ibv_device, interface, udp_port, payload_size, mcast_group, gpu_id);
+        ibv_device, udp_port, payload_size, mcast_group);
 }
 
 ibv_source_impl::ibv_source_impl(const std::string& ibv_device,
-                                 const std::string& interface,
                                  int udp_port,
                                  int payload_size,
-                                 const std::string& mcast_group,
-                                 int gpu_id)
+                                 const std::string& mcast_group)
     : sync_block("ibv_source",
                  io_signature::make(0, 0, 0),
                  io_signature::make(1, 1, payload_size, cuda_buffer::type)),
       d_payload_size(payload_size),
-      d_interface(interface),
       d_mcast_group(mcast_group),
-      d_udp_port(udp_port),
-      d_gpu_id(gpu_id)
+      d_udp_port(udp_port)
 {
     if (d_payload_size <= 0)
         throw std::runtime_error("ibv_source: payload_size must be > 0");
+    // Each NIC slot holds one complete raw Ethernet frame: 42-byte
+    // L2/L3/L4 header + payload.
     if (L2L3L4_HDR_LEN + d_payload_size > SLOT_SIZE)
         throw std::runtime_error("ibv_source: frame size (" +
                                  std::to_string(L2L3L4_HDR_LEN + d_payload_size) +
                                  ") exceeds slot size (" + std::to_string(SLOT_SIZE) +
                                  ")");
 
+    // Ensure the scheduler always provides at least CQ_POLL_BATCH items
+    // of output space so we can deliver a full CQ poll in one kernel launch.
     set_output_multiple(CQ_POLL_BATCH);
-    check_cuda_errors(cudaSetDevice(d_gpu_id), "ibv_source: cudaSetDevice", d_logger);
 
+    // Open the IB device and create the QP (raw Ethernet, receive-only;
+    // no RTS transition needed for recv).
     ibv_transport::qp_config cfg;
     cfg.max_recv_wr = NUM_WR;
     cfg.max_recv_sge = 1;
     cfg.cq_size = CQ_SIZE;
     d_xport = std::make_unique<ibv_transport>(ibv_device, cfg);
 
-    d_gpu_buf = std::make_unique<ibv_gpu_buffer>(d_gpu_id, GPU_BUF_SIZE, d_xport->pd());
+    // Allocate a GPU-resident landing buffer registered as an IB MR.
+    // The NIC DMAs raw Ethernet frames directly into this GPU memory.
+    d_gpu_buf = std::make_unique<ibv_gpu_buffer>(GPU_BUF_SIZE, d_xport->pd());
     d_num_slots = GPU_BUF_SIZE / SLOT_SIZE;
 
+    // Pre-allocate the WR/SGE pool; per-post fields (addr, wr_id, next)
+    // are patched in post_recv_batch().
     d_sges = static_cast<struct ibv_sge*>(calloc(NUM_WR, sizeof(struct ibv_sge)));
     d_wrs =
         static_cast<struct ibv_recv_wr*>(calloc(NUM_WR, sizeof(struct ibv_recv_wr)));
 
+    // Join multicast group (IGMP), install NIC flow-steering rule, and
+    // seed the receive queue with NUM_WR buffers so the NIC can start
+    // receiving immediately.
     setup_multicast();
     setup_flow_steering();
     post_recv_batch(NUM_WR);
@@ -90,8 +96,8 @@ ibv_source_impl::~ibv_source_impl()
         close(d_igmp_sock);
     if (d_flow)
         ibv_destroy_flow(d_flow);
-    /* d_gpu_buf and d_xport are destroyed by unique_ptr in reverse
-       declaration order (MR deregistered before PD is freed). */
+    // d_gpu_buf and d_xport are destroyed by unique_ptr in reverse
+    // declaration order (MR deregistered before PD is freed)
     free(d_sges);
     free(d_wrs);
 }
@@ -118,6 +124,12 @@ bool ibv_source_impl::start()
 }
 
 // Setup helpers (called once from the constructor)
+// Join an IGMP multicast group on the NIC so the switch forwards
+// traffic to us.  We open a throwaway UDP socket and issue
+// IP_ADD_MEMBERSHIP with the interface index derived from the IB
+// device (via sysfs).  The socket is kept open for the lifetime of
+// the block so the kernel maintains the IGMP membership; it is
+// closed in the destructor.
 void ibv_source_impl::setup_multicast()
 {
     if (d_mcast_group.empty())
@@ -128,10 +140,11 @@ void ibv_source_impl::setup_multicast()
         throw std::runtime_error("ibv_source: socket(IGMP): " +
                                  std::string(strerror(errno)));
 
+    std::string netdev = d_xport->netdev_name();
     struct ip_mreqn mreq;
     memset(&mreq, 0, sizeof(mreq));
     mreq.imr_multiaddr.s_addr = inet_addr(d_mcast_group.c_str());
-    mreq.imr_ifindex = if_nametoindex(d_interface.c_str());
+    mreq.imr_ifindex = if_nametoindex(netdev.c_str());
     if (setsockopt(d_igmp_sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) <
         0) {
         close(d_igmp_sock);
@@ -141,6 +154,15 @@ void ibv_source_impl::setup_multicast()
     }
 }
 
+// Install a hardware flow-steering rule on the NIC so that only
+// matching packets land in our QP.  The rule is a three-layer filter:
+//   L2 (Eth) -- for multicast: match the IANA-mapped mcast MAC
+//   L3 (IPv4) -- for multicast: match the mcast group IP
+//   L4 (UDP)  -- always: match the destination port
+//
+// For unicast the L2/L3 specs are left zeroed (wildcard), so the NIC
+// steers solely on the UDP dst port.  The rule is destroyed in the
+// destructor via ibv_destroy_flow().
 void ibv_source_impl::setup_flow_steering()
 {
     struct {
@@ -154,12 +176,14 @@ void ibv_source_impl::setup_flow_steering()
     rule.attr.type = IBV_FLOW_ATTR_NORMAL;
     rule.attr.size = sizeof(rule);
     rule.attr.num_of_specs = 3;
-    rule.attr.port = 1;
+    rule.attr.port = 1; // physical port 1 (ConnectX numbering)
 
     rule.eth.type = IBV_FLOW_SPEC_ETH;
     rule.eth.size = sizeof(rule.eth);
 
     if (!d_mcast_group.empty()) {
+        // Map the multicast IP to its IEEE 802.3 MAC (01:00:5e:xx:xx:xx)
+        // and require an exact match on both L2 dst MAC and L3 dst IP.
         uint32_t mcast_ip = inet_addr(d_mcast_group.c_str());
         mcast_ip_to_mac(mcast_ip, rule.eth.val.dst_mac);
         memset(rule.eth.mask.dst_mac, 0xff, 6);
@@ -168,14 +192,18 @@ void ibv_source_impl::setup_flow_steering()
         rule.ipv4.mask.dst_ip = 0xffffffff;
     }
 
+    // IPv4 spec -- for unicast the val/mask fields stay zeroed (wildcard).
     rule.ipv4.type = IBV_FLOW_SPEC_IPV4;
     rule.ipv4.size = sizeof(rule.ipv4);
 
+    // UDP spec -- always match on dst port (network byte order).
     rule.udp.type = IBV_FLOW_SPEC_UDP;
     rule.udp.size = sizeof(rule.udp);
     rule.udp.val.dst_port = htobe16(static_cast<uint16_t>(d_udp_port));
     rule.udp.mask.dst_port = 0xffff;
 
+    // Attach the rule to our QP; the NIC will now deliver only matching
+    // frames into this QP's receive queue.
     d_flow = ibv_create_flow(d_xport->qp(), &rule.attr);
     if (!d_flow)
         throw std::runtime_error("ibv_source: ibv_create_flow: " +
@@ -185,6 +213,10 @@ void ibv_source_impl::setup_flow_steering()
 // Receive WR management
 void ibv_source_impl::post_recv_batch(int count)
 {
+    // Build a linked list of `count` receive WRs, each pointing at the
+    // next free slot in the GPU landing buffer.  The NIC will DMA one
+    // raw Ethernet frame into each slot.  We chain them so a single
+    // ibv_post_recv() call posts the entire batch atomically.
     for (int i = 0; i < count; i++) {
         d_sges[i].addr = reinterpret_cast<uint64_t>(
             d_gpu_buf->data() + static_cast<uint64_t>(d_next_slot) * SLOT_SIZE);

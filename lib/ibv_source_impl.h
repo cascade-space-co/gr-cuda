@@ -11,7 +11,7 @@
 #ifndef INCLUDED_CUDA_IBV_SOURCE_IMPL_H
 #define INCLUDED_CUDA_IBV_SOURCE_IMPL_H
 
-#include "ibv_common.h"
+#include "network/ibv_common.h"
 #include <gnuradio/cuda/cuda_block.h>
 #include <gnuradio/cuda/ibv_source.h>
 
@@ -38,10 +38,8 @@ private:
                   "GPU_BUF_SIZE must hold at least NUM_WR slots of SLOT_SIZE bytes");
 
     int d_payload_size;
-    std::string d_interface;
     std::string d_mcast_group;
     int d_udp_port;
-    int d_gpu_id;
 
     // IBV transport (ctx, pd, cq, qp) and GPU landing buffer (MR)
     std::unique_ptr<ibv_transport> d_xport;
@@ -67,11 +65,9 @@ private:
 
 public:
     ibv_source_impl(const std::string& ibv_device,
-                    const std::string& interface,
                     int udp_port,
                     int payload_size,
-                    const std::string& mcast_group,
-                    int gpu_id);
+                    const std::string& mcast_group);
     ~ibv_source_impl() override;
 
     bool start() override;

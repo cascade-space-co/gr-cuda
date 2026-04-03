@@ -11,6 +11,7 @@
 #include <infiniband/verbs.h>
 #include <cstddef>
 #include <cstdint>
+#include <stdexcept>
 #include <string>
 
 namespace gr {
@@ -19,9 +20,13 @@ namespace cuda {
 /*!
  * \brief RAII wrapper for an IB transport: device context, PD, CQ, and QP.
  *
- * Opens the named IB device, allocates a protection domain, creates a
- * completion queue, creates a raw-Ethernet queue pair, and transitions
- * the QP through RESET -> INIT -> RTR (-> RTS if \c cfg.rts is set).
+ * Opens the named IB (InfiniBand) device, allocates a PD (Protection
+ * Domain -- an isolation boundary for memory regions and queue pairs),
+ * creates a CQ (Completion Queue -- where the NIC posts send/recv
+ * completions), creates a raw-Ethernet QP (Queue Pair -- a pair of
+ * send and receive queues that the NIC processes via DMA), and
+ * transitions the QP through RESET -> INIT -> RTR (Ready To Receive)
+ * (-> RTS (Ready To Send) if \c cfg.rts is set).
  * All resources are released in the destructor in reverse order.
  */
 class ibv_transport
@@ -47,6 +52,15 @@ public:
     struct ibv_cq* cq() const { return d_cq; }
     struct ibv_qp* qp() const { return d_qp; }
 
+    /*!
+     * \brief Derive the Linux network interface name from the IB device.
+     *
+     * Reads the single entry under <ibdev_path>/device/net/ in sysfs.
+     * Throws if the mapping cannot be resolved (e.g. the device is
+     * InfiniBand-only with no Ethernet netdev).
+     */
+    std::string netdev_name() const;
+
 private:
     struct ibv_context* d_ctx = nullptr;
     struct ibv_pd* d_pd = nullptr;
@@ -61,13 +75,11 @@ private:
  * cudaHostAlloc (unified-addressing fallback), then registers the buffer
  * with the given protection domain.  The destructor deregisters the MR
  * and frees the memory.
- *
- * \note The caller must call cudaSetDevice() before constructing this object.
  */
 class ibv_gpu_buffer
 {
 public:
-    ibv_gpu_buffer(int gpu_id, size_t size, struct ibv_pd* pd);
+    ibv_gpu_buffer(size_t size, struct ibv_pd* pd);
     ~ibv_gpu_buffer();
 
     ibv_gpu_buffer(const ibv_gpu_buffer&) = delete;

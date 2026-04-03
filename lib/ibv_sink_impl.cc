@@ -10,7 +10,7 @@
 
 #include "ibv_sink.cuh"
 #include "ibv_sink_impl.h"
-#include "net_headers.h"
+#include "network/net_headers.h"
 #include <gnuradio/cuda/cuda_block_helper.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_error.h>
@@ -25,46 +25,36 @@ namespace gr {
 namespace cuda {
 
 ibv_sink::sptr ibv_sink::make(const std::string& ibv_device,
-                              const std::string& interface,
                               const std::string& dst_ip,
                               int dst_port,
                               int payload_size,
                               const std::string& dst_mac,
-                              const std::string& mcast_group,
-                              int gpu_id)
+                              const std::string& mcast_group)
 {
-    return gnuradio::make_block_sptr<ibv_sink_impl>(ibv_device,
-                                                    interface,
-                                                    dst_ip,
-                                                    dst_port,
-                                                    payload_size,
-                                                    dst_mac,
-                                                    mcast_group,
-                                                    gpu_id);
+    return gnuradio::make_block_sptr<ibv_sink_impl>(
+        ibv_device, dst_ip, dst_port, payload_size, dst_mac, mcast_group);
 }
 
 ibv_sink_impl::ibv_sink_impl(const std::string& ibv_device,
-                             const std::string& interface,
                              const std::string& dst_ip,
                              int dst_port,
                              int payload_size,
                              const std::string& dst_mac,
-                             const std::string& mcast_group,
-                             int gpu_id)
+                             const std::string& mcast_group)
     : sync_block("ibv_sink",
                  io_signature::make(1, 1, payload_size, cuda_buffer::type),
                  io_signature::make(0, 0, 0)),
       d_payload_size(payload_size),
-      d_interface(interface),
       d_dst_ip(dst_ip),
       d_dst_port(dst_port),
       d_dst_mac(dst_mac),
-      d_mcast_group(mcast_group),
-      d_gpu_id(gpu_id)
+      d_mcast_group(mcast_group)
 {
     if (d_payload_size <= 0)
         throw std::runtime_error("ibv_sink: payload_size must be > 0");
 
+    // Each NIC slot holds one complete raw Ethernet frame: 42-byte
+    // L2/L3/L4 header + payload.
     d_frame_size = L2L3L4_HDR_LEN + d_payload_size;
     d_slot_size = d_frame_size;
     if (d_slot_size > MAX_SLOT_SIZE)
@@ -72,9 +62,12 @@ ibv_sink_impl::ibv_sink_impl(const std::string& ibv_device,
             "ibv_sink: frame size (" + std::to_string(d_slot_size) +
             ") exceeds max slot size (" + std::to_string(MAX_SLOT_SIZE) + ")");
 
+    // Ensure the scheduler always hands us at least SIGNAL_BATCH items
+    // so we can amortize CQ signalling over a batch of sends.
     set_output_multiple(SIGNAL_BATCH);
-    check_cuda_errors(cudaSetDevice(d_gpu_id), "ibv_sink: cudaSetDevice", d_logger);
 
+    // Open the IB device and create the QP in Ready-To-Send state
+    // (raw Ethernet QP; no connection handshake needed).
     ibv_transport::qp_config cfg;
     cfg.max_send_wr = NUM_WR;
     cfg.max_send_sge = 1;
@@ -82,11 +75,18 @@ ibv_sink_impl::ibv_sink_impl(const std::string& ibv_device,
     cfg.rts = true;
     d_xport = std::make_unique<ibv_transport>(ibv_device, cfg);
 
-    d_gpu_buf = std::make_unique<ibv_gpu_buffer>(d_gpu_id, GPU_BUF_SIZE, d_xport->pd());
+    // Allocate a GPU-resident landing buffer registered as an IB MR.
+    // The NIC reads frame data directly from this GPU memory via DMA.
+    d_gpu_buf = std::make_unique<ibv_gpu_buffer>(GPU_BUF_SIZE, d_xport->pd());
     d_num_slots = GPU_BUF_SIZE / d_slot_size;
 
+    // Build the 42-byte Eth/IP/UDP header template on the GPU; the
+    // CUDA kernel will replicate it into every slot before each send.
     build_header();
 
+    // Pre-allocate the WR/SGE pool.  Fields that never change (length,
+    // lkey, opcode) are set once here; the per-send addr and signal
+    // flag are patched in work().
     d_sges = static_cast<struct ibv_sge*>(calloc(NUM_WR, sizeof(struct ibv_sge)));
     d_wrs =
         static_cast<struct ibv_send_wr*>(calloc(NUM_WR, sizeof(struct ibv_send_wr)));
@@ -142,16 +142,29 @@ bool ibv_sink_impl::start()
 }
 
 
-// Header template
+// Build a 42-byte Eth/IP/UDP header template on the GPU.
+//
+// The template is built once on the CPU (with proper checksums, byte
+// order, MACs, etc.) and then copied to GPU memory.  At runtime the
+// CUDA kernel memcpy's this template into every outgoing slot, so we
+// avoid any per-packet header construction on the hot path.
+//
+// For multicast the destination MAC is derived from the group IP
+// (IANA mapping 01:00:5e:xx:xx:xx) and TTL is set to 1.  For
+// unicast the caller-supplied MAC/IP are used with TTL 64.
 void ibv_sink_impl::build_header()
 {
+    // Resolve our own MAC and IP from the Linux netdev associated
+    // with the IB device (discovered via sysfs).
+    std::string netdev = d_xport->netdev_name();
+
     uint8_t src_mac[6], dst_mac_bytes[6];
-    if (get_mac_address(d_interface.c_str(), src_mac))
-        throw std::runtime_error("ibv_sink: cannot get MAC for " + d_interface);
+    if (get_mac_address(netdev.c_str(), src_mac))
+        throw std::runtime_error("ibv_sink: cannot get MAC for " + netdev);
 
     uint32_t src_ip;
-    if (get_ipv4_address(d_interface.c_str(), &src_ip))
-        throw std::runtime_error("ibv_sink: cannot get IP for " + d_interface);
+    if (get_ipv4_address(netdev.c_str(), &src_ip))
+        throw std::runtime_error("ibv_sink: cannot get IP for " + netdev);
 
     uint32_t dst_ip_addr;
     uint8_t ttl;
@@ -168,6 +181,7 @@ void ibv_sink_impl::build_header()
         ttl = 64;
     }
 
+    // Assemble the 42-byte header on the stack: [Eth 14B][IP 20B][UDP 8B]
     uint8_t hdr[L2L3L4_HDR_LEN];
     memset(hdr, 0, sizeof(hdr));
 
@@ -179,9 +193,9 @@ void ibv_sink_impl::build_header()
     auto* ip = reinterpret_cast<ip_hdr*>(hdr + ETH_HDR_LEN);
     ip->ver_ihl = 0x45;
     ip->total_len = htons(IP_HDR_LEN + UDP_HDR_LEN + d_payload_size);
-    ip->flags_frag = htons(0x4000);
+    ip->flags_frag = htons(0x4000); // Don't Fragment
     ip->ttl = ttl;
-    ip->protocol = 17;
+    ip->protocol = 17; // UDP
     ip->src_ip = src_ip;
     ip->dst_ip = dst_ip_addr;
     ip->checksum = ip_checksum(ip, IP_HDR_LEN);
@@ -190,7 +204,10 @@ void ibv_sink_impl::build_header()
     udp->src_port = htons(12345);
     udp->dst_port = htons(static_cast<uint16_t>(d_dst_port));
     udp->length = htons(UDP_HDR_LEN + d_payload_size);
+    // UDP checksum left as 0 (optional for IPv4).
 
+    // Upload the template to GPU; the CUDA kernel copies it into
+    // each slot's first 42 bytes before every send batch.
     check_cuda_errors(
         cudaMalloc(reinterpret_cast<void**>(&d_header_template), L2L3L4_HDR_LEN),
         "ibv_sink: cudaMalloc header_template",

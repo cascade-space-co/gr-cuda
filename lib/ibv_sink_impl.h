@@ -11,7 +11,7 @@
 #ifndef INCLUDED_CUDA_IBV_SINK_IMPL_H
 #define INCLUDED_CUDA_IBV_SINK_IMPL_H
 
-#include "ibv_common.h"
+#include "network/ibv_common.h"
 #include <gnuradio/cuda/cuda_block.h>
 #include <gnuradio/cuda/ibv_sink.h>
 
@@ -43,12 +43,10 @@ private:
                   "GPU_BUF_SIZE must hold at least NUM_WR slots at max frame size");
 
     int d_payload_size;
-    std::string d_interface;
     std::string d_dst_ip;
     int d_dst_port;
     std::string d_dst_mac;
     std::string d_mcast_group;
-    int d_gpu_id;
 
     int d_frame_size;
     int d_slot_size;
@@ -75,13 +73,11 @@ private:
 
 public:
     ibv_sink_impl(const std::string& ibv_device,
-                  const std::string& interface,
                   const std::string& dst_ip,
                   int dst_port,
                   int payload_size,
                   const std::string& dst_mac,
-                  const std::string& mcast_group,
-                  int gpu_id);
+                  const std::string& mcast_group);
     ~ibv_sink_impl() override;
 
     bool start() override;

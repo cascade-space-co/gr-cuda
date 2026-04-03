@@ -3,6 +3,13 @@
  * Copyright 2026 Cascade Space.
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * Packed network header structs and helpers used by the IBV sink/source
+ * blocks to build or parse raw Ethernet/IPv4/UDP frames on the GPU.
+ *
+ * All multi-byte header fields are stored in network byte order unless
+ * otherwise noted.  The structs are __attribute__((packed)) so they can
+ * be overlaid directly onto a frame buffer without padding surprises.
  */
 
 #ifndef INCLUDED_GR_CUDA_NET_HEADERS_H
@@ -20,37 +27,49 @@
 namespace gr {
 namespace cuda {
 
-static constexpr int ETH_HDR_LEN = 14;
-static constexpr int IP_HDR_LEN = 20;
-static constexpr int UDP_HDR_LEN = 8;
-static constexpr int L2L3L4_HDR_LEN = ETH_HDR_LEN + IP_HDR_LEN + UDP_HDR_LEN;
+// Standard header lengths (bytes).  The combined 42 bytes precede
+// every UDP payload in the raw Ethernet frames we send/receive.
+static constexpr int ETH_HDR_LEN = 14; // dst(6) + src(6) + ethertype(2)
+static constexpr int IP_HDR_LEN = 20;  // IPv4 without options
+static constexpr int UDP_HDR_LEN = 8;  // src_port + dst_port + len + csum
+static constexpr int L2L3L4_HDR_LEN = ETH_HDR_LEN + IP_HDR_LEN + UDP_HDR_LEN; // 42
+
+// ---- Layer 2: Ethernet II ------------------------------------------------
 
 struct __attribute__((packed)) eth_hdr {
     uint8_t dst_mac[6];
     uint8_t src_mac[6];
-    uint16_t ethertype;
+    uint16_t ethertype; // 0x0800 = IPv4
 };
 
+// ---- Layer 3: IPv4 -------------------------------------------------------
+
 struct __attribute__((packed)) ip_hdr {
-    uint8_t ver_ihl;
+    uint8_t ver_ihl; // version (4 bits) | IHL (4 bits); 0x45 = IPv4, 20B
     uint8_t dscp_ecn;
-    uint16_t total_len;
+    uint16_t total_len; // IP header + UDP header + payload
     uint16_t id;
-    uint16_t flags_frag;
+    uint16_t flags_frag; // 0x4000 = Don't Fragment
     uint8_t ttl;
-    uint8_t protocol;
+    uint8_t protocol; // 17 = UDP
     uint16_t checksum;
     uint32_t src_ip;
     uint32_t dst_ip;
 };
 
+// ---- Layer 4: UDP --------------------------------------------------------
+
 struct __attribute__((packed)) udp_hdr {
     uint16_t src_port;
     uint16_t dst_port;
-    uint16_t length;
-    uint16_t checksum;
+    uint16_t length;   // UDP header + payload
+    uint16_t checksum; // optional for IPv4 (may be left 0)
 };
 
+// ---- Utilities -----------------------------------------------------------
+
+// One's-complement checksum over `len` bytes (must be even).
+// Used to compute the IPv4 header checksum.
 inline uint16_t ip_checksum(const void* data, int len)
 {
     auto words = static_cast<const uint16_t*>(data);
@@ -62,7 +81,9 @@ inline uint16_t ip_checksum(const void* data, int len)
     return htons(static_cast<uint16_t>(~sum));
 }
 
-/* RFC 7042 / IANA OUI 01:00:5e -- derive multicast MAC from IP (network order). */
+// Map IPv4 multicast IP (network byte order) to its IEEE 802.3 MAC
+// address per RFC 7042 / IANA OUI 01:00:5e.  The low 23 bits of the
+// IP are placed into the low 23 bits of the MAC.
 inline void mcast_ip_to_mac(uint32_t mcast_ip_net, uint8_t* mac)
 {
     uint32_t mip = ntohl(mcast_ip_net);
@@ -74,6 +95,8 @@ inline void mcast_ip_to_mac(uint32_t mcast_ip_net, uint8_t* mac)
     mac[5] = mip & 0xff;
 }
 
+// Query the 6-byte hardware (MAC) address of a Linux network interface
+// via ioctl(SIOCGIFHWADDR).  Returns 0 on success, -1 on failure.
 inline int get_mac_address(const char* ifname, uint8_t* mac)
 {
     int fd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -90,6 +113,8 @@ inline int get_mac_address(const char* ifname, uint8_t* mac)
     return 0;
 }
 
+// Query the IPv4 address (network byte order) of a Linux network
+// interface via ioctl(SIOCGIFADDR).  Returns 0 on success, -1 on failure.
 inline int get_ipv4_address(const char* ifname, uint32_t* ip)
 {
     int fd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -106,6 +131,8 @@ inline int get_ipv4_address(const char* ifname, uint32_t* ip)
     return 0;
 }
 
+// Parse a colon-separated MAC string "xx:xx:xx:xx:xx:xx" into 6 bytes.
+// Returns 0 on success, -1 on failure.
 inline int parse_mac(const char* str, uint8_t* mac)
 {
     return (sscanf(str,

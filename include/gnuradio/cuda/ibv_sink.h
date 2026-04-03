@@ -34,12 +34,13 @@ namespace cuda {
  * Optimized for line-rate: batched kernel launch, chained WR posting
  * (64 per ibv_post_send), 4096-deep send pipeline.
  *
- * \section prereqs Prerequisites
- *   - ConnectX-7 (or later) in Ethernet mode, link up
- *   - CUDA 11.7+ with dmabuf support, or Grace Blackwell unified memory
- *   - rdma-core / MLNX_OFED
- *   - PCIe ACS disabled on switches between NIC and GPU
- *   - CAP_NET_RAW (run flowgraph as root or with appropriate capability)
+ * \note If GPUDirect RDMA throughput is lower than expected, PCIe ACS
+ * (Access Control Services) may be enabled on a bridge between the NIC
+ * and the GPU.  Disable it with:
+ * \code
+ *   sudo setpci -s <bridge_bdf> ECAP_ACS+6.w=0000
+ * \endcode
+ * Run `sudo lspci -vvv | grep -i ACSCtl` to check.
  */
 class CUDA_API ibv_sink : virtual public gr::sync_block
 {
@@ -49,23 +50,24 @@ public:
     /*!
      * \brief Return a shared_ptr to a new instance of cuda::ibv_sink.
      *
-     * \param ibv_device   IB device name (e.g. "rocep119s0f0")
-     * \param interface    Network interface (e.g. "ens10f0np0") for src MAC/IP
+     * \param ibv_device   IB device name as shown by `ibv_devices`
+     *                     (e.g. "rocep119s0f0"); the associated Linux
+     *                     netdev is derived automatically via sysfs for
+     *                     source MAC/IP.
      * \param dst_ip       Destination IP address (ignored if mcast_group is set)
      * \param dst_port     Destination UDP port
      * \param payload_size Payload size per packet in bytes
-     * \param dst_mac      Destination MAC "xx:xx:xx:xx:xx:xx" (ignored if mcast_group
-     * is set) \param mcast_group  Multicast group IP (e.g. "239.1.2.3"), empty for
-     * unicast \param gpu_id       CUDA GPU device ID (default: 0)
+     * \param dst_mac      Destination MAC "xx:xx:xx:xx:xx:xx" (ignored if
+     *                     mcast_group is set)
+     * \param mcast_group  Multicast group IP (e.g. "239.1.2.3"), empty for
+     *                     unicast
      */
     static sptr make(const std::string& ibv_device,
-                     const std::string& interface,
                      const std::string& dst_ip,
                      int dst_port,
                      int payload_size,
                      const std::string& dst_mac = "",
-                     const std::string& mcast_group = "",
-                     int gpu_id = 0);
+                     const std::string& mcast_group = "");
 };
 
 } // namespace cuda
