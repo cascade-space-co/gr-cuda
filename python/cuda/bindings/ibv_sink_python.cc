@@ -28,13 +28,11 @@ void bind_ibv_sink(py::module& m)
 
         .def(py::init(&ibv_sink::make),
              py::arg("ibv_device"),
-             py::arg("interface"),
              py::arg("dst_ip"),
              py::arg("dst_port"),
              py::arg("payload_size"),
              py::arg("dst_mac") = "",
-             py::arg("mcast_group") = "",
-             py::arg("gpu_id") = 0)
+             py::arg("mcast_group") = "")
 
         ;
 }

@@ -42,12 +42,14 @@ list(
     probe_rate_impl.cc
     throttle_impl.cc
     tee_impl.cc
+    seq_stamp_impl.cc
+    seq_strip_impl.cc
 )
 
 if(ENABLE_IBV)
     list(
         APPEND cuda_sources
-        ibv_common.cc
+        network/ibv_common.cc
         ibv_source_impl.cc
         ibv_source.cu
         ibv_sink_impl.cc

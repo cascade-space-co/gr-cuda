@@ -42,6 +42,8 @@ list(
     streams_to_vector_python.cc
     vector_to_streams_python.cc
     tee_python.cc
+    seq_stamp_python.cc
+    seq_strip_python.cc
     python_bindings.cc
 )
 

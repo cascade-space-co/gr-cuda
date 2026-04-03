@@ -10,6 +10,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
+#include <dirent.h>
 #include <unistd.h>
 #include <cerrno>
 #include <cstring>
@@ -22,7 +23,7 @@ namespace cuda {
 
 ibv_transport::ibv_transport(const std::string& device_name, const qp_config& cfg)
 {
-    /* ── Open IB device ── */
+    // Open IB device
     int num_devices = 0;
     struct ibv_device** dev_list = ibv_get_device_list(&num_devices);
     if (!dev_list || num_devices == 0)
@@ -47,19 +48,19 @@ ibv_transport::ibv_transport(const std::string& device_name, const qp_config& cf
         throw std::runtime_error("ibv_transport: ibv_open_device: " +
                                  std::string(strerror(errno)));
 
-    /* ── Protection domain ── */
+    // Protection domain
     d_pd = ibv_alloc_pd(d_ctx);
     if (!d_pd)
         throw std::runtime_error("ibv_transport: ibv_alloc_pd: " +
                                  std::string(strerror(errno)));
 
-    /* ── Completion queue ── */
+    // Completion queue
     d_cq = ibv_create_cq(d_ctx, cfg.cq_size, nullptr, nullptr, 0);
     if (!d_cq)
         throw std::runtime_error("ibv_transport: ibv_create_cq: " +
                                  std::string(strerror(errno)));
 
-    /* ── Queue pair (raw Ethernet) ── */
+    // Queue pair (raw Ethernet)
     struct ibv_qp_init_attr qp_init;
     memset(&qp_init, 0, sizeof(qp_init));
     qp_init.qp_type = IBV_QPT_RAW_PACKET;
@@ -75,29 +76,52 @@ ibv_transport::ibv_transport(const std::string& device_name, const qp_config& cf
         throw std::runtime_error("ibv_transport: ibv_create_qp: " +
                                  std::string(strerror(errno)));
 
-    /* ── QP state transitions: RESET → INIT → RTR [→ RTS] ── */
+    // QP state transitions: RESET -> INIT -> RTR [-> RTS]
     struct ibv_qp_attr attr;
 
     memset(&attr, 0, sizeof(attr));
     attr.qp_state = IBV_QPS_INIT;
     attr.port_num = 1;
     if (ibv_modify_qp(d_qp, &attr, IBV_QP_STATE | IBV_QP_PORT))
-        throw std::runtime_error("ibv_transport: RESET→INIT: " +
+        throw std::runtime_error("ibv_transport: RESET->INIT: " +
                                  std::string(strerror(errno)));
 
     memset(&attr, 0, sizeof(attr));
     attr.qp_state = IBV_QPS_RTR;
     if (ibv_modify_qp(d_qp, &attr, IBV_QP_STATE))
-        throw std::runtime_error("ibv_transport: INIT→RTR: " +
+        throw std::runtime_error("ibv_transport: INIT->RTR: " +
                                  std::string(strerror(errno)));
 
     if (cfg.rts) {
         memset(&attr, 0, sizeof(attr));
         attr.qp_state = IBV_QPS_RTS;
         if (ibv_modify_qp(d_qp, &attr, IBV_QP_STATE))
-            throw std::runtime_error("ibv_transport: RTR→RTS: " +
+            throw std::runtime_error("ibv_transport: RTR->RTS: " +
                                      std::string(strerror(errno)));
     }
+}
+
+std::string ibv_transport::netdev_name() const
+{
+    std::string net_dir = std::string(d_ctx->device->ibdev_path) + "/device/net";
+    DIR* dir = opendir(net_dir.c_str());
+    if (!dir)
+        throw std::runtime_error("ibv_transport::netdev_name: cannot open " + net_dir);
+
+    std::string result;
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        if (entry->d_name[0] == '.')
+            continue;
+        result = entry->d_name;
+        break;
+    }
+    closedir(dir);
+
+    if (result.empty())
+        throw std::runtime_error("ibv_transport::netdev_name: no netdev found for " +
+                                 std::string(d_ctx->device->name));
+    return result;
 }
 
 ibv_transport::~ibv_transport()
@@ -112,15 +136,14 @@ ibv_transport::~ibv_transport()
         ibv_close_device(d_ctx);
 }
 
-// ─────────────────────────────────────────────────────────────────────
 // ibv_gpu_buffer
-// ─────────────────────────────────────────────────────────────────────
 
-ibv_gpu_buffer::ibv_gpu_buffer(int gpu_id, size_t size, struct ibv_pd* pd)
-    : d_size(size)
+ibv_gpu_buffer::ibv_gpu_buffer(size_t size, struct ibv_pd* pd) : d_size(size)
 {
+    int device;
+    cudaGetDevice(&device);
     CUdevice cu_dev;
-    cuDeviceGet(&cu_dev, gpu_id);
+    cuDeviceGet(&cu_dev, device);
 
     int dmabuf_supported = 0;
     cuDeviceGetAttribute(

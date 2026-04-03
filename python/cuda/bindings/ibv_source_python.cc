@@ -28,11 +28,9 @@ void bind_ibv_source(py::module& m)
 
         .def(py::init(&ibv_source::make),
              py::arg("ibv_device"),
-             py::arg("interface"),
              py::arg("udp_port"),
              py::arg("payload_size"),
-             py::arg("mcast_group") = "",
-             py::arg("gpu_id") = 0)
+             py::arg("mcast_group") = "")
 
         ;
 }

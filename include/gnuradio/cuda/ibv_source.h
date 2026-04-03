@@ -30,12 +30,13 @@ namespace cuda {
  *
  * Supports unicast and multicast (IGMP join handled automatically).
  *
- * \section prereqs Prerequisites
- *   - ConnectX-7 (or later) in Ethernet mode, link up
- *   - CUDA 11.7+ with dmabuf support, or Grace Blackwell unified memory
- *   - rdma-core / MLNX_OFED
- *   - PCIe ACS disabled on switches between NIC and GPU
- *   - CAP_NET_RAW (run flowgraph as root or with appropriate capability)
+ * \note If GPUDirect RDMA throughput is lower than expected, PCIe ACS
+ * (Access Control Services) may be enabled on a bridge between the NIC
+ * and the GPU.  Disable it with:
+ * \code
+ *   sudo setpci -s <bridge_bdf> ECAP_ACS+6.w=0000
+ * \endcode
+ * Run `sudo lspci -vvv | grep -i ACSCtl` to check.
  */
 class CUDA_API ibv_source : virtual public gr::sync_block
 {
@@ -45,19 +46,18 @@ public:
     /*!
      * \brief Return a shared_ptr to a new instance of cuda::ibv_source.
      *
-     * \param ibv_device   IB device name (e.g. "rocep119s0f0")
-     * \param interface    Network interface (e.g. "ens10f0np0") for IGMP join
+     * \param ibv_device   IB device name as shown by `ibv_devices`
+     *                     (e.g. "rocep119s0f0"); the associated Linux
+     *                     netdev is derived automatically via sysfs for
+     *                     IGMP multicast joins.
      * \param udp_port     UDP destination port to match in flow steering
      * \param payload_size Expected UDP payload size in bytes
      * \param mcast_group  Multicast group IP (e.g. "239.1.2.3"), empty for unicast
-     * \param gpu_id       CUDA GPU device ID (default: 0)
      */
     static sptr make(const std::string& ibv_device,
-                     const std::string& interface,
                      int udp_port,
                      int payload_size,
-                     const std::string& mcast_group = "",
-                     int gpu_id = 0);
+                     const std::string& mcast_group = "");
 };
 
 } // namespace cuda
