@@ -20,6 +20,7 @@
 #include <unistd.h>
 #include <algorithm>
 #include <cstring>
+#include <sstream>
 
 namespace gr {
 namespace cuda {
@@ -205,6 +206,14 @@ void ibv_sink_impl::build_header()
     udp->dst_port = htons(static_cast<uint16_t>(d_dst_port));
     udp->length = htons(UDP_HDR_LEN + d_payload_size);
     // UDP checksum left as 0 (optional for IPv4).
+
+    struct in_addr src_in {
+        src_ip
+    }, dst_in{ dst_ip_addr };
+    std::ostringstream log;
+    log << "ibv_sink: netdev=" << netdev << " src=" << inet_ntoa(src_in)
+        << " dst=" << inet_ntoa(dst_in) << " dst_port=" << d_dst_port;
+    GR_LOG_INFO(d_logger, log.str());
 
     // Upload the template to GPU; the CUDA kernel copies it into
     // each slot's first 42 bytes before every send batch.

@@ -70,12 +70,17 @@ struct __attribute__((packed)) udp_hdr {
 
 // One's-complement checksum over `len` bytes (must be even).
 // Used to compute the IPv4 header checksum.
+//
+// Byte-addressed to avoid any strict-aliasing pitfalls with the
+// `uint16_t*` cast, and to not depend on `data` being 2-byte aligned.
 inline uint16_t ip_checksum(const void* data, int len)
 {
-    auto words = static_cast<const uint16_t*>(data);
+    auto bytes = static_cast<const uint8_t*>(data);
     uint32_t sum = 0;
-    for (int i = 0; i < len / 2; i++)
-        sum += ntohs(words[i]);
+    for (int i = 0; i + 1 < len; i += 2)
+        sum += (static_cast<uint32_t>(bytes[i]) << 8) | bytes[i + 1];
+    if (len & 1)
+        sum += static_cast<uint32_t>(bytes[len - 1]) << 8;
     while (sum >> 16)
         sum = (sum & 0xffff) + (sum >> 16);
     return htons(static_cast<uint16_t>(~sum));
