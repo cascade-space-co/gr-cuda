@@ -80,6 +80,34 @@ See [`cuda_block.h`](include/gnuradio/cuda/cuda_block.h) and [`multiply_const_im
 
 > Want to use gr-cuda blocks in your own out-of-tree module? See **[docs/OOT_INTEGRATION.md](docs/OOT_INTEGRATION.md)**.
 
+## Zero-copy NIC <-> GPU I/O
+
+When `libibverbs` is available at configure time, `gr-cuda` also builds two blocks for moving raw Ethernet frames between a NIC and GPU memory with no CPU involvement on the data path:
+
+- **`cuda.ibv_source`** — receive raw UDP frames into a GPU-resident landing buffer via GPUDirect RDMA, with NIC hardware flow steering on UDP destination port (and optional IP multicast).
+- **`cuda.ibv_sink`** — transmit GPU-resident payloads as raw UDP frames; L2/L3/L4 headers are constructed on the GPU and the NIC reads frames directly from GPU memory.
+
+The build auto-detects `libibverbs`: if it isn't present, the IBV blocks are silently skipped and the rest of `gr-cuda` builds normally. To explicitly toggle, pass `-DENABLE_IBV=ON` or `-DENABLE_IBV=OFF` at configure time.
+
+### Verifying your IBV link
+
+Before debugging issues in a higher-level flowgraph that uses these blocks, validate the link itself with the bundled diagnostic.
+
+```bash
+# Single-host loopback (uses NIC-internal loopback):
+sudo ibv_link_check.py --mode both \
+    --tx-ibv-dev mlx5_0 --rx-ibv-dev mlx5_0 \
+    --tx-dst-mac aa:bb:cc:dd:ee:ff \
+    --duration 10
+
+# Two-machine test:
+# On the receiver:
+sudo ibv_link_check.py --mode rx --rx-ibv-dev mlx5_0 ...
+# On the sender (--tx-dst-mac is the receiver's NIC MAC):
+sudo ibv_link_check.py --mode tx --tx-ibv-dev mlx5_0 \
+    --tx-dst-mac aa:bb:cc:dd:ee:ff ...
+```
+
 ## Performance
 
 Benchmarked on an **NVIDIA DGX Spark (GB10)** and an **NVIDIA RTX PRO 6000 Blackwell** (PCIe 5.0 x16).
