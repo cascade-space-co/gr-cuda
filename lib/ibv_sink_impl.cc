@@ -15,6 +15,7 @@
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_error.h>
 #include <gnuradio/io_signature.h>
+#include <gnuradio/prefs.h>
 
 #include <arpa/inet.h>
 #include <unistd.h>
@@ -63,23 +64,52 @@ ibv_sink_impl::ibv_sink_impl(const std::string& ibv_device,
             "ibv_sink: frame size (" + std::to_string(d_slot_size) +
             ") exceeds max slot size (" + std::to_string(MAX_SLOT_SIZE) + ")");
 
-    // Ensure the scheduler always hands us at least SIGNAL_BATCH items
+    // Resolve runtime tuning knobs from gr::prefs (with the compile-time
+    // DEFAULT_* values as fallbacks).
+    auto* prefs = gr::prefs::singleton();
+    d_num_wr = static_cast<int>(prefs->get_long("ibv_sink", "num_wr", DEFAULT_NUM_WR));
+    d_signal_batch = static_cast<int>(
+        prefs->get_long("ibv_sink", "signal_batch", DEFAULT_SIGNAL_BATCH));
+    d_cq_size = static_cast<int>(prefs->get_long("ibv_sink", "cq_size", d_num_wr * 2));
+    d_cq_poll_batch = static_cast<int>(
+        prefs->get_long("ibv_sink", "cq_poll_batch", DEFAULT_CQ_POLL_BATCH));
+    d_gpu_buf_size = static_cast<size_t>(prefs->get_long(
+        "ibv_sink", "gpu_buf_bytes", static_cast<long>(DEFAULT_GPU_BUF_BYTES)));
+
+    if (d_num_wr <= 0 || d_signal_batch <= 0 || d_cq_poll_batch <= 0)
+        throw std::invalid_argument(
+            "ibv_sink: num_wr, signal_batch, cq_poll_batch must all be > 0");
+    if (d_signal_batch > d_num_wr)
+        throw std::invalid_argument("ibv_sink: signal_batch must be <= num_wr");
+    if (d_num_wr % d_signal_batch != 0)
+        throw std::invalid_argument(
+            "ibv_sink: num_wr must be a multiple of signal_batch "
+            "(WR pool indexing assumes this)");
+    if (d_cq_size < d_num_wr / d_signal_batch)
+        throw std::invalid_argument("ibv_sink: cq_size must be >= num_wr/signal_batch "
+                                    "(max outstanding completions)");
+    if (d_gpu_buf_size / MAX_SLOT_SIZE < static_cast<size_t>(d_num_wr))
+        throw std::invalid_argument(
+            "ibv_sink: gpu_buf_bytes must hold at least num_wr slots at "
+            "max frame size");
+
+    // Ensure the scheduler always hands us at least signal_batch items
     // so we can amortize CQ signalling over a batch of sends.
-    set_output_multiple(SIGNAL_BATCH);
+    set_output_multiple(d_signal_batch);
 
     // Open the IB device and create the QP in Ready-To-Send state
     // (raw Ethernet QP; no connection handshake needed).
     ibv_transport::qp_config cfg;
-    cfg.max_send_wr = NUM_WR;
+    cfg.max_send_wr = d_num_wr;
     cfg.max_send_sge = 1;
-    cfg.cq_size = CQ_SIZE;
+    cfg.cq_size = d_cq_size;
     cfg.rts = true;
     d_xport = std::make_unique<ibv_transport>(ibv_device, cfg);
 
     // Allocate a GPU-resident landing buffer registered as an IB MR.
     // The NIC reads frame data directly from this GPU memory via DMA.
-    d_gpu_buf = std::make_unique<ibv_gpu_buffer>(GPU_BUF_SIZE, d_xport->pd());
-    d_num_slots = GPU_BUF_SIZE / d_slot_size;
+    d_gpu_buf = std::make_unique<ibv_gpu_buffer>(d_gpu_buf_size, d_xport->pd());
+    d_num_slots = d_gpu_buf_size / d_slot_size;
 
     // Build the 42-byte Eth/IP/UDP header template on the GPU; the
     // CUDA kernel will replicate it into every slot before each send.
@@ -87,17 +117,18 @@ ibv_sink_impl::ibv_sink_impl(const std::string& ibv_device,
 
     // Pre-allocate the WR/SGE pool.  Fields that never change (length,
     // lkey, opcode) are set once here; the per-send addr and signal
-    // flag are patched in work().
-    d_sges = static_cast<struct ibv_sge*>(calloc(NUM_WR, sizeof(struct ibv_sge)));
+    // flag are patched in work().  Sized to d_num_wr.
+    d_sges = static_cast<struct ibv_sge*>(calloc(d_num_wr, sizeof(struct ibv_sge)));
     d_wrs =
-        static_cast<struct ibv_send_wr*>(calloc(NUM_WR, sizeof(struct ibv_send_wr)));
-    for (int i = 0; i < NUM_WR; i++) {
+        static_cast<struct ibv_send_wr*>(calloc(d_num_wr, sizeof(struct ibv_send_wr)));
+    for (int i = 0; i < d_num_wr; i++) {
         d_sges[i].length = d_frame_size;
         d_sges[i].lkey = d_gpu_buf->mr()->lkey;
         d_wrs[i].sg_list = &d_sges[i];
         d_wrs[i].num_sge = 1;
         d_wrs[i].opcode = IBV_WR_SEND;
     }
+    d_wc_pool.resize(d_cq_poll_batch);
 
     get_build_frames_block_and_grid(&d_min_grid_size, &d_block_size);
 }
@@ -106,11 +137,10 @@ ibv_sink_impl::~ibv_sink_impl()
 {
     /* Drain outstanding sends before tearing down the QP. */
     if (d_xport && d_outstanding > 0) {
-        struct ibv_wc wc[CQ_POLL_BATCH];
         for (int retry = 0; retry < 200 && d_outstanding > 0; retry++) {
-            int n = ibv_poll_cq(d_xport->cq(), CQ_POLL_BATCH, wc);
+            int n = ibv_poll_cq(d_xport->cq(), d_cq_poll_batch, d_wc_pool.data());
             for (int i = 0; i < n; i++)
-                d_outstanding -= SIGNAL_BATCH;
+                d_outstanding -= d_signal_batch;
             usleep(500);
         }
     }
@@ -131,13 +161,15 @@ bool ibv_sink_impl::start()
     GR_LOG_INFO(d_logger,
                 "ibv_sink: input buffer " + std::to_string(buf_items) + " packets (" +
                     std::to_string(buf_bytes / (1024 * 1024)) +
-                    " MB), SIGNAL_BATCH=" + std::to_string(SIGNAL_BATCH));
+                    " MB), num_wr=" + std::to_string(d_num_wr) +
+                    ", signal_batch=" + std::to_string(d_signal_batch));
 
-    if (buf_items < static_cast<size_t>(SIGNAL_BATCH) * 4) {
-        GR_LOG_WARN(d_logger,
-                    "ibv_sink: input buffer holds only " + std::to_string(buf_items) +
-                        " packets — recommend >= " + std::to_string(SIGNAL_BATCH * 4) +
-                        " (4x SIGNAL_BATCH) to avoid scheduler stalls");
+    if (buf_items < static_cast<size_t>(d_signal_batch) * 4) {
+        GR_LOG_WARN(
+            d_logger,
+            "ibv_sink: input buffer holds only " + std::to_string(buf_items) +
+                " packets — recommend >= " + std::to_string(d_signal_batch * 4) +
+                " (4x signal_batch) to avoid scheduler stalls");
     }
     return sync_block::start();
 }
@@ -230,15 +262,15 @@ void ibv_sink_impl::build_header()
 // CQ drain
 void ibv_sink_impl::drain_cq()
 {
-    struct ibv_wc wc[CQ_POLL_BATCH];
-    int n = ibv_poll_cq(d_xport->cq(), CQ_POLL_BATCH, wc);
+    struct ibv_wc* wc = d_wc_pool.data();
+    int n = ibv_poll_cq(d_xport->cq(), d_cq_poll_batch, wc);
     for (int i = 0; i < n; i++) {
         if (wc[i].status != IBV_WC_SUCCESS) {
             GR_LOG_ERROR(d_logger,
                          "ibv_sink: send WC error status=" +
                              std::to_string(wc[i].status));
         }
-        d_outstanding -= SIGNAL_BATCH;
+        d_outstanding -= d_signal_batch;
     }
     if (d_outstanding < 0)
         d_outstanding = 0;
@@ -249,21 +281,21 @@ int ibv_sink_impl::work(int noutput_items,
                         gr_vector_const_void_star& input_items,
                         gr_vector_void_star& output_items)
 {
-    // noutput_items is in packet units and always a multiple of SIGNAL_BATCH
+    // noutput_items is in packet units and always a multiple of signal_batch
     // (guaranteed by set_output_multiple).
     int num_pkts = std::min(noutput_items, static_cast<int>(d_num_slots));
-    num_pkts = (num_pkts / SIGNAL_BATCH) * SIGNAL_BATCH;
+    num_pkts = (num_pkts / d_signal_batch) * d_signal_batch;
 
     // Bounded spin-wait for NIC send slots (pure IBV, no CUDA overhead).
     // After the spin, do a partial send with however many slots freed up.
     constexpr int SPIN_LIMIT = 4000;
     for (int spin = 0; spin < SPIN_LIMIT; spin++) {
         drain_cq();
-        if (NUM_WR - d_outstanding >= num_pkts)
+        if (d_num_wr - d_outstanding >= num_pkts)
             break;
     }
-    int available = NUM_WR - d_outstanding;
-    num_pkts = std::min(num_pkts, (available / SIGNAL_BATCH) * SIGNAL_BATCH);
+    int available = d_num_wr - d_outstanding;
+    num_pkts = std::min(num_pkts, (available / d_signal_batch) * d_signal_batch);
     if (num_pkts <= 0)
         return 0;
 
@@ -289,15 +321,15 @@ int ibv_sink_impl::work(int noutput_items,
     check_cuda_errors(
         cudaStreamSynchronize(d_stream), "ibv_sink: cudaStreamSynchronize", d_logger);
 
-    // Post send WRs in chained batches of SIGNAL_BATCH.
+    // Post send WRs in chained batches of signal_batch.
     int posted_pkts = 0;
-    for (int base = 0; base < num_pkts; base += SIGNAL_BATCH) {
-        int batch_end = base + SIGNAL_BATCH;
+    for (int base = 0; base < num_pkts; base += d_signal_batch) {
+        int batch_end = base + d_signal_batch;
         const uint64_t batch_wr_base = d_wr_counter;
 
         for (int j = base; j < batch_end; j++) {
             uint64_t wr_id = batch_wr_base + static_cast<uint64_t>(j - base);
-            int idx = static_cast<int>(wr_id % NUM_WR);
+            int idx = static_cast<int>(wr_id % d_num_wr);
             uint32_t slot = (first_slot + static_cast<uint32_t>(j)) % d_num_slots;
 
             d_sges[idx].addr = reinterpret_cast<uint64_t>(
@@ -305,20 +337,20 @@ int ibv_sink_impl::work(int noutput_items,
             d_wrs[idx].wr_id = wr_id;
             d_wrs[idx].send_flags = (j == batch_end - 1) ? IBV_SEND_SIGNALED : 0;
             d_wrs[idx].next = (j < batch_end - 1)
-                                  ? &d_wrs[static_cast<int>((wr_id + 1) % NUM_WR)]
+                                  ? &d_wrs[static_cast<int>((wr_id + 1) % d_num_wr)]
                                   : nullptr;
         }
 
-        int first_idx = static_cast<int>(batch_wr_base % NUM_WR);
+        int first_idx = static_cast<int>(batch_wr_base % d_num_wr);
         struct ibv_send_wr* bad_wr = nullptr;
         if (ibv_post_send(d_xport->qp(), &d_wrs[first_idx], &bad_wr)) {
             GR_LOG_ERROR(d_logger, "ibv_sink: ibv_post_send failed");
             break;
         }
-        d_wr_counter += SIGNAL_BATCH;
-        d_outstanding += SIGNAL_BATCH;
-        d_next_slot = (d_next_slot + SIGNAL_BATCH) % d_num_slots;
-        posted_pkts += SIGNAL_BATCH;
+        d_wr_counter += d_signal_batch;
+        d_outstanding += d_signal_batch;
+        d_next_slot = (d_next_slot + d_signal_batch) % d_num_slots;
+        posted_pkts += d_signal_batch;
     }
 
     gr::cuda::mark_work_done(detail(), d_stream);

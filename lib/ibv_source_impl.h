@@ -18,6 +18,7 @@
 #include <infiniband/verbs.h>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace gr {
 namespace cuda {
@@ -25,17 +26,30 @@ namespace cuda {
 class ibv_source_impl : public ibv_source, public cuda_block
 {
 private:
-    // One slot holds a full raw Ethernet frame (jumbo)
+    // One slot holds a full raw Ethernet frame (jumbo).  This is a hard
+    // frame-size limit (used in static buffer geometry), not a tuning
+    // knob, so it stays compile-time.
     static constexpr int SLOT_SIZE = 9216;
-    static constexpr int NUM_WR = 4096;
-    static constexpr int CQ_SIZE = NUM_WR * 2;
-    static constexpr int CQ_POLL_BATCH = 512;
-    static constexpr size_t GPU_BUF_SIZE = 64UL * 1024 * 1024;
 
-    static_assert(CQ_SIZE >= NUM_WR,
-                  "CQ_SIZE must be >= NUM_WR (every recv WR produces a completion)");
-    static_assert(GPU_BUF_SIZE / SLOT_SIZE >= NUM_WR,
-                  "GPU_BUF_SIZE must hold at least NUM_WR slots of SLOT_SIZE bytes");
+    // Compile-time defaults; the runtime values (d_*) are populated in
+    // the constructor from gr::prefs and may override these.  Override
+    // in the GR user prefs (path: `gnuradio-config-info --userprefsdir`):
+    //
+    //   [ibv_source]
+    //   num_wr          = 4096
+    //   cq_size         = 8192     ; default is 2 * num_wr
+    //   cq_poll_batch   = 512
+    //   gpu_buf_bytes   = 67108864 ; 64 MiB
+    static constexpr int DEFAULT_NUM_WR = 4096;
+    static constexpr int DEFAULT_CQ_SIZE = DEFAULT_NUM_WR * 2;
+    static constexpr int DEFAULT_CQ_POLL_BATCH = 512;
+    static constexpr size_t DEFAULT_GPU_BUF_BYTES = 64UL * 1024 * 1024;
+
+    // Runtime-resolved tuning knobs (read from gr::prefs in the ctor).
+    int d_num_wr;
+    int d_cq_size;
+    int d_cq_poll_batch;
+    size_t d_gpu_buf_size;
 
     int d_payload_size;
     std::string d_mcast_group;
@@ -46,9 +60,12 @@ private:
     std::unique_ptr<ibv_gpu_buffer> d_gpu_buf;
     struct ibv_flow* d_flow = nullptr;
 
-    // WR/SGE pool -- reused for every batch post
+    // WR/SGE pool -- reused for every batch post (sized to d_num_wr)
     struct ibv_sge* d_sges = nullptr;
     struct ibv_recv_wr* d_wrs = nullptr;
+
+    // Reusable scratch buffer for ibv_poll_cq() (sized to d_cq_poll_batch)
+    std::vector<struct ibv_wc> d_wc_pool;
 
     uint32_t d_num_slots;
     uint32_t d_next_slot = 0;

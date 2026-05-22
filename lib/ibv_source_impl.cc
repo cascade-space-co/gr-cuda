@@ -15,6 +15,7 @@
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_error.h>
 #include <gnuradio/io_signature.h>
+#include <gnuradio/prefs.h>
 
 #include <arpa/inet.h>
 #include <endian.h>
@@ -57,35 +58,57 @@ ibv_source_impl::ibv_source_impl(const std::string& ibv_device,
                                  ") exceeds slot size (" + std::to_string(SLOT_SIZE) +
                                  ")");
 
-    // Ensure the scheduler always provides at least CQ_POLL_BATCH items
+    // Resolve runtime tuning knobs from gr::prefs (with the compile-time
+    // DEFAULT_* values as fallbacks).
+    auto* prefs = gr::prefs::singleton();
+    d_num_wr =
+        static_cast<int>(prefs->get_long("ibv_source", "num_wr", DEFAULT_NUM_WR));
+    d_cq_size =
+        static_cast<int>(prefs->get_long("ibv_source", "cq_size", d_num_wr * 2));
+    d_cq_poll_batch = static_cast<int>(
+        prefs->get_long("ibv_source", "cq_poll_batch", DEFAULT_CQ_POLL_BATCH));
+    d_gpu_buf_size = static_cast<size_t>(prefs->get_long(
+        "ibv_source", "gpu_buf_bytes", static_cast<long>(DEFAULT_GPU_BUF_BYTES)));
+
+    if (d_num_wr <= 0 || d_cq_poll_batch <= 0)
+        throw std::invalid_argument("ibv_source: num_wr and cq_poll_batch must be > 0");
+    if (d_cq_size < d_num_wr)
+        throw std::invalid_argument("ibv_source: cq_size must be >= num_wr "
+                                    "(every recv WR produces a completion)");
+    if (d_gpu_buf_size / SLOT_SIZE < static_cast<size_t>(d_num_wr))
+        throw std::invalid_argument("ibv_source: gpu_buf_bytes must hold at least "
+                                    "num_wr slots of SLOT_SIZE bytes");
+
+    // Ensure the scheduler always provides at least cq_poll_batch items
     // of output space so we can deliver a full CQ poll in one kernel launch.
-    set_output_multiple(CQ_POLL_BATCH);
+    set_output_multiple(d_cq_poll_batch);
 
     // Open the IB device and create the QP (raw Ethernet, receive-only;
     // no RTS transition needed for recv).
     ibv_transport::qp_config cfg;
-    cfg.max_recv_wr = NUM_WR;
+    cfg.max_recv_wr = d_num_wr;
     cfg.max_recv_sge = 1;
-    cfg.cq_size = CQ_SIZE;
+    cfg.cq_size = d_cq_size;
     d_xport = std::make_unique<ibv_transport>(ibv_device, cfg);
 
     // Allocate a GPU-resident landing buffer registered as an IB MR.
     // The NIC DMAs raw Ethernet frames directly into this GPU memory.
-    d_gpu_buf = std::make_unique<ibv_gpu_buffer>(GPU_BUF_SIZE, d_xport->pd());
-    d_num_slots = GPU_BUF_SIZE / SLOT_SIZE;
+    d_gpu_buf = std::make_unique<ibv_gpu_buffer>(d_gpu_buf_size, d_xport->pd());
+    d_num_slots = d_gpu_buf_size / SLOT_SIZE;
 
     // Pre-allocate the WR/SGE pool; per-post fields (addr, wr_id, next)
-    // are patched in post_recv_batch().
-    d_sges = static_cast<struct ibv_sge*>(calloc(NUM_WR, sizeof(struct ibv_sge)));
+    // are patched in post_recv_batch().  Sized to d_num_wr.
+    d_sges = static_cast<struct ibv_sge*>(calloc(d_num_wr, sizeof(struct ibv_sge)));
     d_wrs =
-        static_cast<struct ibv_recv_wr*>(calloc(NUM_WR, sizeof(struct ibv_recv_wr)));
+        static_cast<struct ibv_recv_wr*>(calloc(d_num_wr, sizeof(struct ibv_recv_wr)));
+    d_wc_pool.resize(d_cq_poll_batch);
 
     // Join multicast group (IGMP), install NIC flow-steering rule, and
-    // seed the receive queue with NUM_WR buffers so the NIC can start
+    // seed the receive queue with d_num_wr buffers so the NIC can start
     // receiving immediately.
     setup_multicast();
     setup_flow_steering();
-    post_recv_batch(NUM_WR);
+    post_recv_batch(d_num_wr);
 
     get_strip_headers_block_and_grid(&d_min_grid_size, &d_block_size);
 }
@@ -111,14 +134,15 @@ bool ibv_source_impl::start()
     GR_LOG_INFO(d_logger,
                 "ibv_source: output buffer " + std::to_string(buf_items) +
                     " packets (" + std::to_string(buf_bytes / (1024 * 1024)) +
-                    " MB), CQ_POLL_BATCH=" + std::to_string(CQ_POLL_BATCH));
+                    " MB), num_wr=" + std::to_string(d_num_wr) +
+                    ", cq_poll_batch=" + std::to_string(d_cq_poll_batch));
 
-    if (buf_items < static_cast<size_t>(CQ_POLL_BATCH) * 4) {
-        GR_LOG_WARN(d_logger,
-                    "ibv_source: output buffer holds only " +
-                        std::to_string(buf_items) +
-                        " packets — recommend >= " + std::to_string(CQ_POLL_BATCH * 4) +
-                        " (4x CQ_POLL_BATCH) to avoid scheduler stalls");
+    if (buf_items < static_cast<size_t>(d_cq_poll_batch) * 4) {
+        GR_LOG_WARN(
+            d_logger,
+            "ibv_source: output buffer holds only " + std::to_string(buf_items) +
+                " packets — recommend >= " + std::to_string(d_cq_poll_batch * 4) +
+                " (4x cq_poll_batch) to avoid scheduler stalls");
     }
     return sync_block::start();
 }
@@ -248,10 +272,10 @@ int ibv_source_impl::work(int noutput_items,
     const uint32_t expected_len = L2L3L4_HDR_LEN + d_payload_size;
     constexpr int IDLE_LIMIT = 4000;
     int idle = 0;
-    struct ibv_wc wc[CQ_POLL_BATCH];
+    struct ibv_wc* wc = d_wc_pool.data();
 
-    while (idle < IDLE_LIMIT && d_ready_count < CQ_POLL_BATCH) {
-        int n = ibv_poll_cq(d_xport->cq(), CQ_POLL_BATCH, wc);
+    while (idle < IDLE_LIMIT && d_ready_count < d_cq_poll_batch) {
+        int n = ibv_poll_cq(d_xport->cq(), d_cq_poll_batch, wc);
         if (n < 0)
             return 0;
         if (n > 0) {
