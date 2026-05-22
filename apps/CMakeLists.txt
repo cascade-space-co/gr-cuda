@@ -14,3 +14,9 @@ GR_PYTHON_INSTALL(
         benchmark_gr_cuda_fft.py
     DESTINATION bin
 )
+
+# IBV link diagnostic; only meaningful when the IBV blocks are
+# built, because it imports cuda.ibv_source / cuda.ibv_sink.
+if(ENABLE_IBV)
+    GR_PYTHON_INSTALL(PROGRAMS ibv_link_check.py DESTINATION bin)
+endif()
