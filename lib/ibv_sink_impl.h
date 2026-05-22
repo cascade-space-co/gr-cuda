@@ -18,6 +18,7 @@
 #include <infiniband/verbs.h>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace gr {
 namespace cuda {
@@ -25,22 +26,32 @@ namespace cuda {
 class ibv_sink_impl : public ibv_sink, public cuda_block
 {
 private:
+    // Hard frame-size limit (used in static buffer geometry), not a
+    // tuning knob, so it stays compile-time.
     static constexpr int MAX_SLOT_SIZE = 9216;
-    static constexpr int NUM_WR = 4096;
-    static constexpr int SIGNAL_BATCH = 512;
-    static constexpr int CQ_SIZE = NUM_WR * 2;
-    static constexpr int CQ_POLL_BATCH = 64;
-    static constexpr size_t GPU_BUF_SIZE = 64UL * 1024 * 1024;
 
-    static_assert(SIGNAL_BATCH <= NUM_WR,
-                  "need at least one signaled WR before the send queue wraps");
-    static_assert(NUM_WR % SIGNAL_BATCH == 0,
-                  "NUM_WR must be a multiple of SIGNAL_BATCH for WR pool indexing");
-    static_assert(
-        CQ_SIZE >= NUM_WR / SIGNAL_BATCH,
-        "CQ_SIZE must be >= NUM_WR/SIGNAL_BATCH (max outstanding completions)");
-    static_assert(GPU_BUF_SIZE / MAX_SLOT_SIZE >= NUM_WR,
-                  "GPU_BUF_SIZE must hold at least NUM_WR slots at max frame size");
+    // Compile-time defaults; the runtime values (d_*) are populated in
+    // the constructor from gr::prefs and may override these.  Override
+    // in the GR user prefs (path: `gnuradio-config-info --userprefsdir`):
+    //
+    //   [ibv_sink]
+    //   num_wr          = 4096
+    //   signal_batch    = 512
+    //   cq_size         = 8192     ; default is 2 * num_wr
+    //   cq_poll_batch   = 64
+    //   gpu_buf_bytes   = 67108864 ; 64 MiB
+    static constexpr int DEFAULT_NUM_WR = 4096;
+    static constexpr int DEFAULT_SIGNAL_BATCH = 512;
+    static constexpr int DEFAULT_CQ_SIZE = DEFAULT_NUM_WR * 2;
+    static constexpr int DEFAULT_CQ_POLL_BATCH = 64;
+    static constexpr size_t DEFAULT_GPU_BUF_BYTES = 64UL * 1024 * 1024;
+
+    // Runtime-resolved tuning knobs (read from gr::prefs in the ctor).
+    int d_num_wr;
+    int d_signal_batch;
+    int d_cq_size;
+    int d_cq_poll_batch;
+    size_t d_gpu_buf_size;
 
     int d_payload_size;
     std::string d_dst_ip;
@@ -55,9 +66,12 @@ private:
     std::unique_ptr<ibv_transport> d_xport;
     std::unique_ptr<ibv_gpu_buffer> d_gpu_buf;
 
-    // Pre-allocated WR/SGE pool
+    // Pre-allocated WR/SGE pool (sized to d_num_wr)
     struct ibv_sge* d_sges = nullptr;
     struct ibv_send_wr* d_wrs = nullptr;
+
+    // Reusable scratch buffer for ibv_poll_cq() (sized to d_cq_poll_batch)
+    std::vector<struct ibv_wc> d_wc_pool;
 
     // 42-byte Eth/IP/UDP header template on the GPU
     uint8_t* d_header_template = nullptr;
