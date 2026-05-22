@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+#
+# Copyright 2026 Cascade Space.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
 """
 IBV link diagnostic -- sequence-counter loopback / two-machine test.
 
