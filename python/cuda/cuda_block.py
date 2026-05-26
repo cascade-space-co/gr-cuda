@@ -32,6 +32,7 @@ from collections.abc import Sequence
 
 import cupy as cp
 from gnuradio import cuda, gr
+from gnuradio.gr.gateway import py_io_signature
 
 
 def _wrap_work(fn):
@@ -91,8 +92,11 @@ class cuda_block:
     Transparently wraps ``work()`` and ``general_work()`` so that the
     user receives CuPy arrays and never touches synchronization calls.
 
-    Plain dtype lists passed as ``in_sig`` / ``out_sig`` are
-    automatically converted to CUDA io signatures.
+    ``in_sig`` / ``out_sig`` follow the same convention as GNU Radio's
+    Python ``gateway_block``: pass a ``py_io_signature`` (typically built
+    via ``cuda.io_signature_make``) to fully control min/max port counts,
+    or pass a plain sequence of numpy dtypes for the common fixed-arity
+    case (``min == max == len(dtype_list)``).
 
     Place ``cuda_block`` **before** the GR base in the inheritance list
     so that ``__init__`` chains correctly::
@@ -104,17 +108,17 @@ class cuda_block:
     def __init__(
         self,
         name: str,
-        in_sig: Sequence | None,
-        out_sig: Sequence | None,
+        in_sig: py_io_signature | Sequence | None,
+        out_sig: py_io_signature | Sequence | None,
         *args,
         **kwargs,
     ):
-        if in_sig is not None:
-            n = len(in_sig)
-            in_sig = cuda.io_signature_make(n, n, in_sig)
-        if out_sig is not None:
-            n = len(out_sig)
-            out_sig = cuda.io_signature_make(n, n, out_sig)
+        in_sig = in_sig or ()
+        out_sig = out_sig or ()
+        if type(in_sig) is not py_io_signature:
+            in_sig = cuda.io_signature_make(len(in_sig), len(in_sig), in_sig)
+        if type(out_sig) is not py_io_signature:
+            out_sig = cuda.io_signature_make(len(out_sig), len(out_sig), out_sig)
         super().__init__(name, in_sig, out_sig, *args, **kwargs)
 
     def __init_subclass__(cls, **kwargs):
