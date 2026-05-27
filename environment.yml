@@ -1,0 +1,20 @@
+channels:
+  - conda-forge
+  - nodefaults  # Only use conda-forge.
+dependencies:
+  # GNU Radio and OOT build toolchain
+  - gnuradio>=3.10.13  # minor versions have breaking changes
+  - gnuradio-build-deps  # cmake, ninja, compilers, pkg-config, etc.
+  - pygccxml>=3.0.2,<4.0  # pybind11 binding generation
+  - python>=3.12
+
+  # CUDA
+  - cuda-toolkit  # nvcc, cudart, cufft, cuda_driver
+  - cupy  # Python GPU blocks
+
+  # Development tools
+  - gersemi>=0.23.0  # CMake formatting
+  - ruff>=0.12.0  # Python linting and formatting
+  - clang-format>=18.0.0  # C++/CUDA formatting
+  - pre-commit>=3.0.0  # Pre-commit hooks
+  - pre-commit-hooks>=4.5.0  # File hygiene checks
