@@ -20,6 +20,7 @@ install(
         fft.h
         multiply_const.h
         load.h
+        nop.h
         null_source.h
         null_sink.h
         probe_rate.h

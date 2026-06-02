@@ -35,6 +35,7 @@ list(
     vector_to_stream_impl.cc
     streams_to_vector_impl.cc
     vector_to_streams_impl.cc
+    nop_impl.cc
     null_source_impl.cc
     null_sink_impl.cc
     probe_rate_impl.cc

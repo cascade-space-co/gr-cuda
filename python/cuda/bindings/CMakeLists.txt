@@ -31,6 +31,7 @@ list(
     fft_python.cc
     multiply_const_python.cc
     load_python.cc
+    nop_python.cc
     cuda_helpers_python.cc
     null_source_python.cc
     null_sink_python.cc
