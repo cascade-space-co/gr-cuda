@@ -1,10 +1,11 @@
-id: cuda_copy
-label: Copy (CUDA)
+id: cuda_nop
+label: Nop (CUDA)
 category: '[CUDA]'
 
 templates:
   imports: from gnuradio import cuda
-  make: cuda.copy(${type.size}*${vlen})
+  make: cuda.nop(${type.size}*${vlen})
+
 parameters:
 -   id: type
     label: Type
@@ -19,15 +20,20 @@ parameters:
     dtype: int
     default: '1'
     hide: ${ 'part' if vlen == 1 else 'none' }
+
 inputs:
 - label: in
   domain: cuda
   dtype: ${type}
   vlen: ${vlen}
+
 outputs:
 - label: out
   domain: cuda
   dtype: ${type}
   vlen: ${vlen}
+
+asserts:
+- ${ vlen > 0 }
 
 file_format: 1

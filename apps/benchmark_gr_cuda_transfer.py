@@ -36,33 +36,33 @@ def make_chain(mode, buff_len):
     meter_block is the block whose nitems_read(0) gives the item count.
     """
     if mode == "h2d":
-        # CPU -> GPU: null_source writes into cuda_buffer, copy forces the DMA,
-        # null_sink consumes on device.  Without the copy block the DMA event
+        # CPU -> GPU: null_source writes into cuda_buffer, nop forces the DMA,
+        # null_sink consumes on device.  Without the nop block the DMA event
         # synchronisation is not enforced and the counter races ahead.
         src = blocks.null_source(gr.sizeof_gr_complex)
-        copy = cuda.copy(gr.sizeof_gr_complex, True)
+        passthru = cuda.nop(gr.sizeof_gr_complex)
         sink = cuda.null_sink(gr.sizeof_gr_complex)
-        blk_list = [src, copy, sink]
-        conns = [(src, 0, copy, 0), (copy, 0, sink, 0)]
+        blk_list = [src, passthru, sink]
+        conns = [(src, 0, passthru, 0), (passthru, 0, sink, 0)]
         meter = sink
 
     elif mode == "d2h":
-        # GPU -> CPU: null_source produces on device, copy forces the DMA,
+        # GPU -> CPU: null_source produces on device, nop forces the DMA,
         # CPU null_sink reads via cuda_buffer D2H path.
         src = cuda.null_source(gr.sizeof_gr_complex, memset=False)
-        copy = cuda.copy(gr.sizeof_gr_complex, True)
+        passthru = cuda.nop(gr.sizeof_gr_complex)
         sink = blocks.null_sink(gr.sizeof_gr_complex)
-        blk_list = [src, copy, sink]
-        conns = [(src, 0, copy, 0), (copy, 0, sink, 0)]
+        blk_list = [src, passthru, sink]
+        conns = [(src, 0, passthru, 0), (passthru, 0, sink, 0)]
         meter = sink
 
     elif mode == "full":
-        # Full round-trip: CPU -> H2D -> GPU copy -> D2H -> CPU
+        # Full round-trip: CPU -> H2D -> GPU nop -> D2H -> CPU
         src = blocks.null_source(gr.sizeof_gr_complex)
-        copy = cuda.copy(gr.sizeof_gr_complex, True)
+        passthru = cuda.nop(gr.sizeof_gr_complex)
         sink = blocks.null_sink(gr.sizeof_gr_complex)
-        blk_list = [src, copy, sink]
-        conns = [(src, 0, copy, 0), (copy, 0, sink, 0)]
+        blk_list = [src, passthru, sink]
+        conns = [(src, 0, passthru, 0), (passthru, 0, sink, 0)]
         meter = sink
 
     else:

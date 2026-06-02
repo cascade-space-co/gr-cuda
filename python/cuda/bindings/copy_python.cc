@@ -17,7 +17,7 @@
 /* BINDTOOL_GEN_AUTOMATIC(0) */
 /* BINDTOOL_USE_PYGCCXML(0) */
 /* BINDTOOL_HEADER_FILE(copy.h)                                        */
-/* BINDTOOL_HEADER_FILE_HASH(1ce3bf93b4994b15d254cab3ee5e5e4f) */
+/* BINDTOOL_HEADER_FILE_HASH(7eca57cf14f68c6b19e28303a9c04b5b) */
 /***********************************************************************************/
 
 #include <pybind11/complex.h>
@@ -38,10 +38,7 @@ void bind_copy(py::module& m)
     py::class_<copy, gr::sync_block, gr::block, gr::basic_block, std::shared_ptr<copy>>(
         m, "copy", D(copy))
 
-        .def(py::init(&copy::make),
-             py::arg("itemsize"),
-             py::arg("noop") = false,
-             D(copy, make))
+        .def(py::init(&copy::make), py::arg("itemsize"), D(copy, make))
 
         ;
 }

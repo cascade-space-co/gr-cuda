@@ -15,7 +15,17 @@ repos:
         types: [python]
         exclude: ^(docs/|build/|examples/|test.*\.py|\..*\.py|.*\.grc)
 
-  # clang-format - C++ formatting
+  # Bindtool header hash validation
+  - repo: local
+    hooks:
+      - id: check-bindtool-hashes
+        name: check-bindtool-hashes
+        entry: python scripts/check_bindtool_header_hashes.py
+        language: system
+        pass_filenames: false
+        files: ^(include/|python/.*/bindings/)
+
+  # clang-format - C++/CUDA formatting
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v18.1.8
     hooks:
@@ -23,7 +33,8 @@ repos:
         types_or: [c++, c, cuda]
         exclude: ^(build/|docs/)
 
-  # gersemi - CMake formatting
+  # gersemi - CMake formatting (local only until GR is available in CI;
+  # needs GR cmake definitions for correct formatting of GR macros)
   - repo: local
     hooks:
       - id: gersemi

@@ -1,0 +1,32 @@
+name: Lint
+
+on:
+  push:
+    branches: [cascade/main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install tools
+        run: pip install pre-commit ruff
+        # TODO(GR-3.10.13): when gnuradio is available on conda-forge, replace
+        # the pip install above with:
+        #   mamba install -y -c conda-forge gnuradio gnuradio-build-deps ruff gersemi
+        # and remove the SKIP below so gersemi runs in CI too.
+
+      - name: Run all checks
+        env:
+          SKIP: gersemi
+        run: pre-commit run --all-files
