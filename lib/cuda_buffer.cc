@@ -300,6 +300,16 @@ void cuda_buffer::post_work(int nitems)
             cudaStream_t cs = cbr->consumer_stream();
             if (cs)
                 wait_device_ready(cs);
+        } else if (!d_sync_error_logged) {
+            // Every reader of a cuda_buffer must be a cuda_buffer_reader
+            // (they are only created by cuda_buffer::create_reader).  A
+            // failure here means device-ready sync is silently skipped and a
+            // consumer may read device data before the producer kernel has
+            // finished writing it.
+            d_sync_error_logged = true;
+            d_logger->error("post_work: buffer reader is not a cuda_buffer_reader; "
+                            "device-ready synchronization skipped (possible data "
+                            "corruption)");
         }
     }
 }

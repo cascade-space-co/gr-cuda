@@ -50,7 +50,14 @@ from gnuradio.gr.gateway import py_io_signature
 
 
 def _wrap_work(fn):
-    """Wrap ``work()`` / ``general_work()`` with CuPy stream and array conversion."""
+    """Wrap ``work()`` with CuPy stream and array conversion.
+
+    Used for the return-count path (sync/decim/interp blocks): the user
+    returns a count and the scheduler calls ``produce_each()`` -> ``post_work()``
+    *after* ``work()`` returns, so every kernel enqueued here is already on the
+    stream when the device-ready event is recorded.  No produce/consume
+    interception is needed.
+    """
 
     @functools.wraps(fn)
     def wrapped(self, input_items, output_items):
@@ -63,18 +70,94 @@ def _wrap_work(fn):
     return wrapped
 
 
+# produce/consume calls intercepted and replayed after general_work() returns.
+_DEFERRED_METHODS = ("produce", "consume", "consume_each")
+
+
+def _wrap_general_work(fn):
+    """Wrap ``general_work()`` with CuPy conversion, deferring produce/consume.
+
+    Unlike the return-count path, ``produce()`` invokes ``post_work()``
+    *synchronously*, which records the device-ready event immediately.  Any
+    kernel the user enqueues after ``produce()``/``consume_each()`` would then
+    be missed by that event, letting a downstream block read device memory
+    before the write completes.
+
+    As a backstop, ``produce()``, ``consume()`` and ``consume_each()`` are
+    intercepted and their effects replayed only after the user's
+    ``general_work()`` body returns; i.e. once every kernel is enqueued on the
+    stream.  This advances the read/write pointers (and thus records
+    device-ready) after the user's GPU work, not in the middle of it.
+
+    This is a *safety net, not a feature*: the produce/consume ordering
+    contract is identical to C++ (enqueue all stream work before you publish),
+    and the C++ path has no such deferral.  Write blocks to the contract so
+    they port cleanly; do not rely on calling produce/consume before enqueuing
+    the work they publish.  See docs/LIMITATIONS.md.
+
+    Consequence of the deferral: produce/consume side effects (e.g.
+    ``nitems_written()``) are not observable *within* the same
+    ``general_work()`` call -- they take effect when it returns -- so track
+    running offsets in local variables rather than re-querying the framework.
+    """
+
+    @functools.wraps(fn)
+    def wrapped(self, input_items, output_items):
+        deferred = []
+        originals = {name: getattr(self, name) for name in _DEFERRED_METHODS}
+
+        def _make_recorder(target):
+            def _record(*args, **kwargs):
+                deferred.append((target, args, kwargs))
+
+            return _record
+
+        for name, target in originals.items():
+            setattr(self, name, _make_recorder(target))
+
+        try:
+            with self.stream:
+                cp_in = [cuda.as_cupy(x) for x in input_items]
+                cp_out = [cuda.as_cupy(x) for x in output_items]
+                result = fn(self, cp_in, cp_out)
+        finally:
+            # Restore class-method lookup (drop the instance shadows).
+            for name in _DEFERRED_METHODS:
+                delattr(self, name)
+
+        # All kernels are now enqueued on self.stream; replaying produce/consume
+        # here makes post_work() record device-ready after the user's work.
+        for target, args, kwargs in deferred:
+            target(*args, **kwargs)
+
+        return result
+
+    wrapped._cuda_wrapped = True
+    return wrapped
+
+
 def _wrap_start(fn):
     """Ensure stream registration when a subclass defines its own ``start()``.
 
     Users are allowed to write a custom ``start()`` for their own setup.
-    This wrapper runs that code first, then calls ``cuda_block.start()``
-    to handle stream registration and GR base-class propagation.
+    This wrapper runs that code first, then ensures ``cuda_block.start()``
+    (stream registration + GR base-class propagation) runs *exactly once*.
+
+    A user start() may or may not call ``super().start()``.  If it does, the
+    super() chain already routes through ``cuda_block.start`` (which sets
+    ``_cuda_start_done``), so the wrapper must not call it a second time, or
+    both stream registration and the GR base ``start()`` would fire twice.
+    The per-call guard is reset on every entry so flowgraph restarts still
+    re-register the stream.
     """
 
     @functools.wraps(fn)
     def wrapped(self):
-        fn(self)
-        return cuda_block.start(self)
+        self._cuda_start_done = False
+        result = fn(self)
+        if not self._cuda_start_done:
+            result = cuda_block.start(self)
+        return result
 
     wrapped._cuda_start_wrapped = True
     return wrapped
@@ -118,18 +201,25 @@ class cuda_block:
     def __init_subclass__(cls, **kwargs):
         """Auto-wrap work()/general_work()/start() at class definition time."""
         super().__init_subclass__(**kwargs)
-        for name in ("work", "general_work"):
+        wrappers = {"work": _wrap_work, "general_work": _wrap_general_work}
+        for name, wrap in wrappers.items():
             if name in cls.__dict__:
                 fn = cls.__dict__[name]
                 if not getattr(fn, "_cuda_wrapped", False):
-                    setattr(cls, name, _wrap_work(fn))
+                    setattr(cls, name, wrap(fn))
         if "start" in cls.__dict__:
             fn = cls.__dict__["start"]
             if not getattr(fn, "_cuda_start_wrapped", False):
                 cls.start = _wrap_start(fn)
 
     def start(self):
-        """Register CUDA stream with all cuda_buffers for auto-sync."""
+        """Register CUDA stream with all cuda_buffers for auto-sync.
+
+        Sets ``_cuda_start_done`` so a custom start() wrapped by
+        ``_wrap_start`` can tell whether the super() chain already reached
+        here and avoid invoking it a second time.
+        """
+        self._cuda_start_done = True
         cuda.register_cuda_stream(self.gateway, self.stream.ptr)
         return super().start()
 

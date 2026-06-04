@@ -24,11 +24,16 @@ class cuda_buffer;
  * stream so the upstream producer knows it is safe to overwrite
  * (see autosync table in cuda_buffer.h).
  *
- * The consumer's CUDA stream is discovered lazily by attempting a
- * dynamic_cast<cuda_block*> on the consuming block (via link()).
- * If the cast succeeds, get_cuda_stream() provides the stream.
- * For non-GPU consumers (e.g. D2H edges to CPU blocks or Python
- * blocks), the cast returns nullptr and the sync is skipped.
+ * The consumer's CUDA stream is resolved once at construction (during
+ * single-threaded flowgraph setup) by attempting a dynamic_cast<cuda_block*>
+ * on the consuming block.  If the cast succeeds, get_cuda_stream() provides
+ * the stream.  Resolving eagerly keeps consumer_stream() a lock-free read at
+ * runtime, where it is called concurrently from the producer thread (via
+ * cuda_buffer::post_work) and the consumer thread (via update_read_pointer).
+ *
+ * For non-GPU consumers (e.g. D2H edges to CPU blocks or Python blocks), the
+ * cast returns nullptr and the sync is skipped; Python GPU blocks instead
+ * register their stream via set_consumer_stream() in start().
  */
 class CUDA_API cuda_buffer_reader : public buffer_reader
 {
@@ -37,14 +42,15 @@ class CUDA_API cuda_buffer_reader : public buffer_reader
 public:
     void update_read_pointer(int nitems) override;
 
-    cudaStream_t consumer_stream();
+    cudaStream_t consumer_stream() const;
 
     /*!
      * \brief Register the consumer's CUDA stream explicitly.
      *
      * Used by Python GPU blocks that cannot be discovered via
-     * dynamic_cast<cuda_block*>.  If set, consumer_stream()
-     * returns this stream instead of attempting the cast.
+     * dynamic_cast<cuda_block*> at construction.  Called from start()
+     * (single-threaded, before the scheduler runs) to overwrite the
+     * stream that consumer_stream() returns.
      */
     void set_consumer_stream(cudaStream_t s);
 
@@ -52,7 +58,10 @@ private:
     cuda_buffer_reader(buffer_sptr buf, unsigned int read_index, block_sptr link);
 
     cudaStream_t d_consumer_stream = nullptr;
-    bool d_stream_resolved = false;
+
+    logger_ptr d_logger;
+    logger_ptr d_debug_logger;
+    bool d_sync_error_logged = false;
 };
 
 } /* namespace gr */

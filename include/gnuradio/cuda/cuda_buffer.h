@@ -14,6 +14,7 @@
 
 #include <gnuradio/buffer_double_mapped.h>
 #include <gnuradio/buffer_type.h>
+#include <gnuradio/cuda/api.h>
 #include <gnuradio/version.h>
 
 #include <cuda.h>
@@ -99,7 +100,7 @@ class host_mmap_ring;
  *
  * \sa cuda_block.h for the standard GPU block pattern.
  */
-class GR_RUNTIME_API cuda_buffer : public buffer_double_mapped
+class CUDA_API cuda_buffer : public buffer_double_mapped
 {
 public:
     static buffer_type type;
@@ -234,6 +235,8 @@ private:
     cudaEvent_t d_host_ready_evt = nullptr;
     cudaEvent_t d_read_done_evt = nullptr;
     std::mutex d_read_done_mutex;
+
+    bool d_sync_error_logged = false;
 
     cuda_buffer(int nitems,
                 size_t sizeof_item,

@@ -77,10 +77,11 @@ class _gpu_scale_gw(cuda.basic_block):
 class _gpu_scale_explicit_produce(cuda.basic_block):
     """Scale block that calls produce() and consume_each() explicitly.
 
-    Tests the produce-before-mark_work_done ordering fix: the wrapper
-    must call mark_work_done before produce() advances the write pointer.
-    Heavy scratch work widens the race window so the test reliably fails
-    without the fix.
+    Exercises the general_work() produce/consume ordering: the wrapper
+    defers produce()/consume_each() until after general_work() returns, so
+    post_work() records the device-ready event only once every kernel is
+    enqueued on the stream.  Heavy scratch work widens the race window so
+    the test reliably fails if that ordering guarantee regresses.
     """
 
     def __init__(self, k, dtype=np.float32):
