@@ -65,14 +65,13 @@ cuda_buffer::cuda_buffer(int nitems,
                          size_t sizeof_item,
                          uint64_t downstream_lcm_nitems,
                          uint32_t downstream_max_out_mult,
-                         block_sptr link,
-                         block_sptr buf_owner)
-    : buffer_single_mapped(nitems,
+                         block_sptr link)
+    : buffer_double_mapped(nitems,
                            sizeof_item,
                            downstream_lcm_nitems,
                            downstream_max_out_mult,
                            link,
-                           buf_owner)
+                           defer_alloc_t::defer_alloc)
 {
     gr::configure_default_loggers(d_logger, d_debug_logger, "cuda");
 
@@ -118,48 +117,24 @@ cuda_buffer::~cuda_buffer()
 }
 
 /*!
- * \brief Bypass buffer_single_mapped::allocate_buffer().
+ * \brief Allocate the double-mapped host + device circular buffers.
  *
- * The base class sizes buffers for single-mapped (linear) semantics:
- * inflation to 4× downstream output_multiple, write-granularity
- * alignment, etc.  Those constraints don't apply here because
- * cuda_buffer is double-mapped (wrapping is handled by VA aliasing),
- * and the output_multiple is in the downstream block's item units
- * which can differ wildly from this buffer's item units — e.g.
- * vector_to_stream(vlen=65536) has output_multiple=65536 scalars,
- * inflating a vector buffer to 128 GB.
- *
- * We delegate directly to do_allocate_buffer() which handles
- * VMM-granularity rounding and sets d_bufsize.  This matches what
- * buffer_double_mapped::allocate_buffer() does upstream (page-
- * granularity rounding only).  On the other branch where we
- * subclass buffer_double_mapped, this override is unnecessary.
+ * Called from the cuda_buffer constructor (the base buffer_double_mapped
+ * used defer_alloc_t, so no vmcircbuf was created).  Sets d_base,
+ * d_bufsize, d_cuda_buf from our own CUDA VMM + mmap allocations.
  */
 bool cuda_buffer::allocate_buffer(int nitems)
 {
-    return do_allocate_buffer(nitems, d_sizeof_item);
-}
-
-/*!
- * \brief Allocate the double-mapped host + device circular buffers.
- *
- * Called by cuda_buffer::allocate_buffer() after it rounds nitems to
- * the VMM alignment boundary.  We set up our own double-mapped
- * host + device regions instead of using buffer_single_mapped's
- * d_buffer.
- */
-bool cuda_buffer::do_allocate_buffer(size_t final_nitems, size_t sizeof_item)
-{
     size_t vmm_granularity = detail::query_vmm_granularity_for_current_device();
 
-    size_t raw_bytes = final_nitems * sizeof_item;
+    size_t raw_bytes = static_cast<size_t>(nitems) * d_sizeof_item;
 
     // GPU batching needs large buffers to amortise kernel launch overhead
     // and saturate PCIe bandwidth.  The scheduler caps each work() call at
     // bufsize/2, so a 32 MB buffer yields ~16 MB per call -- enough to
     // saturate PCIe and amortise launches.
     //
-    // Override in the GR user prefs:
+    // Override in the GR user prefs (gnuradio-config-info --userprefsdir):
     //   [cuda_buffer]
     //   min_buffer_bytes = 16777216   # 16 MB
     static const size_t min_cuda_bytes =
@@ -173,67 +148,44 @@ bool cuda_buffer::do_allocate_buffer(size_t final_nitems, size_t sizeof_item)
 
     // Ensure aligned_bytes is an exact multiple of sizeof_item so that
     // d_bufsize * sizeof_item == aligned_bytes (no partial items).
-    while (aligned_bytes % sizeof_item != 0)
+    while (aligned_bytes % d_sizeof_item != 0)
         aligned_bytes += vmm_granularity;
 
-    d_bufsize = static_cast<unsigned>(aligned_bytes / sizeof_item);
+    d_bufsize = static_cast<unsigned>(aligned_bytes / d_sizeof_item);
+    d_aligned_bytes = aligned_bytes;
     d_logger->debug("cuda_buffer: requested {} items x {} bytes = {} bytes, "
                     "floor {} bytes, aligned to {} bytes ({} items)",
-                    final_nitems,
-                    sizeof_item,
+                    nitems,
+                    d_sizeof_item,
                     raw_bytes,
                     min_cuda_bytes,
                     aligned_bytes,
                     d_bufsize);
 
-    // 1) Host: mmap double-mapped circular buffer (owned by RAII helper).
-    d_host_ring = detail::host_mmap_ring::create(aligned_bytes, d_logger);
-    d_host_ring->register_pinned();
-    d_base = d_host_ring->base_ptr();
 
-    // 2) Device: VMM double-mapped circular buffer (owned by RAII helper).
+    // Device: VMM double-mapped circular buffer (owned by RAII helper).
     d_device_ring = detail::device_vmm_ring::create(aligned_bytes, d_logger);
     d_cuda_buf = d_device_ring->data();
 
+    // Host ring is deferred to on_transfer_type_set(); D2D edges skip it.
     return true;
 }
 
-
-/*!
- * \brief Return the number of items the writer may produce in this call.
- *
- * Classic ring-buffer rule: the writer must not lap the slowest reader.
- * most_data = max items_available across all readers (i.e. the fullest
- * reader).  The "-1" reserves one sentinel slot so that a completely
- * full buffer is distinguishable from an empty one (write_index never
- * equals read_index unless the buffer is empty).
- */
-int cuda_buffer::space_available()
+void cuda_buffer::on_transfer_type_set(const transfer_type& type)
 {
-    if (d_readers.empty())
-        return d_bufsize - 1;
-
-    int most_data = d_readers[0]->items_available();
-    uint64_t min_items_read = d_readers[0]->nitems_read();
-    for (size_t i = 1; i < d_readers.size(); i++) {
-        most_data = std::max(most_data, d_readers[i]->items_available());
-        min_items_read = std::min(min_items_read, d_readers[i]->nitems_read());
+    if (type == transfer_type::DEVICE_TO_DEVICE) {
+        d_logger->debug("cuda_buffer: D2D edge — skipping host allocation");
+        return;
     }
 
-    // Prune tags that all readers have consumed
-    if (min_items_read != d_last_min_items_read) {
-        prune_tags(d_last_min_items_read);
-        d_last_min_items_read = min_items_read;
-    }
-
-    return d_bufsize - most_data - 1;
+    d_host_ring = detail::host_mmap_ring::create(d_aligned_bytes, d_logger);
+    d_host_ring->register_pinned();
+    d_base = d_host_ring->base_ptr();
+    d_logger->debug("cuda_buffer: allocated {} byte host ring for {} edge",
+                    d_aligned_bytes,
+                    (type == transfer_type::HOST_TO_DEVICE) ? "H2D" : "D2H");
 }
 
-// No-op compaction
-bool cuda_buffer::input_blkd_cb_ready(int, unsigned) { return false; }
-bool cuda_buffer::output_blkd_cb_ready(int) { return false; }
-bool cuda_buffer::input_blocked_callback(int, int, unsigned) { return false; }
-bool cuda_buffer::output_blocked_callback(int, bool) { return false; }
 
 /*!
  * \brief Return where the upstream block should write its output.
@@ -435,14 +387,10 @@ buffer_sptr cuda_buffer::make_buffer(int nitems,
                                      uint64_t downstream_lcm_nitems,
                                      uint32_t downstream_max_out_mult,
                                      block_sptr link,
-                                     block_sptr buf_owner)
+                                     block_sptr /*buf_owner*/)
 {
-    return buffer_sptr(new cuda_buffer(nitems,
-                                       sizeof_item,
-                                       downstream_lcm_nitems,
-                                       downstream_max_out_mult,
-                                       link,
-                                       buf_owner));
+    return buffer_sptr(new cuda_buffer(
+        nitems, sizeof_item, downstream_lcm_nitems, downstream_max_out_mult, link));
 }
 
 void cuda_buffer::throw_unexpected_transfer_type()
