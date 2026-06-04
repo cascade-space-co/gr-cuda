@@ -146,6 +146,15 @@ protected:
      */
     bool allocate_buffer(int nitems) override;
 
+    /*!
+     * \brief Allocate host ring when the transfer type requires it.
+     *
+     * Called exactly once by gr::buffer::set_transfer_type().
+     * H2D and D2H edges get a pinned, double-mapped host ring;
+     * D2D edges skip host allocation entirely.
+     */
+    void on_transfer_type_set(const transfer_type& type) override;
+
 private:
     void post_work_h2d(unsigned write_index, unsigned tail, unsigned nitems);
     void post_work_d2h(unsigned write_index, unsigned tail, unsigned nitems);
@@ -160,6 +169,7 @@ private:
     char* d_cuda_buf = nullptr;
 
     std::unique_ptr<detail::host_mmap_ring> d_host_ring;
+    size_t d_aligned_bytes = 0;
 
     cudaStream_t d_stream = nullptr;
 
