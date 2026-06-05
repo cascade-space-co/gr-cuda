@@ -42,7 +42,7 @@ list(
 )
 
 # Set the version information here
-set(VERSION_MAJOR 1)
+set(VERSION_MAJOR 2)
 set(VERSION_API 0)
 set(VERSION_ABI 0)
 set(VERSION_PATCH 0)
@@ -189,3 +189,20 @@ if(ENABLE_PYTHON)
 else(ENABLE_PYTHON)
     message(STATUS "PYTHON and GRC components are disabled")
 endif(ENABLE_PYTHON)
+
+########################################################################
+# Install package version file so that find_package(gnuradio-cuda <ver>)
+# works. The Config.cmake itself is generated and installed by GNU Radio's
+# GR_INSTALL_LIBRARY macro (see lib/CMakeLists.txt), which does not write a
+# ConfigVersion file of its own.
+########################################################################
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/cmake/Modules/gnuradio-cudaConfigVersion.cmake
+    VERSION ${VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+install(
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/cmake/Modules/gnuradio-cudaConfigVersion.cmake
+    DESTINATION ${GR_CMAKE_DIR}
+)
