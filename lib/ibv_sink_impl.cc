@@ -11,7 +11,7 @@
 #include "ibv_sink.cuh"
 #include "ibv_sink_impl.h"
 #include "network/net_headers.h"
-#include <gnuradio/cuda/cuda_block_helper.h>
+#include <gnuradio/block_detail.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_error.h>
 #include <gnuradio/io_signature.h>
@@ -299,8 +299,6 @@ int ibv_sink_impl::work(int noutput_items,
     if (num_pkts <= 0)
         return 0;
 
-    // We have packets to send and slots to post into — sync GPU.
-    gr::cuda::wait_for_work(detail(), d_stream);
     auto in = static_cast<const uint8_t*>(input_items[0]);
 
     const uint32_t first_slot = d_next_slot;
@@ -353,7 +351,6 @@ int ibv_sink_impl::work(int noutput_items,
         posted_pkts += d_signal_batch;
     }
 
-    gr::cuda::mark_work_done(detail(), d_stream);
     return posted_pkts;
 }
 

@@ -8,7 +8,6 @@
  */
 
 #include "seq_strip_impl.h"
-#include <gnuradio/cuda/cuda_block_helper.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_error.h>
 #include <gnuradio/io_signature.h>
@@ -36,7 +35,6 @@ int seq_strip_impl::work(int noutput_items,
                          gr_vector_const_void_star& input_items,
                          gr_vector_void_star& output_items)
 {
-    gr::cuda::wait_for_work(detail(), d_stream);
     auto in = static_cast<const uint8_t*>(input_items[0]);
     auto out = static_cast<uint64_t*>(output_items[0]);
 
@@ -54,7 +52,6 @@ int seq_strip_impl::work(int noutput_items,
     check_cuda_errors(
         cudaStreamSynchronize(d_stream), "seq_strip: cudaStreamSynchronize", d_logger);
 
-    gr::cuda::mark_work_done(detail(), d_stream);
     return noutput_items;
 }
 

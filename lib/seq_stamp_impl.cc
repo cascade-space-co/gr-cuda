@@ -8,7 +8,6 @@
  */
 
 #include "seq_stamp_impl.h"
-#include <gnuradio/cuda/cuda_block_helper.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_error.h>
 #include <gnuradio/io_signature.h>
@@ -39,7 +38,6 @@ int seq_stamp_impl::work(int noutput_items,
 {
     int n = std::min(noutput_items, MAX_BATCH);
 
-    gr::cuda::wait_for_work(detail(), d_stream);
     auto out = static_cast<uint8_t*>(output_items[0]);
 
     for (int i = 0; i < n; i++)
@@ -61,7 +59,6 @@ int seq_stamp_impl::work(int noutput_items,
 
     d_counter += static_cast<uint64_t>(n);
 
-    gr::cuda::mark_work_done(detail(), d_stream);
     return n;
 }
 

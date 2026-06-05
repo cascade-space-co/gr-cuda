@@ -11,7 +11,7 @@
 #include "ibv_source.cuh"
 #include "ibv_source_impl.h"
 #include "network/net_headers.h"
-#include <gnuradio/cuda/cuda_block_helper.h>
+#include <gnuradio/block_detail.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_error.h>
 #include <gnuradio/io_signature.h>
@@ -301,8 +301,6 @@ int ibv_source_impl::work(int noutput_items,
     if (num_pkts <= 0)
         return 0;
 
-    // We have packets to deliver — now sync GPU.
-    gr::cuda::wait_for_work(detail(), d_stream);
     auto out = static_cast<uint8_t*>(output_items[0]);
 
     const uint32_t first_slot = d_ready_slot;
@@ -327,7 +325,6 @@ int ibv_source_impl::work(int noutput_items,
     d_ready_count -= num_pkts;
     post_recv_batch(num_pkts);
 
-    gr::cuda::mark_work_done(detail(), d_stream);
     return num_pkts;
 }
 
