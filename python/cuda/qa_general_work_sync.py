@@ -132,6 +132,37 @@ class _gpu_decimate_explicit_produce(cuda.basic_block):
         return -2  # WORK_CALLED_PRODUCE
 
 
+class _gpu_add_gw(cuda.basic_block):
+    """Element-wise sum of N input streams via general_work().
+
+    The only multi-input block in this suite: exercises N
+    ``cuda_buffer_reader``s feeding one block, plus consume across every
+    port. Each input port is a separate reader on a producer's buffer, so
+    this also stresses the fan-out (multi-reader) sync path.
+    """
+
+    def __init__(self, num_inputs, dtype=np.float32):
+        self.num_inputs = num_inputs
+        cuda.basic_block.__init__(self, "gpu_add_gw", [dtype] * num_inputs, [dtype])
+
+    def forecast(self, noutput_items, ninputs):
+        return [noutput_items] * ninputs
+
+    def general_work(self, input_items, output_items):
+        n = len(output_items[0])
+        for x in input_items:
+            n = min(n, len(x))
+        if n == 0:
+            return 0
+        acc = output_items[0]
+        acc[:n] = input_items[0][:n]
+        for x in input_items[1:]:
+            acc[:n] += x[:n]
+        self.consume_each(n)
+        self.produce(0, n)
+        return -2  # WORK_CALLED_PRODUCE
+
+
 class qa_general_work_sync(gr_unittest.TestCase):
     def setUp(self):
         self.tb = gr.top_block()
@@ -272,6 +303,85 @@ class qa_general_work_sync(gr_unittest.TestCase):
         result = np.array(snk.data(), dtype=np.float32)
         expected = src_data[: len(result)]
         np.testing.assert_array_equal(result, expected)
+
+    def test_multi_input_general_work(self):
+        """Multi-input general_work: one GPU stream fanned to N adder ports.
+
+        A single GPU producer's buffer is read by N input ports of one
+        general_work adder, so this covers both multi-input consume and
+        multi-reader fan-out -- neither exercised elsewhere on the Python
+        path (add_cupy is a sync_block, and the only other fan-out test
+        routes GPU+CPU through cuda.tee).
+        """
+        N = 50_000
+        ninputs = 8
+        src_data = np.random.randn(N).astype(np.float32)
+
+        src = blocks.vector_source_f(src_data, False)
+        fan = _gpu_scale_gw(1.0)  # CPU -> GPU; one GPU stream to fan out
+        adder = _gpu_add_gw(ninputs)
+        snk = blocks.vector_sink_f()
+
+        self.tb.connect(src, fan)
+        for i in range(ninputs):
+            self.tb.connect((fan, 0), (adder, i))
+        self.tb.connect(adder, snk)
+        self.tb.run()
+
+        result = np.array(snk.data(), dtype=np.float32)
+        np.testing.assert_allclose(result, src_data * ninputs, rtol=1e-6)
+
+    def test_fanout_parallel_branches_identical(self):
+        """Parallel GPU branches must be byte-identical (auto-sync race check).
+
+        One GPU source fans out to T taps; B independent adders each sum all
+        T taps, every adder running on its own CUDA stream.  If any consumer
+        raced a producer's buffer, one branch would diverge.  This is the
+        in-process analog of the multi-branch md5 consistency flowgraph.
+
+        Small max_noutput_items forces many work() calls / sync points to
+        widen any race window.
+        """
+        N = 50_000
+        taps = 16
+        branches = 16
+        src_data = np.random.randn(N).astype(np.float32)
+
+        src = blocks.vector_source_f(src_data, False)
+        src_gpu = _gpu_scale_gw(1.0)  # CPU -> GPU source stream
+        self.tb.connect(src, src_gpu)
+
+        # T taps, each reading the single GPU source (fan-out to T readers).
+        tap_blocks = []
+        for _ in range(taps):
+            t = _gpu_scale_gw(1.0)
+            t.set_max_noutput_items(1024)
+            self.tb.connect(src_gpu, t)
+            tap_blocks.append(t)
+
+        # B adders, each summing all T taps; each tap fans out to B readers.
+        # Keep a ref to every block; GR Python blocks must outlive the loop.
+        adders = []
+        sinks = []
+        for _ in range(branches):
+            adder = _gpu_add_gw(taps)
+            adder.set_max_noutput_items(1024)
+            for i, t in enumerate(tap_blocks):
+                self.tb.connect((t, 0), (adder, i))
+            snk = blocks.vector_sink_f()
+            self.tb.connect(adder, snk)
+            adders.append(adder)
+            sinks.append(snk)
+
+        self.tb.run()
+
+        results = [np.array(s.data(), dtype=np.float32) for s in sinks]
+        expected = src_data * taps
+        for r in results:
+            np.testing.assert_allclose(r, expected, rtol=1e-6)
+        # Every branch must be bit-for-bit identical (same ops, same order).
+        for r in results[1:]:
+            np.testing.assert_array_equal(r, results[0])
 
 
 if __name__ == "__main__":
