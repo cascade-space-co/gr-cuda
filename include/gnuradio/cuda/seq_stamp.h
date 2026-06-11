@@ -17,13 +17,17 @@ namespace gr {
 namespace cuda {
 
 /*!
- * \brief Stamp an incrementing uint64 counter into the first 8 bytes of
- *        each payload-sized item passing through.
+ * \brief Prepend an incrementing uint64 sequence number to each item.
  * \ingroup cuda
  *
- * Operates entirely on cuda_buffer (GPU) data.  Only the first 8 bytes
- * of each output item are written; the remaining bytes are left as-is
- * (undefined).  Pair with seq_strip on the receive side.
+ * A pass-through filter operating on cuda_buffer (GPU) data.  Each input
+ * item is copied to the output with an 8-byte little-endian sequence
+ * counter prepended, so output items are (payload_size + 8) bytes:
+ *
+ *     [ uint64 seq ][ original payload_size-byte payload ]
+ *
+ * The counter increments by one per item across the whole stream.  Pair
+ * with seq_strip on the receive side to recover the sequence number.
  */
 class CUDA_API seq_stamp : virtual public gr::sync_block
 {
@@ -31,7 +35,8 @@ public:
     typedef std::shared_ptr<seq_stamp> sptr;
 
     /*!
-     * \param payload_size  Item size in bytes (must be >= 8 and a multiple of 8)
+     * \param payload_size  Input payload size in bytes (must be >= 1).  Output
+     *                      items are 8 bytes larger (sequence header prepended).
      */
     static sptr make(int payload_size);
 };

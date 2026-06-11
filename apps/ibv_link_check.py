@@ -17,10 +17,10 @@ Pipeline:
   TX: null_source -> seq_stamp -> ibv_sink     (+ probe_rate off stamp)
   RX: ibv_source  -> seq_strip -> seq_checker  (+ probe_rate off source)
 
-  seq_stamp    writes a little-endian uint64 counter into the first
-               8 bytes of each packet (CUDA block, operates on GPU).
-  seq_strip    extracts those 8 bytes back to CPU as uint64 values
-               (CUDA block, GPU->CPU).
+  seq_stamp    prepends a little-endian uint64 counter (8-byte header)
+               to each packet, growing it by 8 bytes (CUDA block, GPU).
+  seq_strip    recovers that 8-byte header back to CPU as uint64 values
+               (CUDA block, GPU->CPU); the payload is dropped.
   seq_checker  pure-Python sink that checks the counter sequence and
                reports drops / duplicates / reordering.
 
@@ -53,31 +53,40 @@ import sys
 import threading
 import time
 
+import cupy as cp
 import numpy as np
 from gnuradio import cuda, gr
 
 DEFAULT_PAYLOAD_SIZE = 8000
+SEQ_HDR_BYTES = 8  # seq_stamp prepends an 8-byte sequence number to each packet
+
+# seq_strip's sequence-number output items are only 8 bytes, so without a hint
+# the scheduler can hand the GPU checker many tiny batches (lots of small
+# strided copies + small CuPy reductions).  Request a large output buffer on
+# that edge so the checker processes big chunks instead.  set_min_output_buffer
+# takes a count of items; cuda_buffer still enforces its own 32 MB floor.
+RX_SEQ_BUF_ITEMS = (64 * 1024 * 1024) // SEQ_HDR_BYTES  # ~64 MB of uint64s
 
 
 # ---------------------------------------------------------------------------
-#  Python-side sequence checker (pure CPU, receives uint64 from seq_check)
+#  GPU sequence checker (CuPy, receives uint64 cuda_buffer from seq_strip)
 # ---------------------------------------------------------------------------
 
 
-class seq_checker(gr.sync_block):
+class seq_checker(cuda.sync_block):
     """Check an incrementing uint64 stream for drops, duplicates, reorder.
 
-    Pure counter -- the periodic stdout printing is handled by the
+    GPU sink: seq_strip hands the recovered sequence numbers over a
+    cuda_buffer, so each batch arrives as a CuPy array already resident on
+    the device.  The per-batch diff/reductions run on the GPU and only a
+    handful of scalars are pulled back to the host per call (rather than the
+    whole batch), which keeps the checker off the PCIe-bandwidth critical
+    path at 100 GbE rates.  The periodic stdout printing is handled by the
     main thread (see `printer_thread` in main()).
     """
 
     def __init__(self):
-        gr.sync_block.__init__(
-            self,
-            name="seq_checker",
-            in_sig=[np.uint64],
-            out_sig=None,
-        )
+        cuda.sync_block.__init__(self, "seq_checker", [np.uint64], None)
         self._expected = None
         self._total = 0
         self._drops = 0
@@ -86,17 +95,13 @@ class seq_checker(gr.sync_block):
         self._max_seen = -1
 
     def work(self, input_items, output_items):
-        counters = input_items[0]
-        n = counters.size
+        counters = input_items[0]  # CuPy uint64 array (device memory)
+        n = int(counters.size)
         if n == 0:
             return 0
 
-        # Vectorised path -- a pure-Python `for c in counters` loop tops
-        # out near a few M items/sec on a single core, which becomes the
-        # flowgraph bottleneck at 100 GbE rates and shows up as NIC RX
-        # drops (cuda_buffer fills -> ibv_source can't post WRs fast
-        # enough).  numpy diff handles the common monotonically-
-        # increasing case in O(n) C code.
+        # Reductions/diffs stay on the GPU; only the few scalars below are
+        # copied back to the host.
         c_first = int(counters[0])
         c_last = int(counters[-1])
         c_max = int(counters.max())
@@ -118,19 +123,15 @@ class seq_checker(gr.sync_block):
                 self._reorders += 1
 
         # Within-batch deltas: delta == 1 is normal, > 1 is a drop,
-        # <= 0 is a dup or reorder.  np.diff returns int64 deltas.
+        # <= 0 is a dup or reorder.  cp.diff returns int64 deltas.
         if n > 1:
-            deltas = np.diff(counters.astype(np.int64))
-            drops_mask = deltas > 1
-            if drops_mask.any():
-                # Each gap of size k contributes (k-1) missed packets.
-                self._drops += int((deltas[drops_mask] - 1).sum())
-            nonpos = deltas <= 0
-            if nonpos.any():
-                # Approximate split between dups (delta == 0) and
-                # reorders (delta < 0).
-                self._duplicates += int((deltas == 0).sum())
-                self._reorders += int((deltas < 0).sum())
+            deltas = cp.diff(counters.astype(cp.int64))
+            # Each gap of size k contributes (k-1) missed packets.
+            self._drops += int(cp.maximum(deltas - 1, 0).sum())
+            # Approximate split between dups (delta == 0) and
+            # reorders (delta < 0).
+            self._duplicates += int((deltas == 0).sum())
+            self._reorders += int((deltas < 0).sum())
 
         self._expected = c_last + 1
         if c_max > self._max_seen:
@@ -169,13 +170,16 @@ class ibv_seq_tx(gr.top_block):
         super().__init__("ibv_seq_tx")
 
         self.payload_size = payload_size
+        # seq_stamp appends an 8-byte sequence header, so the on-wire frame
+        # is 8 bytes larger than the data payload.
+        frame_size = payload_size + SEQ_HDR_BYTES
         self.src = cuda.null_source(payload_size, memset=False)
         self.stamp = cuda.seq_stamp(payload_size)
         self.snk = cuda.ibv_sink(
             ibv_dev,
             dst_ip,
             dst_port,
-            payload_size,
+            frame_size,
             dst_mac,
             mcast,
         )
@@ -184,8 +188,8 @@ class ibv_seq_tx(gr.top_block):
         # alpha=1.0 disables the EMA filter (default 0.0001 has a
         # ~5000 s time constant which never converges in our short
         # diagnostic runs); update_rate_ms=200 keeps the readout
-        # responsive.
-        self.probe = cuda.probe_rate(payload_size, update_rate_ms=200.0, alpha=1.0)
+        # responsive.  It taps the post-stamp stream, so frame_size items.
+        self.probe = cuda.probe_rate(frame_size, update_rate_ms=200.0, alpha=1.0)
 
         self.connect(self.src, self.stamp, self.snk)
         self.connect(self.stamp, self.probe)
@@ -196,10 +200,15 @@ class ibv_seq_rx(gr.top_block):
         super().__init__("ibv_seq_rx")
 
         self.payload_size = payload_size
-        self.src = cuda.ibv_source(ibv_dev, port, payload_size, mcast)
+        # On-wire frame carries the data payload plus the 8-byte sequence
+        # header; seq_strip takes the matching data payload size.
+        frame_size = payload_size + SEQ_HDR_BYTES
+        self.src = cuda.ibv_source(ibv_dev, port, frame_size, mcast)
         self.strip = cuda.seq_strip(payload_size)
+        # Give the checker large batches off seq_strip's 8-byte uint64 output.
+        self.strip.set_min_output_buffer(0, RX_SEQ_BUF_ITEMS)
         self.checker = seq_checker()
-        self.probe = cuda.probe_rate(payload_size, update_rate_ms=200.0, alpha=1.0)
+        self.probe = cuda.probe_rate(frame_size, update_rate_ms=200.0, alpha=1.0)
 
         self.connect(self.src, self.strip, self.checker)
         self.connect(self.src, self.probe)
@@ -214,18 +223,21 @@ def _rate_to_gbps(items_per_sec, item_bytes):
     return items_per_sec * item_bytes * 8.0 / 1e9
 
 
-def _format_status_lines(tx_fg, rx_fg, payload_size):
+def _format_status_lines(tx_fg, rx_fg, frame_size):
     """Return a list of status lines for whichever flowgraph(s) are
     running -- one line for TX, one for RX (so the printer can show
-    them stacked when --mode=both rather than wrapping a long line)."""
+    them stacked when --mode=both rather than wrapping a long line).
+
+    `frame_size` is the on-wire packet size (data payload + 8-byte
+    sequence header), which is what the probes count."""
     lines = []
     if tx_fg is not None:
         tx_pps = tx_fg.probe.rate()
-        tx_gbps = _rate_to_gbps(tx_pps, payload_size)
+        tx_gbps = _rate_to_gbps(tx_pps, frame_size)
         lines.append(f"TX: {tx_gbps:7.3f} Gbps ({tx_pps / 1e6:5.2f} Mpkts/s)")
     if rx_fg is not None:
         rx_pps = rx_fg.probe.rate()
-        rx_gbps = _rate_to_gbps(rx_pps, payload_size)
+        rx_gbps = _rate_to_gbps(rx_pps, frame_size)
         total, drops, _dups, _reorders, max_seen = rx_fg.checker.stats()
         total_expected = max_seen + 1 if max_seen >= 0 else 0
         loss = (drops / total_expected * 100) if total_expected > 0 else 0
@@ -242,7 +254,13 @@ def main():
     )
     parser.add_argument("--mode", choices=["rx", "tx", "both"], default="both")
     parser.add_argument("--duration", type=float, default=20.0)
-    parser.add_argument("--payload-size", type=int, default=DEFAULT_PAYLOAD_SIZE)
+    parser.add_argument(
+        "--payload-size",
+        type=int,
+        default=DEFAULT_PAYLOAD_SIZE,
+        help="data payload size in bytes; the on-wire frame is 8 bytes larger "
+        "(seq_stamp prepends an 8-byte sequence header)",
+    )
     parser.add_argument(
         "--tx-udp-port", type=int, default=5000, help="UDP destination port for TX"
     )
@@ -268,6 +286,10 @@ def main():
     parser.add_argument("--mcast", default="")
 
     args = parser.parse_args()
+
+    if args.payload_size < 1:
+        parser.error("--payload-size must be >= 1")
+
     flowgraphs = []
     rx_fg = None
     tx_fg = None
@@ -307,7 +329,9 @@ def main():
     def printer_thread():
         printed = 0  # how many lines we wrote on the previous tick
         while not stop_print.is_set():
-            lines = _format_status_lines(tx_fg, rx_fg, args.payload_size)
+            lines = _format_status_lines(
+                tx_fg, rx_fg, args.payload_size + SEQ_HDR_BYTES
+            )
             # Move cursor up to the first line we previously wrote so
             # we can overwrite it; if this is the first tick, no-op.
             if printed > 0:

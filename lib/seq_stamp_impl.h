@@ -12,7 +12,6 @@
 
 #include <gnuradio/cuda/cuda_block.h>
 #include <gnuradio/cuda/seq_stamp.h>
-#include <vector>
 
 namespace gr {
 namespace cuda {
@@ -23,8 +22,8 @@ private:
     int d_payload_size;
     uint64_t d_counter = 0;
 
-    static constexpr int MAX_BATCH = 16384;
-    std::vector<uint64_t> d_counters;
+    // 8-byte sequence-number header prepended to each output item.
+    static constexpr int SEQ_HDR = sizeof(uint64_t);
 
 public:
     seq_stamp_impl(int payload_size);

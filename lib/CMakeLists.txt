@@ -43,6 +43,7 @@ list(
     throttle_impl.cc
     tee_impl.cc
     seq_stamp_impl.cc
+    seq.cu
     seq_strip_impl.cc
 )
 

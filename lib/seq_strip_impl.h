@@ -21,6 +21,9 @@ class seq_strip_impl : public seq_strip, public cuda_block
 private:
     int d_payload_size;
 
+    // 8-byte sequence-number header at the front of each input item.
+    static constexpr int SEQ_HDR = sizeof(uint64_t);
+
 public:
     seq_strip_impl(int payload_size);
     ~seq_strip_impl() override = default;
