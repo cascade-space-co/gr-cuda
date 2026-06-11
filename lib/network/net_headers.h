@@ -86,6 +86,55 @@ inline uint16_t ip_checksum(const void* data, int len)
     return htons(static_cast<uint16_t>(~sum));
 }
 
+// Parameters for build_frame_header().  MACs are raw 6-byte arrays; IPs are
+// in network byte order (as returned by inet_addr / SIOCGIFADDR); ports and
+// payload_size are in host byte order.
+struct frame_header_params {
+    uint8_t src_mac[6];
+    uint8_t dst_mac[6];
+    uint32_t src_ip;   // network byte order
+    uint32_t dst_ip;   // network byte order
+    uint16_t src_port; // host byte order
+    uint16_t dst_port; // host byte order
+    uint8_t ttl;
+    uint16_t payload_size;
+};
+
+// Assemble a 42-byte Ethernet/IPv4/UDP header into `out`.
+//
+// Pure function: the output depends only on `p` (no netdev queries, no GPU).
+// The IPv4 header checksum is computed and filled in; the UDP checksum is
+// left 0 (optional for IPv4).  This is the unit-testable core of the IBV
+// sink's header construction, kept here so it can be exercised without any
+// ibverbs/hardware dependency.
+inline void build_frame_header(uint8_t out[L2L3L4_HDR_LEN],
+                               const frame_header_params& p)
+{
+    memset(out, 0, L2L3L4_HDR_LEN);
+
+    auto* eth = reinterpret_cast<eth_hdr*>(out);
+    memcpy(eth->dst_mac, p.dst_mac, 6);
+    memcpy(eth->src_mac, p.src_mac, 6);
+    eth->ethertype = htons(0x0800);
+
+    auto* ip = reinterpret_cast<ip_hdr*>(out + ETH_HDR_LEN);
+    ip->ver_ihl = 0x45;
+    ip->total_len =
+        htons(static_cast<uint16_t>(IP_HDR_LEN + UDP_HDR_LEN + p.payload_size));
+    ip->flags_frag = htons(0x4000); // Don't Fragment
+    ip->ttl = p.ttl;
+    ip->protocol = 17; // UDP
+    ip->src_ip = p.src_ip;
+    ip->dst_ip = p.dst_ip;
+    ip->checksum = ip_checksum(ip, IP_HDR_LEN);
+
+    auto* udp = reinterpret_cast<udp_hdr*>(out + ETH_HDR_LEN + IP_HDR_LEN);
+    udp->src_port = htons(p.src_port);
+    udp->dst_port = htons(p.dst_port);
+    udp->length = htons(static_cast<uint16_t>(UDP_HDR_LEN + p.payload_size));
+    // UDP checksum left as 0 (optional for IPv4).
+}
+
 // Map IPv4 multicast IP (network byte order) to its IEEE 802.3 MAC
 // address per RFC 7042 / IANA OUI 01:00:5e.  The low 23 bits of the
 // IP are placed into the low 23 bits of the MAC.

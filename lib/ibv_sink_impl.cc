@@ -214,30 +214,21 @@ void ibv_sink_impl::build_header()
         ttl = 64;
     }
 
-    // Assemble the 42-byte header on the stack: [Eth 14B][IP 20B][UDP 8B]
+    // Assemble the 42-byte header: [Eth 14B][IP 20B][UDP 8B]. The pure
+    // assembly lives in net_headers.h (build_frame_header) so it can be
+    // unit-tested without netdev/GPU; here we only supply resolved params.
+    frame_header_params hp{};
+    memcpy(hp.src_mac, src_mac, 6);
+    memcpy(hp.dst_mac, dst_mac_bytes, 6);
+    hp.src_ip = src_ip;
+    hp.dst_ip = dst_ip_addr;
+    hp.src_port = 12345;
+    hp.dst_port = static_cast<uint16_t>(d_dst_port);
+    hp.ttl = ttl;
+    hp.payload_size = static_cast<uint16_t>(d_payload_size);
+
     uint8_t hdr[L2L3L4_HDR_LEN];
-    memset(hdr, 0, sizeof(hdr));
-
-    auto* eth = reinterpret_cast<eth_hdr*>(hdr);
-    memcpy(eth->dst_mac, dst_mac_bytes, 6);
-    memcpy(eth->src_mac, src_mac, 6);
-    eth->ethertype = htons(0x0800);
-
-    auto* ip = reinterpret_cast<ip_hdr*>(hdr + ETH_HDR_LEN);
-    ip->ver_ihl = 0x45;
-    ip->total_len = htons(IP_HDR_LEN + UDP_HDR_LEN + d_payload_size);
-    ip->flags_frag = htons(0x4000); // Don't Fragment
-    ip->ttl = ttl;
-    ip->protocol = 17; // UDP
-    ip->src_ip = src_ip;
-    ip->dst_ip = dst_ip_addr;
-    ip->checksum = ip_checksum(ip, IP_HDR_LEN);
-
-    auto* udp = reinterpret_cast<udp_hdr*>(hdr + ETH_HDR_LEN + IP_HDR_LEN);
-    udp->src_port = htons(12345);
-    udp->dst_port = htons(static_cast<uint16_t>(d_dst_port));
-    udp->length = htons(UDP_HDR_LEN + d_payload_size);
-    // UDP checksum left as 0 (optional for IPv4).
+    build_frame_header(hdr, hp);
 
     struct in_addr src_in {
         src_ip

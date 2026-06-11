@@ -142,7 +142,16 @@ include(GrTest)
 # If your unit tests require special include paths, add them here
 #include_directories()
 # List all files that contain Boost.UTF unit tests here
-list(APPEND test_cuda_sources qa_general_work_cpp.cc)
+list(
+    APPEND test_cuda_sources
+    qa_general_work_cpp.cc
+    qa_net_headers.cc
+    qa_seq.cc
+)
+# The CUDA kernel tests need the IBV .cu entry points (only built with IBV).
+if(ENABLE_IBV)
+    list(APPEND test_cuda_sources qa_ibv_kernels.cc)
+endif()
 # Anything we need to link to for the unit tests go here
 list(APPEND GR_TEST_TARGET_DEPS gnuradio-cuda)
 
