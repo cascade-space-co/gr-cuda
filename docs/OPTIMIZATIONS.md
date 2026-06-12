@@ -128,3 +128,62 @@ subsequent iterations reuse them without hitting `cudaMalloc`. However,
 if `noutput_items` varies between calls (which it can), new sizes trigger
 fresh allocations. To eliminate runtime `cudaMalloc` entirely, replace
 hot-path expressions with fused `cp.ElementwiseKernel` calls.
+
+## 6. IBV sink/source tuning (`ibv_sink` / `ibv_source`)
+
+The InfiniBand-verbs blocks drive a NIC at line rate using GPUDirect 
+RDMA. Their tuning knobs are **not** constructor arguments; they are 
+read from the GNU Radio user config (`gnuradio-config-info --userprefsdir`) 
+at block construction, with the compile-time `DEFAULT_*` constants as
+fallbacks. The defaults target 100 GbE on a ConnectX-class NIC; profile
+before changing them.
+
+```ini
+[ibv_sink]
+num_wr        = 4096        ; send pipeline depth (work requests in flight)
+signal_batch  = 512         ; sends per completion signal
+cq_size       = 8192        ; completion queue depth (default: 2 * num_wr)
+cq_poll_batch = 64          ; completions drained per ibv_poll_cq() call
+gpu_buf_bytes = 67108864    ; GPU landing-buffer size in bytes (64 MiB)
+
+[ibv_source]
+num_wr        = 4096        ; receive pipeline depth (recv WRs posted)
+cq_size       = 8192        ; completion queue depth (default: 2 * num_wr)
+cq_poll_batch = 512         ; completions drained per ibv_poll_cq() call
+gpu_buf_bytes = 67108864    ; GPU landing-buffer size in bytes (64 MiB)
+```
+
+What each knob does:
+
+- **`num_wr`** — depth of the send (sink) or receive (source) pipeline:
+  the number of work requests that can be outstanding (posted to the NIC
+  but not yet completed) at once. Deeper pipelines hide PCIe/NIC latency
+  and absorb bursts (on the source, this is the main lever against RX
+  drops), at the cost of more registered memory and CQ entries.
+
+- **`signal_batch`** (sink only) — only every `signal_batch`-th send is
+  posted with `IBV_SEND_SIGNALED`, so the NIC generates one completion
+  per batch instead of one per frame. This amortizes completion-queue
+  processing, the dominant CPU cost at line rate. Must divide `num_wr`
+  evenly. It also sets `output_multiple(signal_batch)`, so the scheduler
+  always hands the block at least a full batch of frames. The source has
+  no equivalent: receives complete one-per-frame and are drained in bulk
+  via `cq_poll_batch`.
+
+- **`cq_size`** — depth of the completion queue. Must be large enough to
+  hold the maximum number of outstanding completions (`num_wr /
+  signal_batch` on the sink; up to `num_wr` on the source). The `2 *
+  num_wr` default leaves comfortable headroom.
+
+- **`cq_poll_batch`** — how many completions a single `ibv_poll_cq()`
+  call harvests (the size of the work-completion scratch array). Larger
+  values mean fewer poll calls when many completions are ready. The
+  source defaults higher (512 vs the sink's 64) because RX completes
+  one-per-frame and benefits from draining many at once.
+
+- **`gpu_buf_bytes`** — size of the GPU landing buffer (registered as an
+  IB memory region) that frames are assembled into (sink) or received
+  into (source) and DMA'd to/from the NIC. It is divided into fixed
+  slots of one full frame each, so it must hold at least `num_wr` slots
+  at the frame size; larger buffers allow a deeper pipeline and bigger
+  frames.

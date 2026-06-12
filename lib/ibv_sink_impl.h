@@ -32,7 +32,8 @@ private:
 
     // Compile-time defaults; the runtime values (d_*) are populated in
     // the constructor from gr::prefs and may override these.  Override
-    // in the GR user prefs (path: `gnuradio-config-info --userprefsdir`):
+    // in the GR user prefs (path: `gnuradio-config-info --userprefsdir`).
+    // See docs/OPTIMIZATIONS.md for what each knob does and how to tune it.
     //
     //   [ibv_sink]
     //   num_wr          = 4096
@@ -58,6 +59,7 @@ private:
     int d_dst_port;
     std::string d_dst_mac;
     std::string d_mcast_group;
+    int d_src_port;
 
     int d_frame_size;
     int d_slot_size;
@@ -91,7 +93,8 @@ public:
                   int dst_port,
                   int payload_size,
                   const std::string& dst_mac,
-                  const std::string& mcast_group);
+                  const std::string& mcast_group,
+                  int src_port);
     ~ibv_sink_impl() override;
 
     bool start() override;

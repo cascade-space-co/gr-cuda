@@ -50,6 +50,11 @@ ibv_source_impl::ibv_source_impl(const std::string& ibv_device,
 {
     if (d_payload_size <= 0)
         throw std::runtime_error("ibv_source: payload_size must be > 0");
+    // Validate the UDP port before it is truncated to uint16_t for the
+    // flow-steering rule; otherwise out-of-range values wrap silently.
+    if (d_udp_port < 1 || d_udp_port > 65535)
+        throw std::runtime_error("ibv_source: udp_port must be in [1, 65535], got " +
+                                 std::to_string(d_udp_port));
     // Each NIC slot holds one complete raw Ethernet frame: 42-byte
     // L2/L3/L4 header + payload.
     if (L2L3L4_HDR_LEN + d_payload_size > SLOT_SIZE)
@@ -312,7 +317,6 @@ int ibv_source_impl::work(int noutput_items,
                               L2L3L4_HDR_LEN,
                               d_payload_size,
                               num_pkts,
-                              d_min_grid_size,
                               d_block_size,
                               d_stream);
 

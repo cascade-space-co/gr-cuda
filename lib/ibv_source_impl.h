@@ -33,7 +33,8 @@ private:
 
     // Compile-time defaults; the runtime values (d_*) are populated in
     // the constructor from gr::prefs and may override these.  Override
-    // in the GR user prefs (path: `gnuradio-config-info --userprefsdir`):
+    // in the GR user prefs (path: `gnuradio-config-info --userprefsdir`).
+    // See docs/OPTIMIZATIONS.md for what each knob does and how to tune it.
     //
     //   [ibv_source]
     //   num_wr          = 4096

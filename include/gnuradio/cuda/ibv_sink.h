@@ -32,7 +32,7 @@ namespace cuda {
  * the multicast group IP).
  *
  * Optimized for line-rate: batched kernel launch, chained WR posting
- * (64 per ibv_post_send), 4096-deep send pipeline.
+ * (512 per ibv_post_send), 4096-deep send pipeline.
  *
  * \note If GPUDirect RDMA throughput is lower than expected, PCIe ACS
  * (Access Control Services) may be enabled on a bridge between the NIC
@@ -61,13 +61,18 @@ public:
      *                     mcast_group is set)
      * \param mcast_group  Multicast group IP (e.g. "239.1.2.3"), empty for
      *                     unicast
+     * \param src_port     Source UDP port written into each frame's UDP
+     *                     header.  This is metadata only (raw Ethernet QP,
+     *                     no socket/bind); useful for receiver-side flow
+     *                     filtering or NIC RSS hashing.
      */
     static sptr make(const std::string& ibv_device,
                      const std::string& dst_ip,
                      int dst_port,
                      int payload_size,
                      const std::string& dst_mac = "",
-                     const std::string& mcast_group = "");
+                     const std::string& mcast_group = "",
+                     int src_port = 12345);
 };
 
 } // namespace cuda

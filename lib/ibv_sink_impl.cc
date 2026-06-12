@@ -31,10 +31,11 @@ ibv_sink::sptr ibv_sink::make(const std::string& ibv_device,
                               int dst_port,
                               int payload_size,
                               const std::string& dst_mac,
-                              const std::string& mcast_group)
+                              const std::string& mcast_group,
+                              int src_port)
 {
     return gnuradio::make_block_sptr<ibv_sink_impl>(
-        ibv_device, dst_ip, dst_port, payload_size, dst_mac, mcast_group);
+        ibv_device, dst_ip, dst_port, payload_size, dst_mac, mcast_group, src_port);
 }
 
 ibv_sink_impl::ibv_sink_impl(const std::string& ibv_device,
@@ -42,7 +43,8 @@ ibv_sink_impl::ibv_sink_impl(const std::string& ibv_device,
                              int dst_port,
                              int payload_size,
                              const std::string& dst_mac,
-                             const std::string& mcast_group)
+                             const std::string& mcast_group,
+                             int src_port)
     : sync_block("ibv_sink",
                  io_signature::make(1, 1, payload_size, cuda_buffer::type),
                  io_signature::make(0, 0, 0)),
@@ -50,10 +52,19 @@ ibv_sink_impl::ibv_sink_impl(const std::string& ibv_device,
       d_dst_ip(dst_ip),
       d_dst_port(dst_port),
       d_dst_mac(dst_mac),
-      d_mcast_group(mcast_group)
+      d_mcast_group(mcast_group),
+      d_src_port(src_port)
 {
     if (d_payload_size <= 0)
         throw std::runtime_error("ibv_sink: payload_size must be > 0");
+    // Validate UDP ports before they are truncated to uint16_t for the
+    // frame header; otherwise out-of-range values wrap silently.
+    if (d_dst_port < 1 || d_dst_port > 65535)
+        throw std::runtime_error("ibv_sink: dst_port must be in [1, 65535], got " +
+                                 std::to_string(d_dst_port));
+    if (d_src_port < 1 || d_src_port > 65535)
+        throw std::runtime_error("ibv_sink: src_port must be in [1, 65535], got " +
+                                 std::to_string(d_src_port));
 
     // Each NIC slot holds one complete raw Ethernet frame: 42-byte
     // L2/L3/L4 header + payload.
@@ -222,7 +233,7 @@ void ibv_sink_impl::build_header()
     memcpy(hp.dst_mac, dst_mac_bytes, 6);
     hp.src_ip = src_ip;
     hp.dst_ip = dst_ip_addr;
-    hp.src_port = 12345;
+    hp.src_port = static_cast<uint16_t>(d_src_port);
     hp.dst_port = static_cast<uint16_t>(d_dst_port);
     hp.ttl = ttl;
     hp.payload_size = static_cast<uint16_t>(d_payload_size);
@@ -302,7 +313,6 @@ int ibv_sink_impl::work(int noutput_items,
                              in,
                              d_payload_size,
                              num_pkts,
-                             d_min_grid_size,
                              d_block_size,
                              d_stream);
 

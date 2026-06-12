@@ -94,7 +94,6 @@ BOOST_AUTO_TEST_CASE(build_frames_layout_and_wrap)
                              d_payload.p,
                              payload_size,
                              num_frames,
-                             /*grid_size=*/0,
                              /*block_size=*/64,
                              /*stream=*/0);
     BOOST_REQUIRE_EQUAL(cudaStreamSynchronize(0), cudaSuccess);
@@ -144,7 +143,6 @@ BOOST_AUTO_TEST_CASE(build_frames_zero_is_noop)
                              d_payload.p,
                              payload_size,
                              /*num_frames=*/0,
-                             0,
                              64,
                              0);
     BOOST_REQUIRE_EQUAL(cudaStreamSynchronize(0), cudaSuccess);
@@ -193,7 +191,6 @@ BOOST_AUTO_TEST_CASE(strip_headers_extracts_payload)
                               HDR,
                               payload_size,
                               num_packets,
-                              0,
                               64,
                               0);
     BOOST_REQUIRE_EQUAL(cudaStreamSynchronize(0), cudaSuccess);
@@ -235,7 +232,6 @@ BOOST_AUTO_TEST_CASE(build_then_strip_roundtrip)
                              d_payload.p,
                              payload_size,
                              num_frames,
-                             0,
                              64,
                              0);
     exec_strip_headers_kernel(d_landing.p,
@@ -246,7 +242,6 @@ BOOST_AUTO_TEST_CASE(build_then_strip_roundtrip)
                               HDR,
                               payload_size,
                               num_frames,
-                              0,
                               64,
                               0);
     BOOST_REQUIRE_EQUAL(cudaStreamSynchronize(0), cudaSuccess);

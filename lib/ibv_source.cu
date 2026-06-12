@@ -78,7 +78,6 @@ void exec_strip_headers_kernel(const uint8_t* landing_buf,
                                int header_len,
                                int payload_size,
                                int num_packets,
-                               int grid_size,
                                int block_size,
                                cudaStream_t stream)
 {

@@ -81,7 +81,6 @@ void exec_build_frames_kernel(uint8_t* landing_buf,
                               const uint8_t* payload_src,
                               int payload_size,
                               int num_frames,
-                              int grid_size,
                               int block_size,
                               cudaStream_t stream)
 {

@@ -32,7 +32,8 @@ void bind_ibv_sink(py::module& m)
              py::arg("dst_port"),
              py::arg("payload_size"),
              py::arg("dst_mac") = "",
-             py::arg("mcast_group") = "")
+             py::arg("mcast_group") = "",
+             py::arg("src_port") = 12345)
 
         ;
 }
