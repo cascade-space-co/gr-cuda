@@ -9,7 +9,6 @@
  */
 
 #include "null_sink_impl.h"
-#include <gnuradio/cuda/cuda_block_helper.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/io_signature.h>
 
@@ -35,13 +34,7 @@ int null_sink_impl::work(int noutput_items,
                          gr_vector_const_void_star& input_items,
                          gr_vector_void_star& output_items)
 {
-    // Wait for inputs to be ready
-    gr::cuda::wait_for_work(detail(), d_stream);
-
     // Do nothing - just consume the data (mimics GNU Radio's null_sink)
-    // Signal inputs consumed so upstream producers can safely overwrite
-    gr::cuda::mark_work_done(detail(), d_stream);
-
     return noutput_items;
 }
 

@@ -13,7 +13,9 @@
 #include "detail/device_vmm_ring.h"
 #include "detail/host_mmap_ring.h"
 #include <gnuradio/block.h>
+#include <gnuradio/cuda/cuda_block.h>
 #include <gnuradio/cuda/cuda_buffer.h>
+#include <gnuradio/cuda/cuda_buffer_reader.h>
 #include <gnuradio/cuda/cuda_error.h>
 #include <gnuradio/prefs.h>
 
@@ -202,6 +204,11 @@ void cuda_buffer::on_transfer_type_set(const transfer_type& type)
  */
 void* cuda_buffer::write_pointer()
 {
+    // Auto-sync: wait_read_done; see autosync table in cuda_buffer.h
+    cudaStream_t ps = resolve_producer_stream();
+    if (ps)
+        wait_read_done(ps);
+
     switch (d_transfer_type) {
     case transfer_type::HOST_TO_DEVICE:
         return &d_base[d_write_index * d_sizeof_item];
@@ -250,6 +257,11 @@ void cuda_buffer::post_work(int nitems)
     if (nitems <= 0)
         return;
 
+    // Auto-sync: mark_device_ready; see autosync table in cuda_buffer.h
+    cudaStream_t ps = resolve_producer_stream();
+    if (ps)
+        mark_device_ready(ps);
+
     const unsigned wi = d_write_index;
     const unsigned tail = d_bufsize - wi;
     const unsigned produced = static_cast<unsigned>(nitems);
@@ -273,6 +285,32 @@ void cuda_buffer::post_work(int nitems)
 
     default:
         throw_unexpected_transfer_type();
+    }
+
+    // Auto-sync: wait_device_ready; see autosync table in cuda_buffer.h
+    // The natural hook would be _read_pointer() (called before the consumer
+    // reads), but placing the wait here is correct because the GR scheduler
+    // guarantees consumers cannot run until post_work completes. Since
+    // cudaStreamWaitEvent is a GPU-side dependency, it does not matter which
+    // CPU thread inserts it — only that it is in the consumer's stream queue
+    // before the consumer's kernel launches.
+    for (size_t i = 0; i < nreaders(); i++) {
+        auto* cbr = dynamic_cast<cuda_buffer_reader*>(reader(i));
+        if (cbr) {
+            cudaStream_t cs = cbr->consumer_stream();
+            if (cs)
+                wait_device_ready(cs);
+        } else if (!d_sync_error_logged) {
+            // Every reader of a cuda_buffer must be a cuda_buffer_reader
+            // (they are only created by cuda_buffer::create_reader).  A
+            // failure here means device-ready sync is silently skipped and a
+            // consumer may read device data before the producer kernel has
+            // finished writing it.
+            d_sync_error_logged = true;
+            d_logger->error("post_work: buffer reader is not a cuda_buffer_reader; "
+                            "device-ready synchronization skipped (possible data "
+                            "corruption)");
+        }
     }
 }
 
@@ -340,7 +378,7 @@ void cuda_buffer::post_work_d2h(unsigned wi, unsigned tail, unsigned nitems)
     mark_host_ready(d_stream);
 
     // Record that the D2H copy has finished reading from device memory,
-    // so the upstream GPU kernel (via wait_for_work -> wait_read_done)
+    // so the upstream producer (via wait_read_done in write_pointer())
     // knows it's safe to overwrite.
     cudaEventRecord(d_read_done_evt, d_stream);
 }
@@ -378,6 +416,38 @@ void cuda_buffer::mark_read_done(cudaStream_t consumer_stream)
 void cuda_buffer::wait_read_done(cudaStream_t producer_stream)
 {
     cudaStreamWaitEvent(producer_stream, d_read_done_evt, 0);
+}
+
+// Stream discovery
+
+void cuda_buffer::set_producer_stream(cudaStream_t s)
+{
+    d_producer_stream = s;
+    d_producer_stream_resolved = true;
+}
+
+cudaStream_t cuda_buffer::resolve_producer_stream()
+{
+    if (!d_producer_stream_resolved) {
+        d_producer_stream_resolved = true;
+        auto* cb = dynamic_cast<cuda_block*>(link().get());
+        if (cb)
+            d_producer_stream = cb->get_cuda_stream();
+    }
+    return d_producer_stream;
+}
+
+// Reader factory
+
+buffer_reader_sptr cuda_buffer::create_reader(buffer_sptr buf,
+                                              int nzero_preload,
+                                              block_sptr link,
+                                              int delay)
+{
+    buffer_reader_sptr r;
+    r.reset(new cuda_buffer_reader(buf, index_sub(d_write_index, nzero_preload), link));
+    r->declare_sample_delay(delay);
+    return r;
 }
 
 // Factory

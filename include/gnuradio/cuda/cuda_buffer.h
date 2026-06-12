@@ -14,6 +14,7 @@
 
 #include <gnuradio/buffer_double_mapped.h>
 #include <gnuradio/buffer_type.h>
+#include <gnuradio/cuda/api.h>
 #include <gnuradio/version.h>
 
 #include <cuda.h>
@@ -69,12 +70,37 @@ class host_mmap_ring;
  * gpu_busy_wait = false
  * @endcode
  *
- * \section usage Usage from GPU blocks
+ * \section autosync Automatic synchronization
  *
- * See cuda_block.h for the standard pattern, and cuda_block_helper.h for
- * wait_for_work() / mark_work_done() helpers.
+ * cuda_buffer inserts GPU-side event waits/records at three
+ * hooks in the scheduler loop.  No per-block sync code is
+ * needed for C++ blocks that inherit from cuda_block.
+ *
+ * @code
+ * Hook                  | Action                    | When
+ * ----------------------|---------------------------|-------------------
+ * write_pointer()       | wait_read_done(prod)      | before prod writes
+ * post_work()           | mark_device_ready(prod)   | after prod writes
+ * post_work()           | wait_device_ready(cons)   | after prod writes
+ * update_read_pointer() | mark_read_done(cons) [*]  | after cons reads
+ *
+ * [*] Implemented in cuda_buffer_reader, not cuda_buffer.
+ * @endcode
+ *
+ * wait_device_ready is placed in post_work() rather than
+ * _read_pointer() because the GR scheduler guarantees consumers
+ * cannot run until post_work completes.  cudaStreamWaitEvent
+ * is a GPU-side dependency, so it does not matter which CPU
+ * thread inserts it.
+ *
+ * For H2D/D2H edges where one side is a CPU block, the stream resolves
+ * to nullptr and the auto-sync is skipped. The DMA path in
+ * post_work_h2d / post_work_d2h handles those cases using the buffer's
+ * own CUDA stream.
+ *
+ * \sa cuda_block.h for the standard GPU block pattern.
  */
-class GR_RUNTIME_API cuda_buffer : public buffer_double_mapped
+class CUDA_API cuda_buffer : public buffer_double_mapped
 {
 public:
     static buffer_type type;
@@ -96,16 +122,43 @@ public:
 
     /*!
      * \brief Transfer data between host and device after general_work().
+     *
+     * Also handles two auto-sync operations (see \ref autosync):
+     * marks device data ready, and makes consumer streams wait for it.
      */
     void post_work(int nitems) override;
     /*!
      * \brief Pointer into the 2N region where the producer should write.
+     *
+     * For D2D/D2H edges, inserts a GPU-side wait on the read-done event
+     * so the producer kernel does not overwrite data still being
+     * consumed (see \ref autosync).
      */
     void* write_pointer() override;
     /*!
      * \brief Pointer into the 2N region where the consumer should read.
      */
     const void* _read_pointer(unsigned int read_index) override;
+
+    /*!
+     * \brief Create a cuda_buffer_reader instead of the default reader.
+     *
+     * The custom reader overrides update_read_pointer() to automatically
+     * record read-done events (see \ref autosync).
+     */
+    buffer_reader_sptr create_reader(buffer_sptr buf,
+                                     int nzero_preload,
+                                     block_sptr link,
+                                     int delay) override;
+
+    /*!
+     * \brief Register the producer's CUDA stream explicitly.
+     *
+     * Used by Python GPU blocks that cannot be discovered via
+     * dynamic_cast<cuda_block*>.  If set, resolve_producer_stream()
+     * returns this stream instead of attempting the cast.
+     */
+    void set_producer_stream(cudaStream_t s);
 
     /*!
      * \brief Record a device-ready event after producing data on the GPU.
@@ -165,6 +218,8 @@ private:
     void mark_host_ready(cudaStream_t copy_stream);
     void wait_host_ready();
 
+    cudaStream_t resolve_producer_stream();
+
     std::unique_ptr<detail::device_vmm_ring> d_device_ring;
     char* d_cuda_buf = nullptr;
 
@@ -173,10 +228,15 @@ private:
 
     cudaStream_t d_stream = nullptr;
 
+    cudaStream_t d_producer_stream = nullptr;
+    bool d_producer_stream_resolved = false;
+
     cudaEvent_t d_dev_ready_evt = nullptr;
     cudaEvent_t d_host_ready_evt = nullptr;
     cudaEvent_t d_read_done_evt = nullptr;
     std::mutex d_read_done_mutex;
+
+    bool d_sync_error_logged = false;
 
     cuda_buffer(int nitems,
                 size_t sizeof_item,

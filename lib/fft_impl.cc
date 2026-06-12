@@ -7,7 +7,6 @@
 
 #include "fft.cuh"
 #include "fft_impl.h"
-#include <gnuradio/cuda/cuda_block_helper.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/cuda/cuda_error.h>
 #include <gnuradio/io_signature.h>
@@ -158,9 +157,6 @@ int fft_impl::work(int noutput_items,
         return 0;
     }
 
-    // Ensure upstream GPU work is complete before reading inputs.
-    gr::cuda::wait_for_work(detail(), d_stream);
-
     auto in = static_cast<const cufftComplex*>(input_items[0]);
     auto out = static_cast<cufftComplex*>(output_items[0]);
 
@@ -237,8 +233,6 @@ int fft_impl::work(int noutput_items,
         exec_kernel_fftshift(fft_out, out, total_items, d_fft_size, d_stream);
     }
 
-    // Notify downstream CUDA buffers that output is ready.
-    gr::cuda::mark_work_done(detail(), d_stream);
     return noutput_items;
 }
 

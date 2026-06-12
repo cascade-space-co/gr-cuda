@@ -9,7 +9,6 @@
  */
 
 #include "null_source_impl.h"
-#include <gnuradio/cuda/cuda_block_helper.h>
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/io_signature.h>
 
@@ -40,9 +39,6 @@ int null_source_impl::work(int noutput_items,
                            gr_vector_const_void_star& input_items,
                            gr_vector_void_star& output_items)
 {
-    // Ensure output buffer is safe to write (no downstream still reading).
-    gr::cuda::wait_for_work(detail(), d_stream);
-
     // Fill GPU buffer with zeros (mimics GNU Radio's memset behavior).
     // Disabled (d_memset=false) in benchmarks to avoid saturating memory
     // bandwidth, starving downstream compute kernels that share the same GPU,
@@ -53,9 +49,6 @@ int null_source_impl::work(int noutput_items,
                           "null_source: cudaMemsetAsync",
                           d_logger);
     }
-
-    // Mark outputs ready
-    gr::cuda::mark_work_done(detail(), d_stream);
 
     return noutput_items;
 }
