@@ -55,6 +55,9 @@ private:
     int d_payload_size;
     std::string d_mcast_group;
     int d_udp_port;
+    // Resolved Linux netdev (user-supplied, or auto-detected from the IB
+    // device) used for the IGMP multicast join.
+    std::string d_netdev;
 
     // IBV transport (ctx, pd, cq, qp) and GPU landing buffer (MR)
     std::unique_ptr<ibv_transport> d_xport;
@@ -103,7 +106,8 @@ public:
     ibv_source_impl(const std::string& ibv_device,
                     int udp_port,
                     int payload_size,
-                    const std::string& mcast_group);
+                    const std::string& mcast_group,
+                    const std::string& netdev);
     ~ibv_source_impl() override;
 
     bool start() override;

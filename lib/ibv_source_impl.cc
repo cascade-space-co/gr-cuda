@@ -32,22 +32,25 @@ namespace cuda {
 ibv_source::sptr ibv_source::make(const std::string& ibv_device,
                                   int udp_port,
                                   int payload_size,
-                                  const std::string& mcast_group)
+                                  const std::string& mcast_group,
+                                  const std::string& netdev)
 {
     return gnuradio::make_block_sptr<ibv_source_impl>(
-        ibv_device, udp_port, payload_size, mcast_group);
+        ibv_device, udp_port, payload_size, mcast_group, netdev);
 }
 
 ibv_source_impl::ibv_source_impl(const std::string& ibv_device,
                                  int udp_port,
                                  int payload_size,
-                                 const std::string& mcast_group)
+                                 const std::string& mcast_group,
+                                 const std::string& netdev)
     : sync_block("ibv_source",
                  io_signature::make(0, 0, 0),
                  io_signature::make(1, 1, payload_size, cuda_buffer::type)),
       d_payload_size(payload_size),
       d_mcast_group(mcast_group),
-      d_udp_port(udp_port)
+      d_udp_port(udp_port),
+      d_netdev(netdev)
 {
     if (d_payload_size <= 0)
         throw std::runtime_error("ibv_source: payload_size must be > 0");
@@ -174,7 +177,11 @@ void ibv_source_impl::setup_multicast()
         throw std::runtime_error("ibv_source: socket(IGMP): " +
                                  std::string(strerror(errno)));
 
-    std::string netdev = d_xport->netdev_name();
+    // Resolve the netdev only here, where multicast actually needs it: honor
+    // a user-supplied name, otherwise auto-detect from the IB device (which
+    // throws if ambiguous).  A unicast source never touches the netdev.
+    const std::string netdev = d_netdev.empty() ? d_xport->netdev_name() : d_netdev;
+
     struct ip_mreqn mreq;
     memset(&mreq, 0, sizeof(mreq));
     mreq.imr_multiaddr.s_addr = inet_addr(d_mcast_group.c_str());

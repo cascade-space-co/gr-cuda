@@ -53,11 +53,17 @@ public:
      * \param udp_port     UDP destination port to match in flow steering
      * \param payload_size Expected UDP payload size in bytes
      * \param mcast_group  Multicast group IP (e.g. "239.1.2.3"), empty for unicast
+     * \param netdev       Linux netdev name (e.g. "ens10f1np1") to use for the
+     *                     IGMP join.  Leave empty to auto-detect from the IB
+     *                     device; required if that device exposes more than
+     *                     one netdev (SR-IOV/switchdev), where auto-detect
+     *                     cannot safely choose.
      */
     static sptr make(const std::string& ibv_device,
                      int udp_port,
                      int payload_size,
-                     const std::string& mcast_group = "");
+                     const std::string& mcast_group = "",
+                     const std::string& netdev = "");
 };
 
 } // namespace cuda

@@ -12,9 +12,11 @@
 
 #include <dirent.h>
 #include <unistd.h>
+#include <algorithm>
 #include <cerrno>
 #include <cstring>
 #include <stdexcept>
+#include <vector>
 
 namespace gr {
 namespace cuda {
@@ -118,20 +120,35 @@ std::string ibv_transport::netdev_name() const
     if (!dir)
         throw std::runtime_error("ibv_transport::netdev_name: cannot open " + net_dir);
 
-    std::string result;
+    // Collect all netdevs bound to this IB device's PCI function.  There can
+    // be more than one, and readdir() order is unspecified, so we must not
+    // just take the first entry, which would non-deterministically pick a
+    // possibly-wrong netdev.
+    std::vector<std::string> netdevs;
     struct dirent* entry;
     while ((entry = readdir(dir)) != nullptr) {
         if (entry->d_name[0] == '.')
             continue;
-        result = entry->d_name;
-        break;
+        netdevs.emplace_back(entry->d_name);
     }
     closedir(dir);
 
-    if (result.empty())
+    const std::string dev_name(d_ctx->device->name);
+    if (netdevs.empty())
         throw std::runtime_error("ibv_transport::netdev_name: no netdev found for " +
-                                 std::string(d_ctx->device->name));
-    return result;
+                                 dev_name);
+    if (netdevs.size() > 1) {
+        // Sort for a stable message, then refuse to guess: the caller should
+        // pass an explicit netdev name (ibv_sink/ibv_source expose a param).
+        std::sort(netdevs.begin(), netdevs.end());
+        std::string list;
+        for (size_t i = 0; i < netdevs.size(); i++)
+            list += (i ? ", " : "") + netdevs[i];
+        throw std::runtime_error(
+            "ibv_transport::netdev_name: " + dev_name + " has multiple netdevs (" +
+            list + "); specify one explicitly via the block's netdev parameter");
+    }
+    return netdevs.front();
 }
 
 ibv_transport::~ibv_transport()

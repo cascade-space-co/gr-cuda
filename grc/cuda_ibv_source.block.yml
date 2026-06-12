@@ -4,7 +4,7 @@ category: '[CUDA]'
 
 templates:
   imports: from gnuradio import cuda
-  make: cuda.ibv_source(${ibv_device}, ${udp_port}, ${payload_size}, ${mcast_group})
+  make: cuda.ibv_source(${ibv_device}, ${udp_port}, ${payload_size}, ${mcast_group}, ${netdev})
 
 parameters:
 - id: ibv_device
@@ -24,6 +24,11 @@ parameters:
   dtype: string
   default: ''
   hide: ${ 'part' if not mcast_group else 'none' }
+- id: netdev
+  label: Netdev (override)
+  dtype: string
+  default: ''
+  hide: part
 outputs:
 - label: out
   domain: cuda

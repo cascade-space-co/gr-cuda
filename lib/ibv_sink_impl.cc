@@ -32,10 +32,17 @@ ibv_sink::sptr ibv_sink::make(const std::string& ibv_device,
                               int payload_size,
                               const std::string& dst_mac,
                               const std::string& mcast_group,
-                              int src_port)
+                              int src_port,
+                              const std::string& netdev)
 {
-    return gnuradio::make_block_sptr<ibv_sink_impl>(
-        ibv_device, dst_ip, dst_port, payload_size, dst_mac, mcast_group, src_port);
+    return gnuradio::make_block_sptr<ibv_sink_impl>(ibv_device,
+                                                    dst_ip,
+                                                    dst_port,
+                                                    payload_size,
+                                                    dst_mac,
+                                                    mcast_group,
+                                                    src_port,
+                                                    netdev);
 }
 
 ibv_sink_impl::ibv_sink_impl(const std::string& ibv_device,
@@ -44,7 +51,8 @@ ibv_sink_impl::ibv_sink_impl(const std::string& ibv_device,
                              int payload_size,
                              const std::string& dst_mac,
                              const std::string& mcast_group,
-                             int src_port)
+                             int src_port,
+                             const std::string& netdev)
     : sync_block("ibv_sink",
                  io_signature::make(1, 1, payload_size, cuda_buffer::type),
                  io_signature::make(0, 0, 0)),
@@ -53,7 +61,8 @@ ibv_sink_impl::ibv_sink_impl(const std::string& ibv_device,
       d_dst_port(dst_port),
       d_dst_mac(dst_mac),
       d_mcast_group(mcast_group),
-      d_src_port(src_port)
+      d_src_port(src_port),
+      d_netdev(netdev)
 {
     if (d_payload_size <= 0)
         throw std::runtime_error("ibv_sink: payload_size must be > 0");
@@ -116,6 +125,12 @@ ibv_sink_impl::ibv_sink_impl(const std::string& ibv_device,
     cfg.cq_size = d_cq_size;
     cfg.rts = true;
     d_xport = std::make_unique<ibv_transport>(ibv_device, cfg);
+
+    // Resolve the netdev whose MAC/IP source the frame header: honor a
+    // user-supplied name, otherwise auto-detect from the IB device (which
+    // throws if ambiguous).
+    if (d_netdev.empty())
+        d_netdev = d_xport->netdev_name();
 
     // Allocate a GPU-resident landing buffer registered as an IB MR.
     // The NIC reads frame data directly from this GPU memory via DMA.
@@ -198,9 +213,9 @@ bool ibv_sink_impl::start()
 // unicast the caller-supplied MAC/IP are used with TTL 64.
 void ibv_sink_impl::build_header()
 {
-    // Resolve our own MAC and IP from the Linux netdev associated
-    // with the IB device (discovered via sysfs).
-    std::string netdev = d_xport->netdev_name();
+    // Resolve our own MAC and IP from the Linux netdev (d_netdev, resolved
+    // in the constructor from the user param or auto-detected).
+    const std::string& netdev = d_netdev;
 
     uint8_t src_mac[6], dst_mac_bytes[6];
     if (get_mac_address(netdev.c_str(), src_mac))

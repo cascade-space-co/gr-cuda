@@ -4,7 +4,7 @@ category: '[CUDA]'
 
 templates:
   imports: from gnuradio import cuda
-  make: cuda.ibv_sink(${ibv_device}, ${dst_ip}, ${dst_port}, ${payload_size}, ${dst_mac}, ${mcast_group}, ${src_port})
+  make: cuda.ibv_sink(${ibv_device}, ${dst_ip}, ${dst_port}, ${payload_size}, ${dst_mac}, ${mcast_group}, ${src_port}, ${netdev})
 
 parameters:
 - id: ibv_device
@@ -37,6 +37,11 @@ parameters:
   label: Source UDP Port
   dtype: int
   default: '12345'
+  hide: part
+- id: netdev
+  label: Netdev (override)
+  dtype: string
+  default: ''
   hide: part
 inputs:
 - label: in

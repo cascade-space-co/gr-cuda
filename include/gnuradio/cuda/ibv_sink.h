@@ -65,6 +65,11 @@ public:
      *                     header.  This is metadata only (raw Ethernet QP,
      *                     no socket/bind); useful for receiver-side flow
      *                     filtering or NIC RSS hashing.
+     * \param netdev       Linux netdev name (e.g. "ens10f1np1") to source the
+     *                     frame's src MAC/IP from.  Leave empty to auto-detect
+     *                     from the IB device; required if that device exposes
+     *                     more than one netdev (SR-IOV/switchdev), where
+     *                     auto-detect cannot safely choose.
      */
     static sptr make(const std::string& ibv_device,
                      const std::string& dst_ip,
@@ -72,7 +77,8 @@ public:
                      int payload_size,
                      const std::string& dst_mac = "",
                      const std::string& mcast_group = "",
-                     int src_port = 12345);
+                     int src_port = 12345,
+                     const std::string& netdev = "");
 };
 
 } // namespace cuda

@@ -30,7 +30,8 @@ void bind_ibv_source(py::module& m)
              py::arg("ibv_device"),
              py::arg("udp_port"),
              py::arg("payload_size"),
-             py::arg("mcast_group") = "")
+             py::arg("mcast_group") = "",
+             py::arg("netdev") = "")
 
         ;
 }

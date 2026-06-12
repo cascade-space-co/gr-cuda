@@ -60,6 +60,9 @@ private:
     std::string d_dst_mac;
     std::string d_mcast_group;
     int d_src_port;
+    // Resolved Linux netdev (user-supplied, or auto-detected from the IB
+    // device) whose MAC/IP populate the frame header's source fields.
+    std::string d_netdev;
 
     int d_frame_size;
     int d_slot_size;
@@ -94,7 +97,8 @@ public:
                   int payload_size,
                   const std::string& dst_mac,
                   const std::string& mcast_group,
-                  int src_port);
+                  int src_port,
+                  const std::string& netdev);
     ~ibv_sink_impl() override;
 
     bool start() override;
