@@ -7,6 +7,8 @@
 
 #include "ibv_common.h"
 
+#include <gnuradio/cuda/cuda_error.h>
+
 #include <cuda.h>
 #include <cuda_runtime.h>
 
@@ -170,32 +172,34 @@ ibv_transport::~ibv_transport()
 ibv_gpu_buffer::ibv_gpu_buffer(size_t size, struct ibv_pd* pd) : d_size(size)
 {
     int device;
-    cudaGetDevice(&device);
+    check_cuda_errors(cudaGetDevice(&device), "ibv_gpu_buffer: cudaGetDevice");
     CUdevice cu_dev;
-    cuDeviceGet(&cu_dev, device);
+    check_cuda_errors(cuDeviceGet(&cu_dev, device), "ibv_gpu_buffer: cuDeviceGet");
 
     int dmabuf_supported = 0;
-    cuDeviceGetAttribute(
-        &dmabuf_supported, CU_DEVICE_ATTRIBUTE_DMA_BUF_SUPPORTED, cu_dev);
+    check_cuda_errors(cuDeviceGetAttribute(&dmabuf_supported,
+                                           CU_DEVICE_ATTRIBUTE_DMA_BUF_SUPPORTED,
+                                           cu_dev),
+                      "ibv_gpu_buffer: cuDeviceGetAttribute(DMA_BUF_SUPPORTED)");
     int unified_addressing = 0;
-    cuDeviceGetAttribute(
-        &unified_addressing, CU_DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING, cu_dev);
+    check_cuda_errors(cuDeviceGetAttribute(&unified_addressing,
+                                           CU_DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING,
+                                           cu_dev),
+                      "ibv_gpu_buffer: cuDeviceGetAttribute(UNIFIED_ADDRESSING)");
 
     if (dmabuf_supported) {
         d_mode = DMABUF;
-        if (cudaMalloc(reinterpret_cast<void**>(&d_buf), size) != cudaSuccess)
-            throw std::runtime_error("ibv_gpu_buffer: cudaMalloc failed");
-        cudaMemset(d_buf, 0, size);
+        check_cuda_errors(cudaMalloc(reinterpret_cast<void**>(&d_buf), size),
+                          "ibv_gpu_buffer: cudaMalloc");
+        check_cuda_errors(cudaMemset(d_buf, 0, size), "ibv_gpu_buffer: cudaMemset");
 
-        CUresult err =
+        check_cuda_errors(
             cuMemGetHandleForAddressRange(reinterpret_cast<void*>(&d_dmabuf_fd),
                                           reinterpret_cast<CUdeviceptr>(d_buf),
                                           size,
                                           CU_MEM_RANGE_HANDLE_TYPE_DMA_BUF_FD,
-                                          0);
-        if (err != CUDA_SUCCESS)
-            throw std::runtime_error(
-                "ibv_gpu_buffer: cuMemGetHandleForAddressRange failed");
+                                          0),
+            "ibv_gpu_buffer: cuMemGetHandleForAddressRange");
 
         d_mr = ibv_reg_dmabuf_mr(pd,
                                  0,
@@ -205,10 +209,9 @@ ibv_gpu_buffer::ibv_gpu_buffer(size_t size, struct ibv_pd* pd) : d_size(size)
                                  IBV_ACCESS_LOCAL_WRITE);
     } else if (unified_addressing) {
         d_mode = UNIFIED;
-        if (cudaHostAlloc(reinterpret_cast<void**>(&d_buf),
-                          size,
-                          cudaHostAllocDefault) != cudaSuccess)
-            throw std::runtime_error("ibv_gpu_buffer: cudaHostAlloc failed");
+        check_cuda_errors(
+            cudaHostAlloc(reinterpret_cast<void**>(&d_buf), size, cudaHostAllocDefault),
+            "ibv_gpu_buffer: cudaHostAlloc");
         memset(d_buf, 0, size);
 
         d_mr = ibv_reg_mr(pd, d_buf, size, IBV_ACCESS_LOCAL_WRITE);
