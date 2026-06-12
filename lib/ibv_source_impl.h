@@ -77,9 +77,27 @@ private:
 
     int d_igmp_sock = -1;
 
+    // Completion-channel fd (from d_xport->comp_channel()), cached so the
+    // receive path can block on it instead of busy-polling when idle.
+    int d_comp_channel_fd = -1;
+
+    // Latches once we've logged an ibv_poll_cq() failure, so a persistently
+    // broken CQ doesn't spam the log on every work() call.
+    bool d_poll_cq_err_logged = false;
+
     void setup_multicast();
     void setup_flow_steering();
     void post_recv_batch(int count);
+
+    // Drain ready completions from the CQ into d_ready_count.  Returns the
+    // number harvested (>= 0), or -1 on poll error.
+    int poll_cq();
+
+    // Block (up to timeout_ms) on the completion channel until the CQ has a
+    // new completion, then drain it.  Used only when the link is idle so we
+    // give the CPU back instead of spinning.  Returns true if any completion
+    // was harvested.
+    bool wait_for_completion(int timeout_ms);
 
 public:
     ibv_source_impl(const std::string& ibv_device,

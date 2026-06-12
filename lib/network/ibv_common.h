@@ -39,6 +39,10 @@ public:
         int max_recv_sge = 1;
         int cq_size = 1024;
         bool rts = false;
+        // When true, create a completion channel and bind the CQ to it so
+        // the caller can block (via the channel fd) on completions instead
+        // of busy-polling.  See ibv_source's hybrid spin/block receive path.
+        bool use_comp_channel = false;
     };
 
     ibv_transport(const std::string& device_name, const qp_config& cfg);
@@ -52,6 +56,10 @@ public:
     struct ibv_cq* cq() const { return d_cq; }
     struct ibv_qp* qp() const { return d_qp; }
 
+    //! Completion channel bound to the CQ, or nullptr if not requested
+    //! (qp_config::use_comp_channel == false).
+    struct ibv_comp_channel* comp_channel() const { return d_comp_channel; }
+
     /*!
      * \brief Derive the Linux network interface name from the IB device.
      *
@@ -64,6 +72,7 @@ public:
 private:
     struct ibv_context* d_ctx = nullptr;
     struct ibv_pd* d_pd = nullptr;
+    struct ibv_comp_channel* d_comp_channel = nullptr;
     struct ibv_cq* d_cq = nullptr;
     struct ibv_qp* d_qp = nullptr;
 };

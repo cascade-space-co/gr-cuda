@@ -54,8 +54,18 @@ ibv_transport::ibv_transport(const std::string& device_name, const qp_config& cf
         throw std::runtime_error("ibv_transport: ibv_alloc_pd: " +
                                  std::string(strerror(errno)));
 
-    // Completion queue
-    d_cq = ibv_create_cq(d_ctx, cfg.cq_size, nullptr, nullptr, 0);
+    // Optional completion channel: lets the CQ deliver interrupt-driven
+    // events on a file descriptor, so a consumer can block instead of
+    // busy-polling.  Created before the CQ because the CQ binds to it.
+    if (cfg.use_comp_channel) {
+        d_comp_channel = ibv_create_comp_channel(d_ctx);
+        if (!d_comp_channel)
+            throw std::runtime_error("ibv_transport: ibv_create_comp_channel: " +
+                                     std::string(strerror(errno)));
+    }
+
+    // Completion queue (bound to the completion channel when present)
+    d_cq = ibv_create_cq(d_ctx, cfg.cq_size, nullptr, d_comp_channel, 0);
     if (!d_cq)
         throw std::runtime_error("ibv_transport: ibv_create_cq: " +
                                  std::string(strerror(errno)));
@@ -130,6 +140,8 @@ ibv_transport::~ibv_transport()
         ibv_destroy_qp(d_qp);
     if (d_cq)
         ibv_destroy_cq(d_cq);
+    if (d_comp_channel)
+        ibv_destroy_comp_channel(d_comp_channel);
     if (d_pd)
         ibv_dealloc_pd(d_pd);
     if (d_ctx)

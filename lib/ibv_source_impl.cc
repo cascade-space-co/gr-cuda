@@ -20,6 +20,7 @@
 #include <arpa/inet.h>
 #include <endian.h>
 #include <net/if.h>
+#include <poll.h>
 #include <unistd.h>
 #include <algorithm>
 #include <cerrno>
@@ -94,7 +95,11 @@ ibv_source_impl::ibv_source_impl(const std::string& ibv_device,
     cfg.max_recv_wr = d_num_wr;
     cfg.max_recv_sge = 1;
     cfg.cq_size = d_cq_size;
+    // Request a completion channel so work() can block on completions when
+    // the link is idle instead of burning a core spin-polling.
+    cfg.use_comp_channel = true;
     d_xport = std::make_unique<ibv_transport>(ibv_device, cfg);
+    d_comp_channel_fd = d_xport->comp_channel()->fd;
 
     // Allocate a GPU-resident landing buffer registered as an IB MR.
     // The NIC DMAs raw Ethernet frames directly into this GPU memory.
@@ -266,41 +271,102 @@ void ibv_source_impl::post_recv_batch(int count)
                                  std::string(strerror(errno)));
 }
 
+// Drain ready completions from the CQ into d_ready_count.
+int ibv_source_impl::poll_cq()
+{
+    const uint32_t expected_len = L2L3L4_HDR_LEN + d_payload_size;
+    struct ibv_wc* wc = d_wc_pool.data();
+
+    int n = ibv_poll_cq(d_xport->cq(), d_cq_poll_batch, wc);
+    if (n < 0) {
+        if (!d_poll_cq_err_logged) {
+            GR_LOG_ERROR(d_logger,
+                         "ibv_source: ibv_poll_cq failed (ret=" + std::to_string(n) +
+                             "); suppressing further occurrences");
+            d_poll_cq_err_logged = true;
+        }
+        return -1;
+    }
+    for (int i = 0; i < n; i++) {
+        if (wc[i].status != IBV_WC_SUCCESS) {
+            GR_LOG_WARN(d_logger,
+                        "ibv_source: WC error status=" + std::to_string(wc[i].status));
+        } else if (wc[i].byte_len != expected_len) {
+            GR_LOG_WARN(d_logger,
+                        "ibv_source: unexpected length " +
+                            std::to_string(wc[i].byte_len));
+        }
+    }
+    if (n > 0)
+        d_ready_count += n;
+    return n;
+}
+
+// Block on the completion channel until the CQ signals a new completion,
+// then drain it.  Returns true if any completion was harvested.
+bool ibv_source_impl::wait_for_completion(int timeout_ms)
+{
+    struct ibv_cq* cq = d_xport->cq();
+
+    // Arm the CQ: request a notification when the *next* completion is added.
+    if (ibv_req_notify_cq(cq, 0))
+        return false;
+
+    // Race-closer: a completion may have landed between the caller's last
+    // poll and the arm above (arming only fires for subsequent additions),
+    // so poll once more before committing to a blocking wait.
+    int n = poll_cq();
+    if (n != 0)
+        return n > 0;
+
+    // Truly idle: block on the channel fd, but with a timeout so work()
+    // still returns periodically and the scheduler can observe stop().
+    struct pollfd pfd;
+    pfd.fd = d_comp_channel_fd;
+    pfd.events = POLLIN;
+    pfd.revents = 0;
+    int pr = ::poll(&pfd, 1, timeout_ms);
+    if (pr <= 0 || !(pfd.revents & POLLIN))
+        return false; // timeout or interrupted; caller retries
+
+    // poll() reported the fd readable, so ibv_get_cq_event won't block.
+    // Each retrieved event must be acknowledged (ibv_ack_cq_events).
+    struct ibv_cq* ev_cq = nullptr;
+    void* ev_ctx = nullptr;
+    if (ibv_get_cq_event(d_xport->comp_channel(), &ev_cq, &ev_ctx))
+        return false;
+    ibv_ack_cq_events(ev_cq, 1);
+
+    return poll_cq() > 0;
+}
+
 // work()
 int ibv_source_impl::work(int noutput_items,
                           gr_vector_const_void_star& input_items,
                           gr_vector_void_star& output_items)
 {
-    // Spin-poll CQ to accumulate a full batch before launching a kernel.
-    // Reset the idle counter on progress so we keep spinning as long as
-    // packets are flowing, and only give up after a burst of empty polls.
-    const uint32_t expected_len = L2L3L4_HDR_LEN + d_payload_size;
-    constexpr int IDLE_LIMIT = 4000;
-    int idle = 0;
-    struct ibv_wc* wc = d_wc_pool.data();
+    // Hybrid receive: spin-poll for a bounded budget as the low-latency
+    // fast path (keeps up under load with zero blocking overhead), then, if
+    // nothing arrived, block on the completion channel so an idle link gives
+    // the CPU back instead of pegging a core.
+    constexpr int SPIN_BUDGET = 4000;     // empty polls before we block
+    constexpr int BLOCK_TIMEOUT_MS = 100; // bounds shutdown latency
 
-    while (idle < IDLE_LIMIT && d_ready_count < d_cq_poll_batch) {
-        int n = ibv_poll_cq(d_xport->cq(), d_cq_poll_batch, wc);
+    int idle = 0;
+    while (idle < SPIN_BUDGET && d_ready_count < d_cq_poll_batch) {
+        int n = poll_cq();
         if (n < 0)
             return 0;
-        if (n > 0) {
-            for (int i = 0; i < n; i++) {
-                if (wc[i].status != IBV_WC_SUCCESS) {
-                    GR_LOG_WARN(d_logger,
-                                "ibv_source: WC error status=" +
-                                    std::to_string(wc[i].status));
-                } else if (wc[i].byte_len != expected_len) {
-                    GR_LOG_WARN(d_logger,
-                                "ibv_source: unexpected length " +
-                                    std::to_string(wc[i].byte_len));
-                }
-            }
-            d_ready_count += n;
+        if (n > 0)
             idle = 0;
-        } else {
+        else
             idle++;
-        }
     }
+
+    // Idle link: block until the NIC signals a completion (or the timeout
+    // fires, letting us return so the scheduler can check for stop()).
+    if (d_ready_count == 0)
+        wait_for_completion(BLOCK_TIMEOUT_MS);
 
     int num_pkts = std::min(noutput_items, d_ready_count);
     if (num_pkts <= 0)
