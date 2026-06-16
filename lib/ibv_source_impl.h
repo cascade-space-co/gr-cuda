@@ -26,9 +26,13 @@ namespace cuda {
 class ibv_source_impl : public ibv_source, public cuda_block
 {
 private:
-    // One slot holds a full raw Ethernet frame (jumbo).  This is a hard
-    // frame-size limit (used in static buffer geometry), not a tuning
-    // knob, so it stays compile-time.
+    // One slot holds a full raw Ethernet frame (jumbo), in bytes.
+    // 9216 (= 9 * 1024) is the de-facto max "9K jumbo" frame size supported
+    // by typical datacenter NICs (e.g. ConnectX); it holds a 9000-byte jumbo
+    // IP MTU plus the 42-byte Eth/IP/UDP headers.  Jumbo frames are not part
+    // of IEEE 802.3, so this is a common vendor ceiling, not a formal
+    // standard.  Hard limit on static buffer geometry (not a tuning knob),
+    // so it stays compile-time.
     static constexpr int SLOT_SIZE = 9216;
 
     // Compile-time defaults; the runtime values (d_*) are populated in

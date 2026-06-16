@@ -26,8 +26,13 @@ namespace cuda {
 class ibv_sink_impl : public ibv_sink, public cuda_block
 {
 private:
-    // Hard frame-size limit (used in static buffer geometry), not a
-    // tuning knob, so it stays compile-time.
+    // Maximum L2 (Ethernet) frame, in bytes, that one NIC slot must hold.
+    // 9216 (= 9 * 1024) is the de-facto max "9K jumbo" frame size supported
+    // by typical datacenter NICs (e.g. ConnectX); it holds a 9000-byte jumbo
+    // IP MTU plus the 42-byte Eth/IP/UDP headers.  Jumbo frames are not part
+    // of IEEE 802.3, so this is a common vendor ceiling, not a formal
+    // standard.  Hard limit on static buffer geometry (not a tuning knob),
+    // so it stays compile-time.
     static constexpr int MAX_SLOT_SIZE = 9216;
 
     // Compile-time defaults; the runtime values (d_*) are populated in
