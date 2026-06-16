@@ -1,0 +1,52 @@
+id: cuda_ibv_sink
+label: IBV Sink (CUDA)
+category: '[CUDA]'
+
+templates:
+  imports: from gnuradio import cuda
+  make: cuda.ibv_sink(${ibv_device}, ${dst_ip}, ${dst_port}, ${payload_size}, ${dst_mac}, ${mcast_group}, ${src_port}, ${netdev})
+
+parameters:
+- id: ibv_device
+  label: IB Device
+  dtype: string
+  default: ''
+- id: dst_ip
+  label: Destination IP
+  dtype: string
+  default: ''
+- id: dst_port
+  label: Destination UDP Port
+  dtype: int
+  default: '5000'
+- id: payload_size
+  label: Payload Size (bytes)
+  dtype: int
+  default: '8000'
+- id: dst_mac
+  label: Destination MAC
+  dtype: string
+  default: ''
+  hide: ${ 'part' if not dst_mac else 'none' }
+- id: mcast_group
+  label: Multicast Group
+  dtype: string
+  default: ''
+  hide: ${ 'part' if not mcast_group else 'none' }
+- id: src_port
+  label: Source UDP Port
+  dtype: int
+  default: '12345'
+  hide: part
+- id: netdev
+  label: Netdev (override)
+  dtype: string
+  default: ''
+  hide: part
+inputs:
+- label: in
+  domain: cuda
+  dtype: byte
+  vlen: ${payload_size}
+
+file_format: 1

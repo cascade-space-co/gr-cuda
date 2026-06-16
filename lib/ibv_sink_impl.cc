@@ -1,0 +1,374 @@
+/* -*- c++ -*- */
+/*
+ * Copyright 2026 Cascade Space.
+ *
+ * This file is part of GNU Radio
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ */
+
+#include "ibv_sink.cuh"
+#include "ibv_sink_impl.h"
+#include "network/net_headers.h"
+#include <gnuradio/block_detail.h>
+#include <gnuradio/cuda/cuda_buffer.h>
+#include <gnuradio/cuda/cuda_error.h>
+#include <gnuradio/io_signature.h>
+#include <gnuradio/prefs.h>
+
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <algorithm>
+#include <cstring>
+#include <sstream>
+
+namespace gr {
+namespace cuda {
+
+ibv_sink::sptr ibv_sink::make(const std::string& ibv_device,
+                              const std::string& dst_ip,
+                              int dst_port,
+                              int payload_size,
+                              const std::string& dst_mac,
+                              const std::string& mcast_group,
+                              int src_port,
+                              const std::string& netdev)
+{
+    return gnuradio::make_block_sptr<ibv_sink_impl>(ibv_device,
+                                                    dst_ip,
+                                                    dst_port,
+                                                    payload_size,
+                                                    dst_mac,
+                                                    mcast_group,
+                                                    src_port,
+                                                    netdev);
+}
+
+ibv_sink_impl::ibv_sink_impl(const std::string& ibv_device,
+                             const std::string& dst_ip,
+                             int dst_port,
+                             int payload_size,
+                             const std::string& dst_mac,
+                             const std::string& mcast_group,
+                             int src_port,
+                             const std::string& netdev)
+    : sync_block("ibv_sink",
+                 io_signature::make(1, 1, payload_size, cuda_buffer::type),
+                 io_signature::make(0, 0, 0)),
+      d_payload_size(payload_size),
+      d_dst_ip(dst_ip),
+      d_dst_port(dst_port),
+      d_dst_mac(dst_mac),
+      d_mcast_group(mcast_group),
+      d_src_port(src_port),
+      d_netdev(netdev)
+{
+    if (d_payload_size <= 0)
+        throw std::runtime_error("ibv_sink: payload_size must be > 0");
+    // Validate UDP ports before they are truncated to uint16_t for the
+    // frame header; otherwise out-of-range values wrap silently.
+    if (d_dst_port < 1 || d_dst_port > 65535)
+        throw std::runtime_error("ibv_sink: dst_port must be in [1, 65535], got " +
+                                 std::to_string(d_dst_port));
+    if (d_src_port < 1 || d_src_port > 65535)
+        throw std::runtime_error("ibv_sink: src_port must be in [1, 65535], got " +
+                                 std::to_string(d_src_port));
+
+    // Each NIC slot holds one complete raw Ethernet frame: 42-byte
+    // L2/L3/L4 header + payload.
+    d_frame_size = L2L3L4_HDR_LEN + d_payload_size;
+    d_slot_size = d_frame_size;
+    if (d_slot_size > MAX_SLOT_SIZE)
+        throw std::runtime_error(
+            "ibv_sink: frame size (" + std::to_string(d_slot_size) +
+            ") exceeds max slot size (" + std::to_string(MAX_SLOT_SIZE) + ")");
+
+    // Resolve runtime tuning knobs from gr::prefs (with the compile-time
+    // DEFAULT_* values as fallbacks).
+    auto* prefs = gr::prefs::singleton();
+    d_num_wr = static_cast<int>(prefs->get_long("ibv_sink", "num_wr", DEFAULT_NUM_WR));
+    d_signal_batch = static_cast<int>(
+        prefs->get_long("ibv_sink", "signal_batch", DEFAULT_SIGNAL_BATCH));
+    d_cq_size = static_cast<int>(prefs->get_long("ibv_sink", "cq_size", d_num_wr * 2));
+    d_cq_poll_batch = static_cast<int>(
+        prefs->get_long("ibv_sink", "cq_poll_batch", DEFAULT_CQ_POLL_BATCH));
+    d_gpu_buf_size = static_cast<size_t>(prefs->get_long(
+        "ibv_sink", "gpu_buf_bytes", static_cast<long>(DEFAULT_GPU_BUF_BYTES)));
+
+    if (d_num_wr <= 0 || d_signal_batch <= 0 || d_cq_poll_batch <= 0)
+        throw std::invalid_argument(
+            "ibv_sink: num_wr, signal_batch, cq_poll_batch must all be > 0");
+    if (d_signal_batch > d_num_wr)
+        throw std::invalid_argument("ibv_sink: signal_batch must be <= num_wr");
+    if (d_num_wr % d_signal_batch != 0)
+        throw std::invalid_argument(
+            "ibv_sink: num_wr must be a multiple of signal_batch "
+            "(WR pool indexing assumes this)");
+    if (d_cq_size < d_num_wr / d_signal_batch)
+        throw std::invalid_argument("ibv_sink: cq_size must be >= num_wr/signal_batch "
+                                    "(max outstanding completions)");
+    if (d_gpu_buf_size / MAX_SLOT_SIZE < static_cast<size_t>(d_num_wr))
+        throw std::invalid_argument(
+            "ibv_sink: gpu_buf_bytes must hold at least num_wr slots at "
+            "max frame size");
+
+    // Ensure the scheduler always hands us at least signal_batch items
+    // so we can amortize CQ signalling over a batch of sends.
+    set_output_multiple(d_signal_batch);
+
+    // Open the IB device and create the QP in Ready-To-Send state
+    // (raw Ethernet QP; no connection handshake needed).
+    ibv_transport::qp_config cfg;
+    cfg.max_send_wr = d_num_wr;
+    cfg.max_send_sge = 1;
+    cfg.cq_size = d_cq_size;
+    cfg.rts = true;
+    d_xport = std::make_unique<ibv_transport>(ibv_device, cfg);
+
+    // Resolve the netdev whose MAC/IP source the frame header: honor a
+    // user-supplied name, otherwise auto-detect from the IB device (which
+    // throws if ambiguous).
+    if (d_netdev.empty())
+        d_netdev = d_xport->netdev_name();
+
+    // Allocate a GPU-resident landing buffer registered as an IB MR.
+    // The NIC reads frame data directly from this GPU memory via DMA.
+    d_gpu_buf = std::make_unique<ibv_gpu_buffer>(d_gpu_buf_size, d_xport->pd());
+    d_num_slots = d_gpu_buf_size / d_slot_size;
+
+    // Build the 42-byte Eth/IP/UDP header template on the GPU; the
+    // CUDA kernel will replicate it into every slot before each send.
+    build_header();
+
+    // Pre-allocate the WR/SGE pool.  Fields that never change (length,
+    // lkey, opcode) are set once here; the per-send addr and signal
+    // flag are patched in work().  Sized to d_num_wr.
+    d_sges = static_cast<struct ibv_sge*>(calloc(d_num_wr, sizeof(struct ibv_sge)));
+    d_wrs =
+        static_cast<struct ibv_send_wr*>(calloc(d_num_wr, sizeof(struct ibv_send_wr)));
+    for (int i = 0; i < d_num_wr; i++) {
+        d_sges[i].length = d_frame_size;
+        d_sges[i].lkey = d_gpu_buf->mr()->lkey;
+        d_wrs[i].sg_list = &d_sges[i];
+        d_wrs[i].num_sge = 1;
+        d_wrs[i].opcode = IBV_WR_SEND;
+    }
+    d_wc_pool.resize(d_cq_poll_batch);
+
+    get_build_frames_block_and_grid(&d_min_grid_size, &d_block_size);
+}
+
+ibv_sink_impl::~ibv_sink_impl()
+{
+    /* Drain outstanding sends before tearing down the QP. */
+    if (d_xport && d_outstanding > 0) {
+        for (int retry = 0; retry < 200 && d_outstanding > 0; retry++) {
+            int n = ibv_poll_cq(d_xport->cq(), d_cq_poll_batch, d_wc_pool.data());
+            for (int i = 0; i < n; i++)
+                d_outstanding -= d_signal_batch;
+            usleep(500);
+        }
+    }
+    if (d_header_template)
+        cudaFree(d_header_template);
+    /* d_gpu_buf and d_xport destroyed by unique_ptr in reverse
+       declaration order (MR deregistered before PD is freed). */
+    free(d_sges);
+    free(d_wrs);
+}
+
+// start() - check scheduler buffer sizing
+bool ibv_sink_impl::start()
+{
+    size_t buf_items = detail()->input(0)->buffer()->bufsize();
+    size_t buf_bytes = buf_items * d_payload_size;
+
+    GR_LOG_INFO(d_logger,
+                "ibv_sink: input buffer " + std::to_string(buf_items) + " packets (" +
+                    std::to_string(buf_bytes / (1024 * 1024)) +
+                    " MB), num_wr=" + std::to_string(d_num_wr) +
+                    ", signal_batch=" + std::to_string(d_signal_batch));
+
+    if (buf_items < static_cast<size_t>(d_signal_batch) * 4) {
+        GR_LOG_WARN(
+            d_logger,
+            "ibv_sink: input buffer holds only " + std::to_string(buf_items) +
+                " packets — recommend >= " + std::to_string(d_signal_batch * 4) +
+                " (4x signal_batch) to avoid scheduler stalls");
+    }
+    return sync_block::start();
+}
+
+
+// Build a 42-byte Eth/IP/UDP header template on the GPU.
+//
+// The template is built once on the CPU (with proper checksums, byte
+// order, MACs, etc.) and then copied to GPU memory.  At runtime the
+// CUDA kernel memcpy's this template into every outgoing slot, so we
+// avoid any per-packet header construction on the hot path.
+//
+// For multicast the destination MAC is derived from the group IP
+// (IANA mapping 01:00:5e:xx:xx:xx) and TTL is set to 1.  For
+// unicast the caller-supplied MAC/IP are used with TTL 64.
+void ibv_sink_impl::build_header()
+{
+    // Resolve our own MAC and IP from the Linux netdev (d_netdev, resolved
+    // in the constructor from the user param or auto-detected).
+    const std::string& netdev = d_netdev;
+
+    uint8_t src_mac[6], dst_mac_bytes[6];
+    if (get_mac_address(netdev.c_str(), src_mac))
+        throw std::runtime_error("ibv_sink: cannot get MAC for " + netdev);
+
+    uint32_t src_ip;
+    if (get_ipv4_address(netdev.c_str(), &src_ip))
+        throw std::runtime_error("ibv_sink: cannot get IP for " + netdev);
+
+    uint32_t dst_ip_addr;
+    uint8_t ttl;
+
+    if (!d_mcast_group.empty()) {
+        uint32_t mcast_ip = inet_addr(d_mcast_group.c_str());
+        mcast_ip_to_mac(mcast_ip, dst_mac_bytes);
+        dst_ip_addr = mcast_ip;
+        ttl = 1;
+    } else {
+        if (parse_mac(d_dst_mac.c_str(), dst_mac_bytes))
+            throw std::runtime_error("ibv_sink: invalid dst MAC: " + d_dst_mac);
+        dst_ip_addr = inet_addr(d_dst_ip.c_str());
+        ttl = 64;
+    }
+
+    // Assemble the 42-byte header: [Eth 14B][IP 20B][UDP 8B]. The pure
+    // assembly lives in net_headers.h (build_frame_header) so it can be
+    // unit-tested without netdev/GPU; here we only supply resolved params.
+    frame_header_params hp{};
+    memcpy(hp.src_mac, src_mac, 6);
+    memcpy(hp.dst_mac, dst_mac_bytes, 6);
+    hp.src_ip = src_ip;
+    hp.dst_ip = dst_ip_addr;
+    hp.src_port = static_cast<uint16_t>(d_src_port);
+    hp.dst_port = static_cast<uint16_t>(d_dst_port);
+    hp.ttl = ttl;
+    hp.payload_size = static_cast<uint16_t>(d_payload_size);
+
+    uint8_t hdr[L2L3L4_HDR_LEN];
+    build_frame_header(hdr, hp);
+
+    struct in_addr src_in {
+        src_ip
+    }, dst_in{ dst_ip_addr };
+    std::ostringstream log;
+    log << "ibv_sink: netdev=" << netdev << " src=" << inet_ntoa(src_in)
+        << " dst=" << inet_ntoa(dst_in) << " dst_port=" << d_dst_port;
+    GR_LOG_INFO(d_logger, log.str());
+
+    // Upload the template to GPU; the CUDA kernel copies it into
+    // each slot's first 42 bytes before every send batch.
+    check_cuda_errors(
+        cudaMalloc(reinterpret_cast<void**>(&d_header_template), L2L3L4_HDR_LEN),
+        "ibv_sink: cudaMalloc header_template",
+        d_logger);
+    check_cuda_errors(
+        cudaMemcpy(d_header_template, hdr, L2L3L4_HDR_LEN, cudaMemcpyHostToDevice),
+        "ibv_sink: cudaMemcpy header_template",
+        d_logger);
+}
+
+// CQ drain
+void ibv_sink_impl::drain_cq()
+{
+    struct ibv_wc* wc = d_wc_pool.data();
+    int n = ibv_poll_cq(d_xport->cq(), d_cq_poll_batch, wc);
+    for (int i = 0; i < n; i++) {
+        if (wc[i].status != IBV_WC_SUCCESS) {
+            GR_LOG_ERROR(d_logger,
+                         "ibv_sink: send WC error status=" +
+                             std::to_string(wc[i].status));
+        }
+        d_outstanding -= d_signal_batch;
+    }
+    if (d_outstanding < 0)
+        d_outstanding = 0;
+}
+
+// work()
+int ibv_sink_impl::work(int noutput_items,
+                        gr_vector_const_void_star& input_items,
+                        gr_vector_void_star& output_items)
+{
+    // noutput_items is in packet units and always a multiple of signal_batch
+    // (guaranteed by set_output_multiple).
+    int num_pkts = std::min(noutput_items, static_cast<int>(d_num_slots));
+    num_pkts = (num_pkts / d_signal_batch) * d_signal_batch;
+
+    // Bounded spin-wait for NIC send slots (pure IBV, no CUDA overhead).
+    // After the spin, do a partial send with however many slots freed up.
+    constexpr int SPIN_LIMIT = 4000;
+    for (int spin = 0; spin < SPIN_LIMIT; spin++) {
+        drain_cq();
+        if (d_num_wr - d_outstanding >= num_pkts)
+            break;
+    }
+    int available = d_num_wr - d_outstanding;
+    num_pkts = std::min(num_pkts, (available / d_signal_batch) * d_signal_batch);
+    if (num_pkts <= 0)
+        return 0;
+
+    auto in = static_cast<const uint8_t*>(input_items[0]);
+
+    const uint32_t first_slot = d_next_slot;
+    exec_build_frames_kernel(d_gpu_buf->data(),
+                             d_slot_size,
+                             first_slot,
+                             d_num_slots,
+                             d_header_template,
+                             L2L3L4_HDR_LEN,
+                             in,
+                             d_payload_size,
+                             num_pkts,
+                             d_block_size,
+                             d_stream);
+
+    // Frames must be in GPU memory before the NIC DMAs them.
+    check_cuda_errors(
+        cudaStreamSynchronize(d_stream), "ibv_sink: cudaStreamSynchronize", d_logger);
+
+    // Post send WRs in chained batches of signal_batch.
+    int posted_pkts = 0;
+    for (int base = 0; base < num_pkts; base += d_signal_batch) {
+        int batch_end = base + d_signal_batch;
+        const uint64_t batch_wr_base = d_wr_counter;
+
+        for (int j = base; j < batch_end; j++) {
+            uint64_t wr_id = batch_wr_base + static_cast<uint64_t>(j - base);
+            int idx = static_cast<int>(wr_id % d_num_wr);
+            uint32_t slot = (first_slot + static_cast<uint32_t>(j)) % d_num_slots;
+
+            d_sges[idx].addr = reinterpret_cast<uint64_t>(
+                d_gpu_buf->data() + static_cast<uint64_t>(slot) * d_slot_size);
+            d_wrs[idx].wr_id = wr_id;
+            d_wrs[idx].send_flags = (j == batch_end - 1) ? IBV_SEND_SIGNALED : 0;
+            d_wrs[idx].next = (j < batch_end - 1)
+                                  ? &d_wrs[static_cast<int>((wr_id + 1) % d_num_wr)]
+                                  : nullptr;
+        }
+
+        int first_idx = static_cast<int>(batch_wr_base % d_num_wr);
+        struct ibv_send_wr* bad_wr = nullptr;
+        if (ibv_post_send(d_xport->qp(), &d_wrs[first_idx], &bad_wr)) {
+            GR_LOG_ERROR(d_logger, "ibv_sink: ibv_post_send failed");
+            break;
+        }
+        d_wr_counter += d_signal_batch;
+        d_outstanding += d_signal_batch;
+        d_next_slot = (d_next_slot + d_signal_batch) % d_num_slots;
+        posted_pkts += d_signal_batch;
+    }
+
+    return posted_pkts;
+}
+
+} /* namespace cuda */
+} /* namespace gr */

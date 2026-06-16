@@ -42,8 +42,18 @@ list(
     streams_to_vector_python.cc
     vector_to_streams_python.cc
     tee_python.cc
+    seq_stamp_python.cc
+    seq_strip_python.cc
     python_bindings.cc
 )
+
+if(ENABLE_IBV)
+    list(
+        APPEND cuda_python_files
+        ibv_source_python.cc
+        ibv_sink_python.cc
+    )
+endif()
 
 GR_PYBIND_MAKE_OOT(cuda ../../.. gr::cuda "${cuda_python_files}")
 

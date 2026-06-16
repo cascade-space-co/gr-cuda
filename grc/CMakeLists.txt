@@ -32,3 +32,12 @@ install(
         cuda_tee.block.yml
     DESTINATION share/gnuradio/grc/blocks
 )
+
+if(ENABLE_IBV)
+    install(
+        FILES
+            cuda_ibv_source.block.yml
+            cuda_ibv_sink.block.yml
+        DESTINATION share/gnuradio/grc/blocks
+    )
+endif()

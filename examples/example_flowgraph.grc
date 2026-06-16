@@ -37,7 +37,7 @@ blocks:
       \ Larger values \nimprove GPU throuput at the cost of memory and latency.\n\
       For finer control, buff_size_samples can also be used as\noutput_multiple via\
       \ set_output_multiple(), but this is \nnot exposed in the flowgraph by default."
-    value: 2**22
+    value: 2**20
   states:
     bus_sink: false
     bus_source: false
@@ -273,11 +273,11 @@ blocks:
     width7: '1'
     width8: '1'
     width9: '1'
-    x_axis_label: '"x-Axis"'
+    x_axis_label: FFT bin
     x_start: '0'
     x_step: '1.0'
     x_units: '""'
-    y_axis_label: '"y-Axis"'
+    y_axis_label: Power [dB]
     y_units: '""'
     ymax: '10'
     ymin: '-140'
@@ -301,4 +301,4 @@ connections:
 
 metadata:
   file_format: 1
-  grc_version: v3.11.0.0git-1084-gcf7c7de2
+  grc_version: v3.11.0.0git-1089-gad53d9c1

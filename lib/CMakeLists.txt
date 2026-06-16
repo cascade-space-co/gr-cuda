@@ -42,7 +42,21 @@ list(
     probe_rate_impl.cc
     throttle_impl.cc
     tee_impl.cc
+    seq_stamp_impl.cc
+    seq.cu
+    seq_strip_impl.cc
 )
+
+if(ENABLE_IBV)
+    list(
+        APPEND cuda_sources
+        network/ibv_common.cc
+        ibv_source_impl.cc
+        ibv_source.cu
+        ibv_sink_impl.cc
+        ibv_sink.cu
+    )
+endif()
 
 set(cuda_sources "${cuda_sources}" PARENT_SCOPE)
 if(NOT cuda_sources)
@@ -60,6 +74,11 @@ target_link_libraries(
         CUDA::cuda_driver
         CUDA::cufft
 )
+
+if(ENABLE_IBV)
+    target_link_libraries(gnuradio-cuda PUBLIC ibverbs)
+    target_compile_definitions(gnuradio-cuda PUBLIC ENABLE_IBV)
+endif()
 
 target_include_directories(
     gnuradio-cuda
@@ -124,7 +143,16 @@ include(GrTest)
 # If your unit tests require special include paths, add them here
 #include_directories()
 # List all files that contain Boost.UTF unit tests here
-list(APPEND test_cuda_sources qa_general_work_cpp.cc)
+list(
+    APPEND test_cuda_sources
+    qa_general_work_cpp.cc
+    qa_net_headers.cc
+    qa_seq.cc
+)
+# The CUDA kernel tests need the IBV .cu entry points (only built with IBV).
+if(ENABLE_IBV)
+    list(APPEND test_cuda_sources qa_ibv_kernels.cc)
+endif()
 # Anything we need to link to for the unit tests go here
 list(APPEND GR_TEST_TARGET_DEPS gnuradio-cuda)
 
