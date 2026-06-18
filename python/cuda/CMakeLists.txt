@@ -30,6 +30,11 @@ GR_PYTHON_INSTALL(
         nlog10_cupy.py
         add_cupy.py
         fft_cupy.py
+        sig_source_cupy.py
+        const_source_cupy.py
+        vector_source_cupy.py
+        random_uniform_source_cupy.py
+        noise_source_cupy.py
     DESTINATION ${GR_PYTHON_DIR}/gnuradio/cuda
 )
 
@@ -153,4 +158,29 @@ GR_ADD_TEST(
     qa_autosync
     ${PYTHON_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/qa_autosync.py
+)
+GR_ADD_TEST(
+    qa_sig_source_cupy
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_sig_source_cupy.py
+)
+GR_ADD_TEST(
+    qa_const_source_cupy
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_const_source_cupy.py
+)
+GR_ADD_TEST(
+    qa_vector_source_cupy
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_vector_source_cupy.py
+)
+GR_ADD_TEST(
+    qa_random_uniform_source_cupy
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_random_uniform_source_cupy.py
+)
+GR_ADD_TEST(
+    qa_noise_source_cupy
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_noise_source_cupy.py
 )

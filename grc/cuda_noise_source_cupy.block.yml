@@ -1,0 +1,46 @@
+id: cuda_noise_source_cupy
+label: Noise Source (CuPy)
+flags: [ python ]
+category: '[CUDA]/Waveform Generators'
+
+parameters:
+-   id: type
+    label: Output Type
+    dtype: enum
+    options: [complex, float, int, short]
+    option_attributes:
+        np_dtype: [np.complex64, np.float32, np.int32, np.int16]
+    hide: part
+-   id: noise_type
+    label: Noise Type
+    dtype: raw
+    default: cuda.GR_GAUSSIAN
+    options: [cuda.GR_UNIFORM, cuda.GR_GAUSSIAN, cuda.GR_LAPLACIAN, cuda.GR_IMPULSE]
+    option_labels: [Uniform, Gaussian, Laplacian, Impulse]
+-   id: amp
+    label: Amplitude
+    dtype: real
+    default: '1'
+-   id: seed
+    label: Seed
+    dtype: int
+    default: '0'
+
+outputs:
+-   domain: cuda
+    dtype: ${ type }
+
+templates:
+    imports: |-
+        from gnuradio import cuda
+        import numpy as np
+    make: cuda.noise_source_cupy(${noise_type}, ${amp}, ${seed}, dtype=${type.np_dtype})
+    callbacks:
+    - set_type(${noise_type})
+    - set_amplitude(${amp})
+
+documentation: |-
+    GPU noise source. Fresh random variates are generated on the device for
+    every output sample. CuPy port of analog.noise_source_x.
+
+file_format: 1

@@ -1,0 +1,61 @@
+id: cuda_sig_source_cupy
+label: Signal Source (CuPy)
+flags: [ python ]
+category: '[CUDA]/Waveform Generators'
+
+parameters:
+-   id: type
+    label: Output Type
+    dtype: enum
+    options: [complex, float, int, short, byte]
+    option_attributes:
+        np_dtype: [np.complex64, np.float32, np.int32, np.int16, np.int8]
+        offset_type: [complex, real, int, short, byte]
+    hide: part
+-   id: samp_rate
+    label: Sample Rate
+    dtype: real
+    default: samp_rate
+-   id: waveform
+    label: Waveform
+    dtype: raw
+    default: cuda.GR_COS_WAVE
+    options: [cuda.GR_CONST_WAVE, cuda.GR_SIN_WAVE, cuda.GR_COS_WAVE, cuda.GR_SQR_WAVE,
+        cuda.GR_TRI_WAVE, cuda.GR_SAW_WAVE]
+    option_labels: [Constant, Sine, Cosine, Square, Triangle, Saw Tooth]
+-   id: freq
+    label: Frequency
+    dtype: real
+    default: '1000'
+-   id: amp
+    label: Amplitude
+    dtype: real
+    default: '1'
+-   id: offset
+    label: Offset
+    dtype: ${ type.offset_type }
+    default: '0'
+-   id: phase
+    label: Initial Phase (Radians)
+    dtype: real
+    default: '0'
+
+outputs:
+-   domain: cuda
+    dtype: ${ type }
+
+templates:
+    imports: |-
+        from gnuradio import cuda
+        import numpy as np
+    make: cuda.sig_source_cupy(${samp_rate}, ${waveform}, ${freq}, ${amp}, ${offset},
+        ${phase}, dtype=${type.np_dtype})
+    callbacks:
+    - set_sampling_freq(${samp_rate})
+    - set_waveform(${waveform})
+    - set_frequency(${freq})
+    - set_amplitude(${amp})
+    - set_offset(${offset})
+    - set_phase(${phase})
+
+file_format: 1

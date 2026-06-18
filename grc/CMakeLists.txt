@@ -18,6 +18,11 @@ install(
         cuda_complex_to_mag_cupy.block.yml
         cuda_complex_to_mag_squared_cupy.block.yml
         cuda_nlog10_cupy.block.yml
+        cuda_sig_source_cupy.block.yml
+        cuda_const_source_cupy.block.yml
+        cuda_vector_source_cupy.block.yml
+        cuda_random_uniform_source_cupy.block.yml
+        cuda_noise_source_cupy.block.yml
         cuda_add.block.yml
         cuda_load.block.yml
         cuda_stream_to_vector.block.yml

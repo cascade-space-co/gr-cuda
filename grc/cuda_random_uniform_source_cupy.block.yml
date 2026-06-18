@@ -1,0 +1,37 @@
+id: cuda_random_uniform_source_cupy
+label: Random Uniform Source (CuPy)
+flags: [ python ]
+category: '[CUDA]/Waveform Generators'
+
+parameters:
+-   id: type
+    label: Output Type
+    dtype: enum
+    options: [int, short, byte]
+    option_attributes:
+        np_dtype: [np.int32, np.int16, np.int8]
+    hide: part
+-   id: minimum
+    label: Minimum
+    dtype: int
+    default: '0'
+-   id: maximum
+    label: Maximum
+    dtype: int
+    default: '2'
+-   id: seed
+    label: Seed
+    dtype: int
+    default: '0'
+
+outputs:
+-   domain: cuda
+    dtype: ${ type }
+
+templates:
+    imports: |-
+        from gnuradio import cuda
+        import numpy as np
+    make: cuda.random_uniform_source_cupy(${minimum}, ${maximum}, ${seed}, dtype=${type.np_dtype})
+
+file_format: 1
