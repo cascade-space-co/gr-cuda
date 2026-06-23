@@ -1,0 +1,32 @@
+id: cuda_const_source_cupy
+label: Constant Source (CuPy)
+flags: [ python ]
+category: '[CUDA]/Waveform Generators'
+
+parameters:
+-   id: type
+    label: Output Type
+    dtype: enum
+    options: [complex, float, int, short, byte]
+    option_attributes:
+        np_dtype: [np.complex64, np.float32, np.int32, np.int16, np.int8]
+        const_type: [complex, real, int, short, byte]
+    hide: part
+-   id: const
+    label: Constant
+    dtype: ${ type.const_type }
+    default: '0'
+
+outputs:
+-   domain: cuda
+    dtype: ${ type }
+
+templates:
+    imports: |-
+        from gnuradio import cuda
+        import numpy as np
+    make: cuda.const_source_cupy(${const}, dtype=${type.np_dtype})
+    callbacks:
+    - set_const(${const})
+
+file_format: 1
