@@ -9,7 +9,7 @@ parameters:
     dtype: enum
     options: [int, short, byte]
     option_attributes:
-        np_dtype: [np.int32, np.int16, np.int8]
+        np_dtype: [np.int32, np.int16, np.uint8]
     hide: part
 -   id: minimum
     label: Minimum

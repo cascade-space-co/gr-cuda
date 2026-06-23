@@ -9,7 +9,7 @@ parameters:
     dtype: enum
     options: [complex, float, int, short, byte]
     option_attributes:
-        np_dtype: [np.complex64, np.float32, np.int32, np.int16, np.int8]
+        np_dtype: [np.complex64, np.float32, np.int32, np.int16, np.uint8]
     hide: part
 -   id: vector
     label: Vector

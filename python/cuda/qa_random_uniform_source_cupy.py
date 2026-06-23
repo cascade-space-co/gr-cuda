@@ -69,7 +69,7 @@ class qa_random_uniform_source_cupy(gr_unittest.TestCase):
 
     def test_byte_range(self):
         lo, hi = 0, 5
-        dut = cuda.random_uniform_source_cupy(lo, hi, seed=3, dtype=np.int8)
+        dut = cuda.random_uniform_source_cupy(lo, hi, seed=3, dtype=np.uint8)
         res = _collect(self.tb, dut, gr.sizeof_char, blocks.vector_sink_b(), 10000)
         self.assertGreaterEqual(res.min(), lo)
         self.assertLess(res.max(), hi)

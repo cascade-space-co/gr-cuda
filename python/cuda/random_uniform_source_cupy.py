@@ -41,7 +41,9 @@ class random_uniform_source_cupy(cuda.sync_block):
         seed : int
             RNG seed. 0 selects a nondeterministic seed.
         dtype : numpy.dtype
-            Output integer type (int32, int16, int8).
+            Output integer type (int32, int16, uint8). Note the byte variant
+            is unsigned, matching the in-tree ``random_uniform_source_b``
+            (``std::uint8_t``).
         """
         self._dtype = np.dtype(dtype)
         self._min = int(minimum)
