@@ -1,0 +1,49 @@
+channels:
+  - conda-forge
+  - nodefaults  # Only use conda-forge.
+dependencies:
+  # GNU Radio.
+  #
+  # gr-cuda's GPU CI builds gnuradio from source, because the runtime changes it
+  # needs are merged upstream but unreleased. The package below is here for its
+  # dependency closure -- boost, fftw, volk, spdlog, pybind11 and the rest --
+  # which the source build then links against. The workflow removes gnuradio
+  # itself immediately after creating the environment; see
+  # .github/workflows/gpu-qa.yml.
+  #
+  # TODO(GR-3.10.13): when gnuradio 3.10.13 reaches conda-forge, pin it here
+  # (>=3.10.13) and delete the source build from the workflow. As of Sept 2026
+  # conda-forge is still on 3.10.12.0. Note that <=3.10.12 has a fan-out
+  # deadlock that hangs QA outright -- see the #warning in
+  # include/gnuradio/cuda/cuda_buffer.h -- so this pin alone is not usable
+  # without the source build.
+  - gnuradio>=3.10.12
+  - gnuradio-build-deps  # cmake, ninja, compilers, pkg-config, etc.
+  - pygccxml>=3.0.2,<4.0  # pybind11 binding generation
+  - python>=3.12
+
+  # CUDA.
+  #
+  # Capped below 13.1 to stay under the NVIDIA driver. A toolkit newer than the
+  # driver fails *silently*: kernel launches are unchecked, so they return zeros
+  # and tests report a numeric mismatch rather than a CUDA error. A 13.0 toolkit
+  # is under the ceiling on both the gpu-t4 CI runner (driver 590.48.01,
+  # supports 13.1) and europa (13.0), so this one pin serves both.
+  - cuda-nvcc<13.1
+  - cuda-cudart-dev<13.1
+  - cuda-driver-dev<13.1
+  - libcufft-dev
+  - cupy  # Python GPU blocks
+
+  # Testing
+  - pytest>=8.0.0
+  - pytest-cov>=4.0.0
+  - pytest-timeout>=2.3.0  # required: pyproject.toml sets timeout options and
+                           # pytest runs with --strict-config
+
+  # Development tools
+  - gersemi>=0.23.0  # CMake formatting
+  - ruff>=0.12.0  # Python linting and formatting
+  - clang-format>=18.0.0  # C++/CUDA formatting
+  - pre-commit>=3.0.0  # Pre-commit hooks
+  - pre-commit-hooks>=4.5.0  # File hygiene checks

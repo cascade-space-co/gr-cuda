@@ -1,0 +1,222 @@
+# Runs the QA suite on a real GPU.
+#
+# Lint stays in ci.yml on every push on an ordinary runner; this is the
+# expensive job and it is deliberately not on every push. See the "Triggers"
+# comment on the job below.
+name: GPU QA
+
+on:
+  push:
+    branches: [cascade/main]
+  pull_request:
+    types: [labeled, synchronize, reopened]
+  workflow_dispatch:
+
+concurrency:
+  # Superseded runs are cancelled: GPU minutes are billed to the org at
+  # $0.052/min, so leaving an obsolete run to finish costs real money.
+  group: gpu-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # gnuradio main, pinned rather than tracking the branch head so that a red run
+  # means gr-cuda changed and not gnuradio. Bumping this is a deliberate PR, and
+  # it invalidates the environment cache below.
+  #
+  # This commit is the one the QA suite was characterised at: 61 passing, 1
+  # skipped, and the two hangs contained at the bottom of this file.
+  GNURADIO_REF: aee9fd3f79389c4282a98e8d62c8405c73fd91df
+
+  # Conda's own miniforge lives in /opt and is not owned by the runner user, so
+  # the environment goes somewhere writable. It is outside the workspace on
+  # purpose: checkout must not be able to clobber a restored cache. /home/runner
+  # is fixed on GitHub-hosted Linux runners.
+  ENV_PATH: /home/runner/gr-cuda-env
+
+  # Bump to invalidate every cache entry without touching environment.yml.
+  CACHE_VERSION: v1
+
+jobs:
+  qa:
+    # Triggers. gr-cuda is public and GPU minutes are billed to the org, so the
+    # `run-gpu-qa` label is what stops a stranger's PR from spending them.
+    #
+    # This tests for the label being *present* rather than for the `labeled`
+    # event, which is the difference between a label that gates the job for the
+    # life of the PR and a label that fires exactly once. Pushing a fix to a
+    # labelled PR re-runs it; removing the label stops that.
+    #
+    # `pull_request`, never `pull_request_target`: fork code must not get a
+    # token. Fork PRs cannot write to this repo's cache, but they can read the
+    # entry cascade/main wrote, so an outside contributor still gets a warm
+    # start.
+    if: >-
+      github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'run-gpu-qa')
+
+    runs-on: gpu-t4
+    # Cold, the gnuradio build is the better part of an hour on 4 vCPU. Warm,
+    # this should be about 15 minutes. The ceiling is a backstop against a
+    # runaway job billing until someone notices, not a target.
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Cheap, and it is the first thing to look at when a CUDA test fails with
+      # all-zero output rather than an error: that is what both a
+      # toolkit-newer-than-driver mismatch and a wrong -DCMAKE_CUDA_ARCHITECTURES
+      # look like, because the kernel launches are unchecked.
+      - name: GPU
+        run: nvidia-smi
+
+      - name: Cache key
+        id: key
+        run: |
+          echo "value=gpu-qa-${CACHE_VERSION}-${{ hashFiles('environment.yml') }}-${GNURADIO_REF}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore conda environment
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.ENV_PATH }}
+          key: ${{ steps.key.outputs.value }}
+
+      - name: Create conda environment
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          source /opt/miniforge/etc/profile.d/conda.sh
+          mamba env create -f environment.yml -p "$ENV_PATH"
+
+          # conda-forge's gnuradio was installed for its dependency closure
+          # only; see environment.yml. --no-prune-deps unlinks gnuradio while
+          # orphaning rather than garbage-collecting boost, fftw, volk and the
+          # rest, which the source build below needs to find. Leaving gnuradio
+          # installed is not an option: its 3.10 CMake config and libraries
+          # shadow the source-built 3.11 at configure and at import time, and
+          # that surfaces as a baffling test error rather than a build error.
+          pkgs="$(mamba list -p "$ENV_PATH" | awk '$1 ~ /^gnuradio/ {print $1}')"
+          if [ -n "$pkgs" ]; then
+            # shellcheck disable=SC2086
+            mamba remove -p "$ENV_PATH" -y --no-prune-deps $pkgs
+          fi
+
+      - name: Build gnuradio
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          source /opt/miniforge/etc/profile.d/conda.sh
+          conda activate "$ENV_PATH"
+
+          src="$RUNNER_TEMP/gnuradio"
+          git init -q "$src"
+          git -C "$src" remote add origin https://github.com/gnuradio/gnuradio.git
+          git -C "$src" fetch -q --depth 1 origin "$GNURADIO_REF"
+          git -C "$src" checkout -q FETCH_HEAD
+
+          # gr-cuda links exactly one gnuradio target (gnuradio-runtime, see
+          # lib/CMakeLists.txt) and the QA suite imports only gr, blocks, fft
+          # and gr_unittest. Everything switched off below is a GUI, hardware or
+          # docs component that gr-cuda neither links nor imports. QTGUI is the
+          # one that matters twice over: it is the largest component, and it is
+          # the one that fails on a headless runner.
+          cmake -S "$src" -B "$src/build" -GNinja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$CONDA_PREFIX" \
+            -DCMAKE_PREFIX_PATH="$CONDA_PREFIX" \
+            -DENABLE_TESTING=OFF \
+            -DENABLE_DOXYGEN=OFF \
+            -DENABLE_GR_QTGUI=OFF \
+            -DENABLE_GR_UHD=OFF \
+            -DENABLE_GR_AUDIO=OFF \
+            -DENABLE_GR_VIDEO_SDL=OFF \
+            -DENABLE_GR_SOAPY=OFF \
+            -DENABLE_GR_IIO=OFF
+          cmake --build "$src/build" -j "$(nproc)"
+
+          # No `ninja test` here on purpose. This job tests gr-cuda; gnuradio's
+          # own suite is not ours to police, and it does not pass headless.
+          cmake --install "$src/build"
+          rm -rf "$src"
+
+      # Saved here rather than at job end, and this ordering is load-bearing.
+      # The plain actions/cache action saves in a post-job step, by which point
+      # gr-cuda has been installed into this same prefix -- so every run would
+      # store an environment carrying the previous commit's gr-cuda and restore
+      # it over the next one. gr-cuda is fast to build and changes every PR; it
+      # stays outside the cache deliberately.
+      - name: Save conda environment
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.ENV_PATH }}
+          key: ${{ steps.key.outputs.value }}
+
+      # actions/cache is capped at 10 GB per repository and evicts least
+      # recently used entries. If this creeps toward the cap, the fix is to move
+      # the prebuilt environment to a container image in GHCR.
+      - name: Environment size
+        run: |
+          echo "cache hit: ${{ steps.cache.outputs.cache-hit || 'false' }}"
+          du -sh "$ENV_PATH"
+
+      - name: Build gr-cuda
+        run: |
+          source /opt/miniforge/etc/profile.d/conda.sh
+          conda activate "$ENV_PATH"
+          # CMAKE_CUDA_ARCHITECTURES=native resolves against the card actually
+          # present, which is a T4 (sm_75) here and a Blackwell (sm_120) on
+          # europa. This job therefore proves logic, not Blackwell codegen.
+          cmake -S . -B build -GNinja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$CONDA_PREFIX" \
+            -DCMAKE_PREFIX_PATH="$CONDA_PREFIX" \
+            -DCMAKE_CUDA_ARCHITECTURES=native
+          cmake --build build -j "$(nproc)"
+          cmake --install build
+
+      - name: QA
+        env:
+          # python/cuda is a package directory named `cuda`, and it shadows
+          # NVIDIA's cuda.pathfinder, which cupy imports -- every file then
+          # fails at collection with an ImportError deep inside cupy. Two things
+          # prevent that: pytest runs with --import-mode=importlib (set in
+          # pyproject.toml) so python/ is never prepended to sys.path, and the
+          # working directory is the repo root.
+          #
+          # python/cuda is on PYTHONPATH because five files (qa_add_cupy,
+          # qa_fanin_sync, qa_multiply_const_cupy, qa_parallel_sync,
+          # qa_stress_sync) fall back to importing siblings by bare name.
+          PYTHONPATH: ${{ github.workspace }}/python/cuda
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          source /opt/miniforge/etc/profile.d/conda.sh
+          conda activate "$ENV_PATH"
+          # The two deselected tests hang rather than fail; they are run
+          # separately in the next step so the job cannot be held to its
+          # timeout by a known problem. Everything else gates this job.
+          pytest python/cuda \
+            --deselect python/cuda/qa_cuda_block.py::qa_cuda_block::test_009_sync_history \
+            --deselect python/cuda/qa_fft.py::qa_fft::test_cuda_fft_shift
+
+      # Two tests hang under gnuradio main at the commit pinned above. Until the
+      # DSP team has diagnosed them they run here instead: reported every time,
+      # bounded by a per-test timeout, and unable to fail the job. If they start
+      # passing, this step goes green and the deselects above can come out --
+      # which is a result worth reporting upstream either way.
+      #
+      #   qa_cuda_block.py::test_009_sync_history
+      #   qa_fft.py::test_cuda_fft_shift
+      - name: Known hangs (informational, does not gate)
+        continue-on-error: true
+        env:
+          PYTHONPATH: ${{ github.workspace }}/python/cuda
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          source /opt/miniforge/etc/profile.d/conda.sh
+          conda activate "$ENV_PATH"
+          pytest --timeout=120 \
+            python/cuda/qa_cuda_block.py::qa_cuda_block::test_009_sync_history \
+            python/cuda/qa_fft.py::qa_fft::test_cuda_fft_shift

@@ -6,8 +6,29 @@ python_functions = "test_*"
 addopts = [
     "--strict-markers",
     "--strict-config",
-    "-v"
+    "-v",
+    # python/cuda is a package directory named `cuda` with an __init__.py, so
+    # the default "prepend" import mode puts python/ on sys.path and imports the
+    # suite as the `cuda` package. That shadows NVIDIA's cuda.pathfinder, which
+    # cupy imports, and every file fails at collection with an ImportError deep
+    # inside cupy. importlib mode does not touch sys.path at all.
+    "--import-mode=importlib",
 ]
+
+# Nothing here should take five minutes. A hang in CI is a job that runs to the
+# workflow timeout and bills for it, so this bounds the damage from a new one to
+# a single test. The two tests known to hang today are handled explicitly in
+# .github/workflows/gpu-qa.yml rather than here.
+#
+# "signal" rather than the default "thread": the thread method kills the whole
+# process, which loses the other tests' results and the traceback that says
+# where it stopped.
+#
+# Both options come from pytest-timeout (see environment.yml). Because
+# --strict-config is set above, pytest errors out rather than warns if it is not
+# installed.
+timeout = 300
+timeout_method = "signal"
 
 [tool.ruff]
 target-version = "py312"
