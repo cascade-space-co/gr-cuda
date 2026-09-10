@@ -94,10 +94,17 @@ jobs:
       - name: GPU
         run: nvidia-smi
 
+      # The workflow file is part of the key, not just environment.yml and the
+      # gnuradio commit, because the cached artifact is gnuradio *as configured
+      # by the step below*. Keying only on the commit means changing a
+      # -DENABLE_* flag silently reuses an environment built with the old flags,
+      # and keeps doing so until the entry evicts -- at which point CI's
+      # behaviour changes on its own with no commit to blame. Hashing the whole
+      # file is conservative: editing a comment here costs one cold rebuild.
       - name: Cache key
         id: key
         run: |
-          echo "value=gpu-qa-${CACHE_VERSION}-${{ hashFiles('environment.yml') }}-${GNURADIO_REF}" >> "$GITHUB_OUTPUT"
+          echo "value=gpu-qa-${CACHE_VERSION}-${{ hashFiles('environment.yml', '.github/workflows/gpu-qa.yml') }}-${GNURADIO_REF}" >> "$GITHUB_OUTPUT"
 
       - name: Restore conda environment
         id: cache
@@ -143,11 +150,21 @@ jobs:
           # docs component that gr-cuda neither links nor imports. QTGUI is the
           # one that matters twice over: it is the largest component, and it is
           # the one that fails on a headless runner.
+          #
+          # ENABLE_TESTING is deliberately NOT switched off, though it would be
+          # faster. gnuradio templates its build-time value into the installed
+          # GnuradioConfig.cmake, which only requests Boost's
+          # unit_test_framework component when testing is on. With it off, every
+          # downstream OOT calling GR_ADD_CPP_TEST fails to configure:
+          #
+          #   Target "cuda_qa_seq.cc" links to: Boost::unit_test_framework
+          #   but the target was not found.
+          #
+          # gnuradio's own tests still never run here; they are only built.
           cmake -S "$src" -B "$src/build" -GNinja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="$CONDA_PREFIX" \
             -DCMAKE_PREFIX_PATH="$CONDA_PREFIX" \
-            -DENABLE_TESTING=OFF \
             -DENABLE_DOXYGEN=OFF \
             -DENABLE_GR_QTGUI=OFF \
             -DENABLE_GR_UHD=OFF \
