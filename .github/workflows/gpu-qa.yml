@@ -12,7 +12,14 @@ on:
     # currently a strict descendant of it.
     branches: [cascade/main, cascade/main-gr-3.10.13]
   pull_request:
-    types: [labeled, synchronize, reopened]
+    # `unlabeled` is here so that removing the label stops a running job. The
+    # route is indirect: the event creates a workflow run, that run joins the
+    # concurrency group below and cancels the in-flight one, and then its own
+    # job is skipped by the `if` because the label is gone. The cost is that
+    # removing *any* label cancels a running job, not just this one; that is
+    # recoverable by re-adding the label, and worth it for having an in-band
+    # way to stop billing that is not the Cancel button in the Actions tab.
+    types: [labeled, unlabeled, synchronize, reopened]
   workflow_dispatch:
 
 concurrency:
@@ -64,6 +71,13 @@ jobs:
       github.event_name != 'pull_request' ||
       contains(github.event.pull_request.labels.*.name, 'run-gpu-qa')
 
+    # gpu-t4 is a GitHub-hosted larger runner, not a self-hosted machine --
+    # `runs-on: <custom label>` looks like the latter but the runner group is
+    # provisioned by GitHub's Hosted Compute Agent and the VM is ephemeral, one
+    # per job, destroyed afterwards. So running a fork's code here leaves
+    # nothing behind for the next job to pick up, and there is no host to
+    # re-image. What a labelled fork PR does cost is GPU minutes, which is what
+    # the label gate above is for, bounded by the timeout below.
     runs-on: gpu-t4
     # Cold, the gnuradio build is the better part of an hour on 4 vCPU. Warm,
     # this should be about 15 minutes. The ceiling is a backstop against a
