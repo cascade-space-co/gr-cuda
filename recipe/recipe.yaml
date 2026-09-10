@@ -30,7 +30,8 @@ build:
         -DPYTHON_EXECUTABLE=$PYTHON \
         -DGR_PYTHON_DIR=$SP_DIR \
         -DENABLE_DOXYGEN=OFF \
-        -DENABLE_TESTING=ON
+        -DENABLE_TESTING=ON \
+        -DCMAKE_CUDA_ARCHITECTURES=120
     - cmake --build . --config Release -- -j${CPU_COUNT}
     - cmake --build . --config Release --target install
 
