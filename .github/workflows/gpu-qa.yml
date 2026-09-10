@@ -2,13 +2,21 @@
 # docs/CI.md. Lint stays in ci.yml on every push on an ordinary runner.
 name: GPU QA
 
+# paths-ignore, not paths: a deny-list means a file type nobody thought of still
+# gets tested. An allow-list would silently skip it, and a regression merging
+# unexercised is the failure this job exists to prevent.
+#
+# Note if gpu-qa is ever made a required check: a run skipped by these filters
+# reports nothing at all, so a docs-only PR would never become mergeable.
 on:
   push:
     # Both of the "main"-ish branches. cascade/main is the repo default;
     # cascade/main-gr-3.10.13 is where development actually happens and is
     # currently a strict descendant of it.
     branches: [cascade/main, cascade/main-gr-3.10.13]
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE']
   pull_request:
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE']
     # `opened` is required: naming types replaces the default set, so a
     # one-commit PR would otherwise never fire. `unlabeled` is deliberately
     # absent -- it would cancel in-flight runs on any label change.

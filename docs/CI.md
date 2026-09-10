@@ -15,6 +15,12 @@ magnitude, not a contract.
 | Push to `cascade/main` or `cascade/main-gr-3.10.13` | yes |
 | Manual dispatch from the Actions tab | yes |
 
+Documentation-only changes do not trigger it: `paths-ignore` covers `**/*.md`,
+`docs/**` and `LICENSE`. It is a deny-list rather than an allow-list on purpose,
+so a file type nobody anticipated still gets tested. Note that if `gpu-qa` is
+ever made a required check, a run skipped this way reports nothing at all, and a
+docs-only PR would never become mergeable.
+
 Our own PRs are not gated on a label because a gate you have to remember to
 open is a gate that gets left closed, and a forgotten label means a CUDA
 regression merges unexercised. Fork PRs are gated because GPU minutes bill to
@@ -31,6 +37,12 @@ not stop one — `unlabeled` is deliberately not a trigger, because a run enteri
 the concurrency group cancels the in-flight one whether or not its own job then
 runs, which would mean removing any label from one of our PRs kills a GPU run
 with nothing to restart it.
+
+One dynamic worth knowing while the cache is cold: `cancel-in-progress` means a
+superseded run contributes nothing, and the cache is not saved until roughly
+twenty minutes in. So with an empty cache, two pushes less than a cold build
+apart will keep it empty. Harmless in steady state, where a warm run reaches the
+save step in seconds and there is an entry to fall back on regardless.
 
 ## The runner
 
