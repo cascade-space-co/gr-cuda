@@ -23,10 +23,18 @@ one.
 
 ## GNU Radio is built from source
 
-gr-cuda uses GNU Radio APIs that no released version provides, so CI builds GNU
-Radio from source at the commit in `GNURADIO_REF`, pinned so that a red run means
-gr-cuda changed rather than GNU Radio. conda-forge's package is installed first
-and then removed, purely to pull in the dependency closure the source build needs.
+`cuda_buffer` derives from `buffer_double_mapped` and overrides
+`on_transfer_type_set()`. Both extension points were added to GNU Radio after
+3.10.12.0 — the subclassable constructor and its `defer_alloc_t` tag in
+[`58365a1`](https://github.com/gnuradio/gnuradio/commit/58365a106601656109ff34c422f7ffbf666747a0),
+the hook in
+[`8c39821`](https://github.com/gnuradio/gnuradio/commit/8c39821dc5828fff11f775da8c6b00510a5c7d7a)
+— so gr-cuda does not compile against any released version.
+
+CI therefore builds GNU Radio from source at the commit in `GNURADIO_REF`, pinned
+so that a red run means gr-cuda changed rather than GNU Radio. conda-forge's
+package is installed first and then removed, purely to pull in the dependency
+closure the source build needs.
 
 `.github/ci-setup.sh` does all of that. When a new enough GNU Radio is available
 as a conda package, that script and the caching around it can be deleted and a
