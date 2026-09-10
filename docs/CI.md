@@ -6,6 +6,12 @@ runs the QA suite on a real GPU, and is the subject of this document.
 Measurements here were taken 2026-09-09 unless noted. Treat them as an order of
 magnitude, not a contract.
 
+Claims about *why* something works are marked **(inferred)** where nobody has
+actually checked. Everything else was observed in a run or read out of the
+relevant source. The distinction matters: an unmarked guess reads exactly like a
+verified fact to whoever comes next, including a reviewer who will then quote it
+back at you.
+
 ## What runs, and when
 
 | Event | GPU QA runs? |
@@ -36,7 +42,9 @@ To stop a run, use the Cancel button in the Actions tab. Removing the label does
 not stop one — `unlabeled` is deliberately not a trigger, because a run entering
 the concurrency group cancels the in-flight one whether or not its own job then
 runs, which would mean removing any label from one of our PRs kills a GPU run
-with nothing to restart it.
+with nothing to restart it. That rests on a run entering the group cancelling
+the in-flight one even when its own job is then skipped **(inferred)** — the
+mechanism has never been observed, only reasoned from GitHub's model.
 
 One dynamic worth knowing while the cache is cold: `cancel-in-progress` means a
 superseded run contributes nothing, and the cache is not saved until roughly
@@ -82,8 +90,13 @@ redundant — they are installed for their dependency closure (boost, fftw, volk
 spdlog, pybind11) and then gnuradio itself is removed with
 `mamba remove --no-prune-deps` before the source build. `--no-prune-deps` is the
 load-bearing flag: it unlinks gnuradio while orphaning rather than
-garbage-collecting the closure the source build needs. This mirrors what
-`bootstrap.sh` does on europa.
+garbage-collecting the closure the source build needs. Observed — the removal
+unlinks the eleven `gnuradio*` packages and nothing else, leaving boost, fftw,
+volk and spdlog in place. This mirrors what `bootstrap.sh` does on europa.
+
+Leaving conda's gnuradio installed alongside the source build would presumably
+shadow it at configure and import time **(inferred)** — nobody has tried it,
+because `bootstrap.sh` removes it too.
 
 **When gnuradio ≥3.10.13 reaches conda-forge**, all of this goes away: pin it in
 `environment.yml`, delete `.github/build-gnuradio.sh` and the cache steps, and a
@@ -177,9 +190,11 @@ on europa. CI passes `--timeout` on the command line instead.
 
 **CUDA is capped below 13.1.** europa's driver is 580.178.04 (supports CUDA
 13.0) and the runner's is 590.48.01 (supports 13.1), so a 13.0 toolkit is under
-both ceilings and one pin serves both. A toolkit newer than the driver fails
-*silently*: launches are unchecked, so kernels return zeros and a test reports a
-numeric mismatch rather than a CUDA error. **If a CUDA test fails with all-zero
+both ceilings and one pin serves both. A toolkit newer than the driver is reported to fail
+*silently* — launches are unchecked, so kernels return zeros and a test reports a
+numeric mismatch rather than a CUDA error. That comes from the handoff doc's
+observation on gr-cascade's `add_cuda` and has not been reproduced here
+**(inferred)**. **If a CUDA test fails with all-zero
 output, check the toolkit and the architecture before anything else.**
 
 **`-DENABLE_IBV=OFF` is explicit.** Its default is `find_library(ibverbs)`,
