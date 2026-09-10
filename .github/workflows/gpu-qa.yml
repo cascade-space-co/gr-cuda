@@ -1,18 +1,8 @@
-# Runs the QA suite on a real GPU. How it all works, and the traps:
-# docs/CI.md. Lint stays in ci.yml on every push on an ordinary runner.
+# Runs the QA suite on a GPU. See docs/CI.md.
 name: GPU QA
 
-# paths-ignore, not paths: a deny-list means a file type nobody thought of still
-# gets tested. An allow-list would silently skip it, and a regression merging
-# unexercised is the failure this job exists to prevent.
-#
-# Note if gpu-qa is ever made a required check: a run skipped by these filters
-# reports nothing at all, so a docs-only PR would never become mergeable.
 on:
   push:
-    # Both of the "main"-ish branches. cascade/main is the repo default;
-    # cascade/main-gr-3.10.13 is where development actually happens and is
-    # currently a strict descendant of it.
     branches: [cascade/main, cascade/main-gr-3.10.13]
     paths-ignore: ['**/*.md', 'docs/**', 'LICENSE']
   pull_request:
@@ -24,8 +14,6 @@ on:
   workflow_dispatch:
 
 concurrency:
-  # Superseded runs are cancelled: GPU minutes are billed to the org at
-  # $0.052/min, so leaving an obsolete run to finish costs real money.
   group: gpu-qa-${{ github.ref }}
   cancel-in-progress: true
 
@@ -33,33 +21,25 @@ permissions:
   contents: read
 
 env:
-  # Pinned so a red run means gr-cuda changed, not gnuradio. Bumping it is a
-  # deliberate PR and costs one cold rebuild.
+  # Bumped when we need something new upstream, or on a GNU Radio release.
   GNURADIO_REF: aee9fd3f79389c4282a98e8d62c8405c73fd91df
 
-  # /opt/miniforge is not writable by the runner user, so both the environment
-  # and the package cache live under /home/runner.
+  # /opt/miniforge is not writable by the runner user.
   ENV_PATH: /home/runner/gr-cuda-env
   CONDA_PKGS_DIRS: /home/runner/conda-pkgs
 
-  # Bump to invalidate every cache entry without touching environment.yml.
-  CACHE_VERSION: v1
+  CACHE_VERSION: v2
 
 jobs:
   gpu-qa:
-    # Our own PRs run unconditionally; forks need the label, which is a cost
-    # control rather than a security boundary. `pull_request`, never
-    # `pull_request_target`.
+    # Pull requests from a fork need the `run-gpu-qa` label, which an outside
+    # contributor cannot apply. Ours run unconditionally.
     if: >-
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name == github.repository ||
       contains(github.event.pull_request.labels.*.name, 'run-gpu-qa')
 
-    # A GitHub-hosted larger runner despite the self-hosted-looking syntax:
-    # the VM is ephemeral, one per job.
     runs-on: gpu-t4
-    # Backstop against a runaway job, not a target; the per-test deadlines
-    # below are what bound a hang.
     timeout-minutes: 90
 
     steps:
@@ -69,52 +49,30 @@ jobs:
       - name: GPU
         run: nvidia-smi
 
-      # Keyed on everything that determines the artifact and nothing else --
-      # hashing the whole workflow file rebuilt on every comment edit.
       - name: Cache key
         id: key
         run: |
-          echo "value=gpu-qa-${CACHE_VERSION}-${{ hashFiles('environment.yml', '.github/build-gnuradio.sh') }}-${GNURADIO_REF}" >> "$GITHUB_OUTPUT"
+          echo "value=gpu-qa-${CACHE_VERSION}-${{ hashFiles('.github/ci-setup.sh') }}-${GNURADIO_REF}" >> "$GITHUB_OUTPUT"
 
-      - name: Restore conda environment
+      - name: Restore environment
         id: cache
         uses: actions/cache/restore@v6
         with:
           path: ${{ env.ENV_PATH }}
           key: ${{ steps.key.outputs.value }}
 
-      - name: Create conda environment
+      - name: Build environment
         if: steps.cache.outputs.cache-hit != 'true'
-        run: |
-          source /opt/miniforge/etc/profile.d/conda.sh
-          mamba env create -f environment.yml -p "$ENV_PATH"
+        run: .github/ci-setup.sh
 
-          # conda-forge gnuradio is installed for its dependency closure only and
-          # removed here; --no-prune-deps keeps the closure. Leaving it installed
-          # shadows the source-built gnuradio at configure and import time.
-          pkgs="$(mamba list -p "$ENV_PATH" | awk '$1 ~ /^gnuradio/ {print $1}')"
-          if [ -n "$pkgs" ]; then
-            # shellcheck disable=SC2086
-            mamba remove -p "$ENV_PATH" -y --no-prune-deps $pkgs
-          fi
-
-      - name: Build gnuradio
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: |
-          source /opt/miniforge/etc/profile.d/conda.sh
-          conda activate "$ENV_PATH"
-          .github/build-gnuradio.sh
-
-      # Saved BEFORE gr-cuda is built into the same prefix. actions/cache saves
-      # post-job, which would cache the previous commit's gr-cuda along with it.
-      - name: Save conda environment
+      - name: Save environment
         if: steps.cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v6
         with:
           path: ${{ env.ENV_PATH }}
           key: ${{ steps.key.outputs.value }}
 
-      # 10 GB per-repo cap. If this creeps toward it, move to a GHCR image.
+      # The 10 GB per-repo cache cap is the ceiling to watch.
       - name: Environment size
         run: |
           echo "cache hit: ${{ steps.cache.outputs.cache-hit || 'false' }}"
@@ -124,48 +82,33 @@ jobs:
         run: |
           source /opt/miniforge/etc/profile.d/conda.sh
           conda activate "$ENV_PATH"
-          # ENABLE_IBV pinned: its default is find_library(ibverbs), which would
-          # make the compiled surface depend on the runner image.
+          # The runner has no NIC, so libibverbs is absent and ENABLE_IBV would
+          # auto-detect to OFF. Pinned so an image that ships rdma-core does not
+          # quietly turn the IBV blocks on.
           cmake -S . -B build -GNinja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX="$CONDA_PREFIX" \
             -DCMAKE_PREFIX_PATH="$CONDA_PREFIX" \
             -DCMAKE_CUDA_ARCHITECTURES=native \
             -DENABLE_IBV=OFF
           cmake --build build -j "$(nproc)"
-          cmake --install build
 
-      # Flat copy without __init__.py: otherwise pytest imports these as the
-      # `cuda` package, shadowing NVIDIA's, and every file fails collection
-      # inside cupy. importlib mode does not help. The sibling modules come too,
-      # for the five files that fall back to bare-name imports.
-      - name: Stage QA files
+      - name: C++ tests
+        working-directory: build
         run: |
-          mkdir -p "$RUNNER_TEMP/qa"
-          cp python/cuda/*.py "$RUNNER_TEMP/qa/"
-          rm -f "$RUNNER_TEMP/qa/__init__.py"
-          # Carried along so CI and developers share one pytest config.
-          cp pyproject.toml "$RUNNER_TEMP/qa/"
-          ls "$RUNNER_TEMP/qa"
+          source /opt/miniforge/etc/profile.d/conda.sh
+          conda activate "$ENV_PATH"
+          ctest -R '\.cc$' --output-on-failure
 
-      - name: QA
-        working-directory: ${{ runner.temp }}/qa
+      - name: Python tests
         env:
+          PYTHONPATH: build/test_modules
           QT_QPA_PLATFORM: offscreen
         run: |
           source /opt/miniforge/etc/profile.d/conda.sh
           conda activate "$ENV_PATH"
-          # timeout-method=thread is an explicit override: pytest-timeout
-          # defaults to signal wherever SIGALRM exists, which includes this
-          # runner. thread enforces the deadline from a watchdog thread, so it
-          # fires even when the main thread is wedged in a C call that never
-          # returns to the interpreter -- a CUDA sync in a test body, say. A
-          # wedged flowgraph is not that case (gr.top_block.wait() polls an
-          # Event at 10 Hz with the GIL released, so signal would work there
-          # too), but the robust method costs nothing. `timeout` wraps the lot
-          # for the case where no Python can run at all.
-          #
-          # The deadline is passed here rather than set in pyproject.toml, where
-          # --strict-config would make it an error for anyone without
-          # pytest-timeout installed.
-          timeout 600 pytest . --timeout=300 --timeout-method=thread
+          # thread, not the signal default: it fires even when the main thread is
+          # wedged in a C call. `timeout` bounds the step if nothing Python can
+          # run at all.
+          timeout 600 pytest -o consider_namespace_packages=true \
+            --timeout=300 --timeout-method=thread \
+            build/test_modules/gnuradio/cuda
