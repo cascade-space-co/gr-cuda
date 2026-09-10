@@ -149,15 +149,24 @@ gr-cuda as `from gnuradio import cuda`, not from the source tree.
 A consequence worth knowing: **plain `pytest` from a checkout does not work**.
 Running a single file directly (`python python/cuda/qa_fft.py`) is unaffected.
 
-**`--timeout-method=thread`, not `signal`.** The signal method raises through
-SIGALRM, and Python runs a signal handler only at a bytecode boundary. The way a
-flowgraph wedges is `tb.run()` → `tb.wait()`, which blocks in `pthread_join` —
-specified not to return `EINTR` — so the alarm would be ignored entirely and the
-test would run out the job's 90-minute ceiling instead. The thread method kills
-from a watchdog thread and works whatever the main thread is blocked in. It takes
-the process with it, so a hang aborts the run rather than failing one test, which
-is the right trade for a gate. The invocation is also wrapped in `timeout(1)`,
-since even the watchdog thread needs the GIL.
+**`--timeout-method=thread`.** It is pytest-timeout's default and the robust
+choice: the deadline is enforced from a watchdog thread, so it fires even when
+the main thread is wedged inside a C call that never returns to the interpreter.
+The `signal` method raises through SIGALRM, which Python only delivers at a
+bytecode boundary, so it cannot interrupt that case at all.
+
+A wedged flowgraph is *not* that case, and it is worth recording why, because it
+is easy to assume otherwise: `gr.top_block.wait()` runs the blocking wait on a
+separate thread through `GR_PYTHON_BLOCKING_CODE` (`PyEval_SaveThread`, so the
+GIL is released) while the main thread polls a `threading.Event` at 10 Hz. Either
+method would fire there. `thread` is chosen for the cases where neither of those
+holds.
+
+The thread method takes the whole process with it rather than raising into the
+test, so a hang aborts the run instead of failing one test. That is the right
+trade for a gate, and pytest-timeout dumps every thread's stack before exiting,
+so the run still tells you which test wedged. The invocation is wrapped in
+`timeout(1)` as a last backstop for the case where nothing Python can run.
 
 **No pytest-timeout settings in `pyproject.toml`.** `--strict-config` makes an
 unrecognised ini key an error, and `timeout` is only recognised with the plugin

@@ -155,9 +155,14 @@ jobs:
         run: |
           source /opt/miniforge/etc/profile.d/conda.sh
           conda activate "$ENV_PATH"
-          # timeout-method=thread, not signal: a flowgraph wedged in tb.wait() is
-          # blocked in pthread_join, where a SIGALRM handler never gets to run.
-          # `timeout` wraps it because even the watchdog thread needs the GIL.
+          # timeout-method=thread is pytest-timeout's default and the robust one:
+          # it kills from a watchdog thread, so it fires even when the main
+          # thread is wedged inside a C call that never returns to the
+          # interpreter -- a CUDA sync in a test body, say. (A wedged flowgraph
+          # is not that case: gr.top_block.wait() polls an Event at 10 Hz and
+          # releases the GIL, so signal would work there too.) `timeout` wraps
+          # the lot for the case where no Python can run at all.
+          #
           # The deadline is passed here rather than set in pyproject.toml, where
           # --strict-config would make it an error for anyone without
           # pytest-timeout installed.

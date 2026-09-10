@@ -156,7 +156,8 @@ Lint runs on every push. The QA suite needs a GPU, so it runs on a dedicated
 runner: automatically for pull requests from a branch in this repository, and
 for merges to `cascade/main` and `cascade/main-gr-3.10.13`. Pull requests from a
 fork need the `run-gpu-qa` label, since GPU minutes are billed to the
-organisation.
+organisation. A pull request that only touches documentation never runs the GPU
+job, label or not — there is nothing for it to test.
 
 A run is about 2 minutes warm, or 21 minutes when it has to rebuild GNU Radio
 from source. See **[docs/CI.md](docs/CI.md)** for how it works, the traps, and
