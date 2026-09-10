@@ -167,7 +167,8 @@ jobs:
             --deselect qa_cuda_block.py::qa_cuda_block::test_009_sync_history \
             --deselect qa_fft.py::qa_fft::test_cuda_fft_shift
 
-      # These two hang on europa but pass here. Kept out of the gating run
+      # These two were seen hanging in a Nix build; they pass here. Kept out of
+      # the gating run
       # because passing once is not passing for a race test; run here so the
       # result is still reported. Runs even when the gating step failed --
       # that is when it is most wanted -- but not when QA never ran at all.
