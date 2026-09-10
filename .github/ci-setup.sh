@@ -41,7 +41,11 @@ if [ -n "$pkgs" ]; then
     mamba remove -p "$ENV_PATH" -y --no-prune-deps $pkgs
 fi
 
+# conda's activation scripts reference unset variables, so -u has to come off
+# around them (cuda-nvcc's touches NVCC_PREPEND_FLAGS).
+set +u
 conda activate "$ENV_PATH"
+set -u
 
 src="${RUNNER_TEMP:-/tmp}/gnuradio-src"
 rm -rf "$src"
