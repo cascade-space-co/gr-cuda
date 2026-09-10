@@ -277,13 +277,31 @@ jobs:
           # The two deselected tests hang on europa but pass here in under three
           # seconds; see the next step for why they stay out of the gating run
           # anyway. Everything else gates the job.
-          # The timeout lives here rather than in pyproject.toml: --strict-config
-          # makes an unrecognised ini key an error, and `timeout` is only
-          # recognised with pytest-timeout installed, so putting it in shared
-          # config would break pytest for every environment that predates
-          # environment.yml. Nothing here should take five minutes, and this
-          # bounds a new hang to one test rather than the job's ceiling.
-          pytest . --timeout=300 --timeout-method=signal \
+          # Two layers of deadline, because neither is sufficient alone.
+          #
+          # --timeout-method=thread, not signal. The signal method raises via
+          # SIGALRM, and Python runs a signal handler only at a bytecode
+          # boundary -- so a hang blocked inside a C call never lets it run. The
+          # hangs this guards against are gnuradio flowgraphs stuck in
+          # tb.wait(), i.e. pthread_join, which is specified not to return
+          # EINTR: the alarm would be ignored entirely and the test would ride
+          # out the job's 90-minute ceiling. The thread method kills from a
+          # watchdog thread instead, which works whatever the main thread is
+          # blocked in. It takes the whole process with it, so a hang aborts the
+          # run rather than failing one test -- an acceptable trade for a
+          # deadline that actually fires.
+          #
+          # `timeout` wraps it because even the watchdog thread needs the GIL.
+          # The blocking calls here release it, but a C loop that did not would
+          # defeat both methods, and this step exists to bound spend. 600s is
+          # comfortably above a normal 57s run plus one 300s per-test timeout.
+          #
+          # The pytest deadline is passed here rather than set in pyproject.toml
+          # because --strict-config makes an unrecognised ini key an error, and
+          # `timeout` is only recognised with pytest-timeout installed -- in
+          # shared config it would break pytest for every environment predating
+          # environment.yml.
+          timeout 600 pytest . --timeout=300 --timeout-method=thread \
             --deselect qa_cuda_block.py::qa_cuda_block::test_009_sync_history \
             --deselect qa_fft.py::qa_fft::test_cuda_fft_shift
 
@@ -315,6 +333,9 @@ jobs:
         run: |
           source /opt/miniforge/etc/profile.d/conda.sh
           conda activate "$ENV_PATH"
-          pytest --timeout=120 --timeout-method=signal \
+          # Same two-layer deadline as the gating step, and it matters more
+          # here: these are the tests actually known to deadlock. 180s bounds
+          # the step even if both the watchdog thread and the alarm are stuck.
+          timeout 180 pytest --timeout=120 --timeout-method=thread \
             qa_cuda_block.py::qa_cuda_block::test_009_sync_history \
             qa_fft.py::qa_fft::test_cuda_fft_shift
