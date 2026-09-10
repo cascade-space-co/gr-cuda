@@ -263,17 +263,27 @@ jobs:
         run: |
           source /opt/miniforge/etc/profile.d/conda.sh
           conda activate "$ENV_PATH"
-          # The two deselected tests hang rather than fail; they run in the next
-          # step so that a known problem cannot hold this job to its timeout.
-          # Everything else gates the job.
+          # The two deselected tests hang on europa but pass here in under three
+          # seconds; see the next step for why they stay out of the gating run
+          # anyway. Everything else gates the job.
           pytest . \
             --deselect qa_cuda_block.py::qa_cuda_block::test_009_sync_history \
             --deselect qa_fft.py::qa_fft::test_cuda_fft_shift
 
-      # Two tests hang under the gnuradio commit pinned above. Until the DSP team
-      # has diagnosed them they run here: reported every time, bounded by a
-      # per-test timeout, and unable to fail the job. If they start passing, this
-      # step goes green and the deselects above can come out.
+      # Two tests hang on europa's Blackwell under this same gnuradio commit.
+      # They do not hang here: on the T4 they pass in under three seconds, with
+      # byte-identical test files. That is evidence the cause is timing- or
+      # hardware-dependent rather than a logic error -- 4 vCPU behind PCIe 3
+      # samples a very different interleaving than 32 cores behind PCIe 5.
+      #
+      # They stay deselected from the gating run rather than being promoted into
+      # it. A test that deadlocks on the machine the team actually develops on
+      # is not one to gate on the strength of it passing somewhere else, and
+      # these are race tests, so passing once is not passing. Running them here
+      # reports the result every time and the per-test timeout means that if
+      # they ever do hang on this runner it costs 120 seconds, not the job's
+      # 90-minute ceiling. Worth revisiting once the europa behaviour is
+      # understood.
       #
       # The condition runs this even when the gating step failed, because it is
       # diagnostic information and it is most wanted on the runs that went
