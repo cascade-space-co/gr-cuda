@@ -22,7 +22,10 @@ back at you.
 | Manual dispatch from the Actions tab | yes |
 
 Documentation-only changes do not trigger it: `paths-ignore` covers `**/*.md`,
-`docs/**` and `LICENSE`. It is a deny-list rather than an allow-list on purpose,
+`docs/**` and `LICENSE`. The filter is evaluated against the whole pull request
+diff, not the individual push (observed), so a PR that is *entirely*
+documentation skips the job, while a documentation commit on a PR that also
+changes code still runs it. It is a deny-list rather than an allow-list on purpose,
 so a file type nobody anticipated still gets tested. Note that if `gpu-qa` is
 ever made a required check, a run skipped this way reports nothing at all, and a
 docs-only PR would never become mergeable.
@@ -42,9 +45,9 @@ To stop a run, use the Cancel button in the Actions tab. Removing the label does
 not stop one — `unlabeled` is deliberately not a trigger, because a run entering
 the concurrency group cancels the in-flight one whether or not its own job then
 runs, which would mean removing any label from one of our PRs kills a GPU run
-with nothing to restart it. That rests on a run entering the group cancelling
-the in-flight one even when its own job is then skipped **(inferred)** — the
-mechanism has never been observed, only reasoned from GitHub's model.
+with nothing to restart it. Observed: a run whose job is skipped by a job-level
+`if` still cancels the in-flight run in its group, because the group is evaluated
+when the run is created, ahead of the condition.
 
 One dynamic worth knowing while the cache is cold: `cancel-in-progress` means a
 superseded run contributes nothing, and the cache is not saved until roughly
