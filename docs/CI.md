@@ -149,9 +149,10 @@ gr-cuda as `from gnuradio import cuda`, not from the source tree.
 A consequence worth knowing: **plain `pytest` from a checkout does not work**.
 Running a single file directly (`python python/cuda/qa_fft.py`) is unaffected.
 
-**`--timeout-method=thread`.** It is pytest-timeout's default and the robust
-choice: the deadline is enforced from a watchdog thread, so it fires even when
-the main thread is wedged inside a C call that never returns to the interpreter.
+**`--timeout-method=thread`.** Selected explicitly, not inherited: pytest-timeout
+defaults to `signal` wherever `SIGALRM` exists, which includes this runner.
+`thread` enforces the deadline from a watchdog thread, so it fires even when the
+main thread is wedged inside a C call that never returns to the interpreter.
 The `signal` method raises through SIGALRM, which Python only delivers at a
 bytecode boundary, so it cannot interrupt that case at all.
 
