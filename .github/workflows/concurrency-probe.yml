@@ -11,6 +11,7 @@ on:
     branches: [ci/concurrency-probe]
   pull_request:
     types: [opened, labeled, synchronize]
+    paths-ignore: ['**/*.md']
 
 concurrency:
   group: concurrency-probe-${{ github.ref }}
@@ -24,4 +25,4 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - run: echo "sleeping so there is something to cancel"; sleep 180
+      - run: echo "ran"
