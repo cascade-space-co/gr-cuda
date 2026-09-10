@@ -7,7 +7,10 @@ name: GPU QA
 
 on:
   push:
-    branches: [cascade/main]
+    # Both of the "main"-ish branches. cascade/main is the repo default;
+    # cascade/main-gr-3.10.13 is where development actually happens and is
+    # currently a strict descendant of it.
+    branches: [cascade/main, cascade/main-gr-3.10.13]
   pull_request:
     types: [labeled, synchronize, reopened]
   workflow_dispatch:
@@ -173,54 +176,87 @@ jobs:
           # CMAKE_CUDA_ARCHITECTURES=native resolves against the card actually
           # present, which is a T4 (sm_75) here and a Blackwell (sm_120) on
           # europa. This job therefore proves logic, not Blackwell codegen.
+          # ENABLE_IBV is pinned rather than left to its default, which is
+          # `find_library(ibverbs)` -- i.e. a function of whatever the runner
+          # image happens to ship. Today that resolves to OFF; if a future image
+          # adds rdma-core it would silently flip ON and start compiling blocks
+          # this runner has no NIC to exercise. Off explicitly means CI's
+          # compiled surface changes only when someone changes this file.
           cmake -S . -B build -GNinja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="$CONDA_PREFIX" \
             -DCMAKE_PREFIX_PATH="$CONDA_PREFIX" \
-            -DCMAKE_CUDA_ARCHITECTURES=native
+            -DCMAKE_CUDA_ARCHITECTURES=native \
+            -DENABLE_IBV=OFF
           cmake --build build -j "$(nproc)"
           cmake --install build
 
+      # QA runs from a copy of the files, which is not fussiness -- it is the fix
+      # for a collection failure that takes out every file at once.
+      #
+      # python/cuda is a package directory named `cuda`. With its __init__.py
+      # present, pytest names the test modules cuda.qa_* and imports the parent
+      # package, so `cuda` binds to gr-cuda's source tree. cupy then does
+      # `from cuda import pathfinder`, gets gr-cuda instead of NVIDIA's package,
+      # and every file errors during collection:
+      #
+      #   ImportError: cannot import name 'pathfinder' from 'cuda'
+      #     (.../python/cuda/__init__.py)
+      #
+      # --import-mode=importlib does not avoid this; the module naming is what
+      # causes it. Copying the files flat, without __init__.py, leaves no `cuda`
+      # package for anything to resolve to. The sibling modules are copied
+      # alongside because five files (qa_add_cupy, qa_fanin_sync,
+      # qa_multiply_const_cupy, qa_parallel_sync, qa_stress_sync) catch the
+      # failing relative import and retry it as a bare-name import, which is
+      # the path taken here.
+      #
+      # This still tests what was just built: the files import gr-cuda as
+      # `from gnuradio import cuda`, which is the copy installed into the conda
+      # prefix, not the source tree they were copied from.
+      - name: Stage QA files
+        run: |
+          mkdir -p "$RUNNER_TEMP/qa"
+          cp python/cuda/*.py "$RUNNER_TEMP/qa/"
+          rm -f "$RUNNER_TEMP/qa/__init__.py"
+          # Carried along so CI and developers run under identical pytest
+          # settings, the global timeout included.
+          cp pyproject.toml "$RUNNER_TEMP/qa/"
+          ls "$RUNNER_TEMP/qa"
+
       - name: QA
+        id: qa
+        working-directory: ${{ runner.temp }}/qa
         env:
-          # python/cuda is a package directory named `cuda`, and it shadows
-          # NVIDIA's cuda.pathfinder, which cupy imports -- every file then
-          # fails at collection with an ImportError deep inside cupy. Two things
-          # prevent that: pytest runs with --import-mode=importlib (set in
-          # pyproject.toml) so python/ is never prepended to sys.path, and the
-          # working directory is the repo root.
-          #
-          # python/cuda is on PYTHONPATH because five files (qa_add_cupy,
-          # qa_fanin_sync, qa_multiply_const_cupy, qa_parallel_sync,
-          # qa_stress_sync) fall back to importing siblings by bare name.
-          PYTHONPATH: ${{ github.workspace }}/python/cuda
           QT_QPA_PLATFORM: offscreen
         run: |
           source /opt/miniforge/etc/profile.d/conda.sh
           conda activate "$ENV_PATH"
-          # The two deselected tests hang rather than fail; they are run
-          # separately in the next step so the job cannot be held to its
-          # timeout by a known problem. Everything else gates this job.
-          pytest python/cuda \
-            --deselect python/cuda/qa_cuda_block.py::qa_cuda_block::test_009_sync_history \
-            --deselect python/cuda/qa_fft.py::qa_fft::test_cuda_fft_shift
+          # The two deselected tests hang rather than fail; they run in the next
+          # step so that a known problem cannot hold this job to its timeout.
+          # Everything else gates the job.
+          pytest . \
+            --deselect qa_cuda_block.py::qa_cuda_block::test_009_sync_history \
+            --deselect qa_fft.py::qa_fft::test_cuda_fft_shift
 
-      # Two tests hang under gnuradio main at the commit pinned above. Until the
-      # DSP team has diagnosed them they run here instead: reported every time,
-      # bounded by a per-test timeout, and unable to fail the job. If they start
-      # passing, this step goes green and the deselects above can come out --
-      # which is a result worth reporting upstream either way.
+      # Two tests hang under the gnuradio commit pinned above. Until the DSP team
+      # has diagnosed them they run here: reported every time, bounded by a
+      # per-test timeout, and unable to fail the job. If they start passing, this
+      # step goes green and the deselects above can come out.
       #
-      #   qa_cuda_block.py::test_009_sync_history
-      #   qa_fft.py::test_cuda_fft_shift
+      # The condition runs this even when the gating step failed, because it is
+      # diagnostic information and it is most wanted on the runs that went
+      # wrong. It is skipped only when QA never ran at all, which means the
+      # build failed and there is nothing to say.
       - name: Known hangs (informational, does not gate)
+        if: ${{ !cancelled() && steps.qa.conclusion != 'skipped' }}
         continue-on-error: true
+        working-directory: ${{ runner.temp }}/qa
         env:
-          PYTHONPATH: ${{ github.workspace }}/python/cuda
           QT_QPA_PLATFORM: offscreen
         run: |
           source /opt/miniforge/etc/profile.d/conda.sh
           conda activate "$ENV_PATH"
           pytest --timeout=120 \
-            python/cuda/qa_cuda_block.py::qa_cuda_block::test_009_sync_history \
-            python/cuda/qa_fft.py::qa_fft::test_cuda_fft_shift
+            qa_cuda_block.py::qa_cuda_block::test_009_sync_history \
+            qa_fft.py::qa_fft::test_cuda_fft_shift

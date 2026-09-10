@@ -155,8 +155,8 @@ See **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)** for more details, **[docs/OPT
 Lint runs on every push. The QA suite needs a GPU, so it runs on a dedicated
 runner and only when asked for: **add the `run-gpu-qa` label to a pull request**
 and it runs, and keeps running as you push more commits, until the label is
-removed. It also runs on every merge to `cascade/main`, and on demand from the
-Actions tab.
+removed. It also runs on every merge to `cascade/main` and
+`cascade/main-gr-3.10.13`, and on demand from the Actions tab.
 
 The runner builds GNU Radio from source against a pinned commit, because the
 runtime fixes gr-cuda needs are merged upstream but not yet released to

@@ -7,18 +7,19 @@ addopts = [
     "--strict-markers",
     "--strict-config",
     "-v",
-    # python/cuda is a package directory named `cuda` with an __init__.py, so
-    # the default "prepend" import mode puts python/ on sys.path and imports the
-    # suite as the `cuda` package. That shadows NVIDIA's cuda.pathfinder, which
-    # cupy imports, and every file fails at collection with an ImportError deep
-    # inside cupy. importlib mode does not touch sys.path at all.
-    "--import-mode=importlib",
 ]
 
 # Nothing here should take five minutes. A hang in CI is a job that runs to the
 # workflow timeout and bills for it, so this bounds the damage from a new one to
 # a single test. The two tests known to hang today are handled explicitly in
 # .github/workflows/gpu-qa.yml rather than here.
+#
+# Note that running `pytest` from the repository root does not currently work:
+# python/cuda is a package directory named `cuda`, so pytest imports the suite
+# as the `cuda` package and shadows NVIDIA's, which breaks cupy at collection.
+# CI works around it by running the files from a flat copy; see the "Stage QA
+# files" step in the workflow. Running an individual file directly
+# (`python python/cuda/qa_fft.py`) is unaffected.
 #
 # "signal" rather than the default "thread": the thread method kills the whole
 # process, which loses the other tests' results and the traceback that says
