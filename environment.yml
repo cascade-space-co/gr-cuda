@@ -1,0 +1,35 @@
+channels:
+  - conda-forge
+  - nodefaults  # Only use conda-forge.
+dependencies:
+  # GNU Radio. CI builds it from source and removes these first, keeping them
+  # only for their dependency closure -- see docs/CI.md.
+  #
+  # TODO(GR-3.10.13): when 3.10.13 reaches conda-forge, pin it here and delete
+  # the source build from .github/build-gnuradio.sh.
+  - gnuradio>=3.10.12
+  - gnuradio-build-deps  # cmake, ninja, compilers, pkg-config, etc.
+  - pygccxml>=3.0.2,<4.0  # pybind11 binding generation
+  - python>=3.12
+
+  # CUDA, capped below 13.1 to stay under the driver on both the CI runner and
+  # europa. A toolkit newer than the driver fails silently: kernels return zeros.
+  - cuda-nvcc<13.1
+  - cuda-cudart-dev<13.1
+  - cuda-driver-dev<13.1
+  - libcufft-dev
+  - cupy  # Python GPU blocks
+
+  # Testing
+  - pytest>=8.0.0
+  - pytest-cov>=4.0.0
+  # CI passes --timeout on the command line; it must not go in pyproject.toml,
+  # where --strict-config would break pytest for anyone without the plugin.
+  - pytest-timeout>=2.3.0
+
+  # Development tools
+  - gersemi>=0.23.0  # CMake formatting
+  - ruff>=0.12.0  # Python linting and formatting
+  - clang-format>=18.0.0  # C++/CUDA formatting
+  - pre-commit>=3.0.0  # Pre-commit hooks
+  - pre-commit-hooks>=4.5.0  # File hygiene checks

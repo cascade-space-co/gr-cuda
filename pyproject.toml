@@ -6,8 +6,15 @@ python_functions = "test_*"
 addopts = [
     "--strict-markers",
     "--strict-config",
-    "-v"
+    "-v",
 ]
+
+# No pytest-timeout settings here on purpose: --strict-config above makes an
+# unrecognised ini key an error, so `timeout` would break pytest for anyone
+# without the plugin. CI passes it on the command line.
+#
+# Plain `pytest` from the repo root does not work -- python/cuda shadows
+# NVIDIA's `cuda` package. Run a file directly, or see docs/CI.md.
 
 [tool.ruff]
 target-version = "py312"
