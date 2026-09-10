@@ -153,10 +153,13 @@ See **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)** for more details, **[docs/OPT
 ## Continuous integration
 
 Lint runs on every push. The QA suite needs a GPU, so it runs on a dedicated
-runner and only when asked for: **add the `run-gpu-qa` label to a pull request**
-and it runs, and keeps running as you push more commits, until the label is
-removed. It also runs on every merge to `cascade/main` and
-`cascade/main-gr-3.10.13`, and on demand from the Actions tab.
+runner: automatically for pull requests from a branch in this repository, and
+for merges to `cascade/main` and `cascade/main-gr-3.10.13`. It can also be
+started by hand from the Actions tab.
+
+Pull requests **from a fork** need the `run-gpu-qa` label before the GPU job
+will run, since GPU minutes are billed to the organisation and an outside
+contributor should not be able to spend them unasked.
 
 The runner builds GNU Radio from source against a pinned commit, because the
 runtime fixes gr-cuda needs are merged upstream but not yet released to

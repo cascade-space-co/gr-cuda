@@ -12,14 +12,13 @@ on:
     # currently a strict descendant of it.
     branches: [cascade/main, cascade/main-gr-3.10.13]
   pull_request:
-    # `unlabeled` is here so that removing the label stops a running job. The
-    # route is indirect: the event creates a workflow run, that run joins the
-    # concurrency group below and cancels the in-flight one, and then its own
-    # job is skipped by the `if` because the label is gone. The cost is that
-    # removing *any* label cancels a running job, not just this one; that is
-    # recoverable by re-adding the label, and worth it for having an in-band
-    # way to stop billing that is not the Cancel button in the Actions tab.
-    types: [labeled, unlabeled, synchronize, reopened]
+    # No `unlabeled` here, deliberately. It was added so that dropping the label
+    # would cancel a running job, back when the label gated every PR. It now
+    # does the opposite: a PR from this repo runs regardless of its labels, so
+    # an unlabel event would create a run, cancel the in-flight one through the
+    # concurrency group, and then start over. Use the Cancel button in the
+    # Actions tab to stop a run.
+    types: [labeled, synchronize, reopened]
   workflow_dispatch:
 
 concurrency:
@@ -55,20 +54,32 @@ env:
 
 jobs:
   qa:
-    # Triggers. gr-cuda is public and GPU minutes are billed to the org, so the
-    # `run-gpu-qa` label is what stops a stranger's PR from spending them.
+    # Triggers. A PR from a branch in this repository runs automatically; a PR
+    # from a fork needs the `run-gpu-qa` label.
     #
-    # This tests for the label being *present* rather than for the `labeled`
-    # event, which is the difference between a label that gates the job for the
-    # life of the PR and a label that fires exactly once. Pushing a fix to a
-    # labelled PR re-runs it; removing the label stops that.
+    # The asymmetry is deliberate, and it is about cost rather than safety --
+    # this job holds no secrets, the token is read-only, and the runner VM is
+    # ephemeral (see runs-on below), so a fork's code cannot take anything or
+    # leave anything behind. What it can do is spend GPU minutes billed to the
+    # org, which is what the label prevents. A stranger cannot self-label, and
+    # GitHub's own first-time-contributor approval gates the run before that.
+    #
+    # Our own PRs are not gated because a gate you have to remember to open is
+    # a gate that gets left closed, and a forgotten label means a CUDA
+    # regression merges unexercised. That is a worse failure than the couple of
+    # dollars a month this costs at gr-cuda's PR volume.
+    #
+    # The fork branch tests for the label being *present* rather than for the
+    # `labeled` event, so it gates for the life of the PR instead of firing
+    # once.
     #
     # `pull_request`, never `pull_request_target`: fork code must not get a
     # token. Fork PRs cannot write to this repo's cache, but they can read the
-    # entry cascade/main wrote, so an outside contributor still gets a warm
-    # start.
+    # entry the default branch wrote, so an outside contributor still gets a
+    # warm start.
     if: >-
       github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository ||
       contains(github.event.pull_request.labels.*.name, 'run-gpu-qa')
 
     # gpu-t4 is a GitHub-hosted larger runner, not a self-hosted machine --
