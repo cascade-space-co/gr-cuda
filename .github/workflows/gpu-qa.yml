@@ -12,13 +12,23 @@ on:
     # currently a strict descendant of it.
     branches: [cascade/main, cascade/main-gr-3.10.13]
   pull_request:
-    # No `unlabeled` here, deliberately. It was added so that dropping the label
-    # would cancel a running job, back when the label gated every PR. It now
-    # does the opposite: a PR from this repo runs regardless of its labels, so
-    # an unlabel event would create a run, cancel the in-flight one through the
-    # concurrency group, and then start over. Use the Cancel button in the
-    # Actions tab to stop a run.
-    types: [labeled, synchronize, reopened]
+    # `opened` is load-bearing. Naming types at all replaces the default set
+    # (opened, synchronize, reopened), and without it a PR that is opened with
+    # its commits already pushed never fires anything -- a one-commit PR would
+    # reach merge with no GPU run at all. That was survivable when the label
+    # gated everything, because adding it fired `labeled`; it is not survivable
+    # now that our own PRs are meant to run on their own.
+    #
+    # No `unlabeled`, deliberately, and this is a trade rather than an
+    # oversight. It would let a maintainer stop a fork's run by removing the
+    # label. But a run entering the concurrency group cancels the in-flight one
+    # whether or not its job then runs, so with `unlabeled` present, removing
+    # *any* label from one of our own PRs kills a GPU run in progress -- and
+    # nothing restarts it. That penalises the case we actually have (this repo
+    # has no outside contributors) to serve one we do not. The Cancel button in
+    # the Actions tab stops a run, for forks and for us. If fork PRs ever become
+    # common, adding `unlabeled` back is a one-line change.
+    types: [opened, labeled, synchronize, reopened]
   workflow_dispatch:
 
 concurrency:
@@ -333,9 +343,25 @@ jobs:
         run: |
           source /opt/miniforge/etc/profile.d/conda.sh
           conda activate "$ENV_PATH"
+          # One pytest process per test, which is the point of this step. The
+          # thread timeout method kills the interpreter rather than raising into
+          # the test, so a single invocation that hung on the first test would
+          # never run the second -- and reporting both is the only reason this
+          # step exists. Separate processes mean a hang costs that test's result
+          # and nothing else.
+          #
           # Same two-layer deadline as the gating step, and it matters more
           # here: these are the tests actually known to deadlock. 180s bounds
-          # the step even if both the watchdog thread and the alarm are stuck.
-          timeout 180 pytest --timeout=120 --timeout-method=thread \
+          # each one even if the watchdog thread cannot run.
+          status=0
+          for t in \
             qa_cuda_block.py::qa_cuda_block::test_009_sync_history \
             qa_fft.py::qa_fft::test_cuda_fft_shift
+          do
+            echo "::group::$t"
+            timeout 180 pytest --timeout=120 --timeout-method=thread "$t" || status=1
+            echo "::endgroup::"
+          done
+          # Reported, not gating: continue-on-error above means a non-zero exit
+          # shows this step as failed without failing the job.
+          exit "$status"
