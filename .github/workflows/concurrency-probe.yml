@@ -1,0 +1,27 @@
+# THROWAWAY. Tests one claim: does a workflow run whose job is skipped by a
+# job-level `if` still cancel an in-flight run in the same concurrency group?
+#
+# gpu-qa.yml's trigger design rests on that being true (it is why `unlabeled` is
+# not a trigger), and nobody has ever observed it. Delete this file and the
+# branch once it has answered.
+name: concurrency-probe
+
+on:
+  push:
+    branches: [ci/concurrency-probe]
+  pull_request:
+    types: [opened, labeled, synchronize]
+
+concurrency:
+  group: concurrency-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    # Inverted on purpose: applying the label produces a run whose job is
+    # SKIPPED. If the claim holds, that run still cancels the sleeping one.
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-me') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: echo "sleeping so there is something to cancel"; sleep 180
