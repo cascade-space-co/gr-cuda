@@ -150,14 +150,14 @@ A consequence worth knowing: **plain `pytest` from a checkout does not work**.
 Running a single file directly (`python python/cuda/qa_fft.py`) is unaffected.
 
 **`--timeout-method=thread`, not `signal`.** The signal method raises through
-SIGALRM, and Python runs a signal handler only at a bytecode boundary. These
-tests hang inside `tb.run()` → `tb.wait()`, which blocks in `pthread_join` —
-specified not to return `EINTR` — so the alarm would be ignored entirely and a
-hung test would run out the job's 90-minute ceiling. The thread method kills from
-a watchdog thread and works whatever the main thread is blocked in. It takes the
-process with it, so a hang aborts the run rather than failing one test, which is
-the right trade for a gate. Both invocations are also wrapped in `timeout`, since
-even the watchdog thread needs the GIL.
+SIGALRM, and Python runs a signal handler only at a bytecode boundary. The way a
+flowgraph wedges is `tb.run()` → `tb.wait()`, which blocks in `pthread_join` —
+specified not to return `EINTR` — so the alarm would be ignored entirely and the
+test would run out the job's 90-minute ceiling instead. The thread method kills
+from a watchdog thread and works whatever the main thread is blocked in. It takes
+the process with it, so a hang aborts the run rather than failing one test, which
+is the right trade for a gate. The invocation is also wrapped in `timeout(1)`,
+since even the watchdog thread needs the GIL.
 
 **No pytest-timeout settings in `pyproject.toml`.** `--strict-config` makes an
 unrecognised ini key an error, and `timeout` is only recognised with the plugin
@@ -176,40 +176,6 @@ output, check the toolkit and the architecture before anything else.**
 which would make CI's compiled surface a function of whatever the runner image
 ships — an image adding rdma-core would silently start building blocks with no
 NIC to exercise them. IBV compile coverage is deliberately out of scope.
-
-## Known failures
-
-`qa_cuda_block.py::qa_cuda_block::test_009_sync_history` and
-`qa_fft.py::qa_fft::test_cuda_fft_shift` are deselected from the gating run and
-executed separately, one pytest process each, in a `continue-on-error` step.
-
-The reason is weaker than it looks, and worth stating precisely rather than
-repeating second-hand. They were seen hanging **once**, in a Nix closure built
-during an unrelated spike (`issacshit@gr-cascade-nix-spike`, `FINDINGS.md`) —
-not in the conda environment anyone develops in. In CI they pass, four runs out
-of four, on both `cascade/main` and `cascade/main-gr-3.10.13`, under the same
-pinned gnuradio commit and with byte-identical test files.
-
-Two variables separate those observations and neither has been isolated:
-
-| | where they hung | every CI run |
-| --- | --- | --- |
-| environment | Nix closure | conda |
-| GPU | RTX PRO 6000 Blackwell | Tesla T4 |
-
-Two hypotheses have already been tested and disproved: that it was the gr-cuda
-branch (`gr-cuda#45` ran `cascade/main` in CI — they pass there too, so the
-`cuda_buffer` rewrite did not fix them), and that it was hardware alone (that
-was asserted before the environment difference was noticed).
-
-**The decisive test is conda on Blackwell** — running those two tests in the
-`cascade` environment on europa. If they pass, the hang was an artifact of the
-Nix closure and says nothing about gr-cuda, and these two can be promoted into
-the gating run and this whole section deleted.
-
-Until then they stay out of the gate, on the narrow grounds that a test seen
-hanging anywhere should not gate merges until someone understands why, and the
-separate step costs three seconds.
 
 ## What CI does not cover
 

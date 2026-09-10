@@ -149,50 +149,16 @@ jobs:
           ls "$RUNNER_TEMP/qa"
 
       - name: QA
-        id: qa
         working-directory: ${{ runner.temp }}/qa
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
           source /opt/miniforge/etc/profile.d/conda.sh
           conda activate "$ENV_PATH"
-          # timeout-method=thread, not signal: these hang in pthread_join, where a
-          # SIGALRM handler never gets to run. `timeout` wraps it because even the
-          # watchdog thread needs the GIL. The deadline is passed here rather than
-          # set in pyproject.toml, where --strict-config would make it an error for
-          # anyone without pytest-timeout installed.
-          #
-          # The two deselected tests are handled by the next step.
-          timeout 600 pytest . --timeout=300 --timeout-method=thread \
-            --deselect qa_cuda_block.py::qa_cuda_block::test_009_sync_history \
-            --deselect qa_fft.py::qa_fft::test_cuda_fft_shift
-
-      # These two were seen hanging in a Nix build; they pass here. Kept out of
-      # the gating run
-      # because passing once is not passing for a race test; run here so the
-      # result is still reported. Runs even when the gating step failed --
-      # that is when it is most wanted -- but not when QA never ran at all.
-      - name: Known hangs (informational, does not gate)
-        if: ${{ !cancelled() && steps.qa.conclusion != 'skipped' }}
-        continue-on-error: true
-        working-directory: ${{ runner.temp }}/qa
-        env:
-          QT_QPA_PLATFORM: offscreen
-        run: |
-          source /opt/miniforge/etc/profile.d/conda.sh
-          conda activate "$ENV_PATH"
-          # One process per test: the thread timeout method kills the interpreter,
-          # so a single invocation that hung on the first would never run the
-          # second, and reporting both is the point of this step.
-          status=0
-          for t in \
-            qa_cuda_block.py::qa_cuda_block::test_009_sync_history \
-            qa_fft.py::qa_fft::test_cuda_fft_shift
-          do
-            echo "::group::$t"
-            timeout 180 pytest --timeout=120 --timeout-method=thread "$t" || status=1
-            echo "::endgroup::"
-          done
-          # continue-on-error above: a non-zero exit marks the step failed without
-          # failing the job.
-          exit "$status"
+          # timeout-method=thread, not signal: a flowgraph wedged in tb.wait() is
+          # blocked in pthread_join, where a SIGALRM handler never gets to run.
+          # `timeout` wraps it because even the watchdog thread needs the GIL.
+          # The deadline is passed here rather than set in pyproject.toml, where
+          # --strict-config would make it an error for anyone without
+          # pytest-timeout installed.
+          timeout 600 pytest . --timeout=300 --timeout-method=thread
