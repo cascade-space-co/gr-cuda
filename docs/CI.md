@@ -69,8 +69,9 @@ blocks on with no hardware to exercise them.
 
 ## What CI does not cover
 
-- **Other GPU architectures.** `CMAKE_CUDA_ARCHITECTURES=native` compiles for the
-  runner's card and nothing else.
+- **Running on other GPU architectures.** The build targets the runner's own
+  card plus `sm_120`, so Blackwell is compile-checked, but only the runner's
+  architecture is ever executed.
 - **Performance.** The runner is far slower than the cards this is developed on.
 - **Race coverage is a different sample, not a superset.** The runner has four
   cores; the timing-sensitive tests explore a different interleaving distribution
