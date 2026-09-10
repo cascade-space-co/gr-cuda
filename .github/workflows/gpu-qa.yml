@@ -82,13 +82,21 @@ jobs:
         run: |
           source /opt/miniforge/etc/profile.d/conda.sh
           conda activate "$ENV_PATH"
+          # Build for the runner's own architecture, so the tests below run, plus
+          # sm_120 to compile-check the architecture this is deployed on. Nothing
+          # here executes the sm_120 code; it catches build errors only.
+          arch="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | head -1 | tr -d '.')"
+          archs="$arch;120"
+          [ "$arch" = "120" ] && archs="120"
+          echo "CMAKE_CUDA_ARCHITECTURES=$archs"
+
           # The runner has no NIC, so libibverbs is absent and ENABLE_IBV would
           # auto-detect to OFF. Pinned so an image that ships rdma-core does not
           # quietly turn the IBV blocks on.
           cmake -S . -B build -GNinja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_PREFIX_PATH="$CONDA_PREFIX" \
-            -DCMAKE_CUDA_ARCHITECTURES=native \
+            -DCMAKE_CUDA_ARCHITECTURES="$archs" \
             -DENABLE_IBV=OFF
           cmake --build build -j "$(nproc)"
 

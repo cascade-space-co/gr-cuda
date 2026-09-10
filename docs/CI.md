@@ -10,12 +10,10 @@ GPU runner.
 | Pull request from a branch in this repo | yes |
 | Pull request from a fork | only with the `run-gpu-qa` label |
 | Push to `cascade/main` or `cascade/main-gr-3.10.13` | yes |
-| Manual dispatch | yes |
-| Documentation-only pull request | no |
 
 GPU minutes are billed per minute, so a fork's pull request needs a maintainer to
 apply `run-gpu-qa` before it can spend them; an outside contributor cannot apply
-a label themselves. Our own pull requests are not gated, because a label you have
+a label themselves. Cascade pull requests are not gated, because a label you have
 to remember to add is one that gets forgotten.
 
 To stop a run, cancel it from the Actions tab. Removing the label does not stop
