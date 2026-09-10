@@ -38,3 +38,7 @@ failed_conversions.txt
 build/
 **/__pycache__/
 **/.cache/
+
+# Local rattler-build recipe testing artifacts (recipe/)
+/env/
+/output/

@@ -1,0 +1,82 @@
+context:
+  # cascade/main-gr-3.10.13 branch tip, not a release -- version carries a
+  # local segment (+cascade.<short-sha>) rather than a renamed package. See
+  # the packaging plan's "Versioning custom builds without renaming
+  # packages" note for the rationale. Base version (2.0.0) matches
+  # VERSION_MAJOR/API/ABI in CMakeLists.txt.
+  version: "2.0.0+cascade.3aa549c5"
+
+package:
+  name: gnuradio-cuda
+  version: ${{ version }}
+
+source:
+  # Build from this checkout rather than a tarball/tag -- there's no
+  # release to build from in the first place.
+  path: ..
+  use_gitignore: false
+
+build:
+  number: 0
+  script:
+    - mkdir build
+    - cd build
+    - |
+      cmake ${CMAKE_ARGS} -G Ninja .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_PREFIX_PATH=$PREFIX \
+        -DCMAKE_INSTALL_PREFIX=$PREFIX \
+        -DLIB_SUFFIX="" \
+        -DPYTHON_EXECUTABLE=$PYTHON \
+        -DGR_PYTHON_DIR=$SP_DIR \
+        -DENABLE_DOXYGEN=OFF \
+        -DENABLE_TESTING=ON
+    - cmake --build . --config Release -- -j${CPU_COUNT}
+    - cmake --build . --config Release --target install
+
+requirements:
+  build:
+    - ${{ compiler("c") }}
+    - ${{ stdlib("c") }}
+    - ${{ compiler("cxx") }}
+    # NVCC itself is a "compiler" in CMake's eyes but isn't one of
+    # rattler-build's `compiler()` languages -- add it directly.
+    - cuda-nvcc
+    - cmake
+    - ninja
+    - pkg-config
+    - python
+  host:
+    # Our own tip-of-main GNU Radio build, not conda-forge's -- resolved
+    # from a local channel for now (-c <path-to-gnuradio-recipe-output>),
+    # eventually our private prefix.dev channel.
+    - gnuradio-core
+    # GnuradioConfig.cmake itself does find_dependency(Boost ...) -- any
+    # consumer needs boost headers present too, same lesson as gr-satellites.
+    - libboost-devel
+    - cuda-cudart-dev
+    - cuda-driver-dev
+    - libcufft-dev
+    - numpy
+    - pybind11
+    - pybind11-abi
+    - python
+  run:
+    - gnuradio-core
+    - python
+    # gr-cuda's *_cupy.py blocks import cupy directly; it's a real runtime
+    # dependency, not just used in tests.
+    - cupy
+    - numpy
+
+tests:
+  - script:
+      - test -f "$PREFIX/lib/libgnuradio-cuda${SHLIB_EXT}"
+      - test -f "$PREFIX/include/gnuradio/cuda/api.h"
+      - python -c "import gnuradio.cuda"
+
+about:
+  homepage: https://github.com/cascade-space-co/gr-cuda
+  repository: https://github.com/cascade-space-co/gr-cuda
+  license: GPL-3.0-or-later
+  summary: GNU Radio CUDA-accelerated blocks (Cascade internal build, cascade/main-gr-3.10.13)
