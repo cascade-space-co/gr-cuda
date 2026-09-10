@@ -38,8 +38,11 @@ dependencies:
   # Testing
   - pytest>=8.0.0
   - pytest-cov>=4.0.0
-  - pytest-timeout>=2.3.0  # required: pyproject.toml sets timeout options and
-                           # pytest runs with --strict-config
+  # Used by CI, which passes --timeout on the command line rather than setting
+  # it in pyproject.toml. Deliberate: --strict-config makes an unrecognised ini
+  # key an error, so a `timeout` key in shared config would break pytest for
+  # every environment that predates this file.
+  - pytest-timeout>=2.3.0
 
   # Development tools
   - gersemi>=0.23.0  # CMake formatting

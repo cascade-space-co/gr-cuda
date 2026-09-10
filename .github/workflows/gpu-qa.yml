@@ -266,7 +266,13 @@ jobs:
           # The two deselected tests hang on europa but pass here in under three
           # seconds; see the next step for why they stay out of the gating run
           # anyway. Everything else gates the job.
-          pytest . \
+          # The timeout lives here rather than in pyproject.toml: --strict-config
+          # makes an unrecognised ini key an error, and `timeout` is only
+          # recognised with pytest-timeout installed, so putting it in shared
+          # config would break pytest for every environment that predates
+          # environment.yml. Nothing here should take five minutes, and this
+          # bounds a new hang to one test rather than the job's ceiling.
+          pytest . --timeout=300 --timeout-method=signal \
             --deselect qa_cuda_block.py::qa_cuda_block::test_009_sync_history \
             --deselect qa_fft.py::qa_fft::test_cuda_fft_shift
 
@@ -298,6 +304,6 @@ jobs:
         run: |
           source /opt/miniforge/etc/profile.d/conda.sh
           conda activate "$ENV_PATH"
-          pytest --timeout=120 \
+          pytest --timeout=120 --timeout-method=signal \
             qa_cuda_block.py::qa_cuda_block::test_009_sync_history \
             qa_fft.py::qa_fft::test_cuda_fft_shift
