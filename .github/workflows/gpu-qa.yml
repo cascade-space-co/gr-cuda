@@ -31,10 +31,14 @@ env:
   GNURADIO_REF: aee9fd3f79389c4282a98e8d62c8405c73fd91df
 
   # Conda's own miniforge lives in /opt and is not owned by the runner user, so
-  # the environment goes somewhere writable. It is outside the workspace on
-  # purpose: checkout must not be able to clobber a restored cache. /home/runner
-  # is fixed on GitHub-hosted Linux runners.
+  # both the environment and the package cache have to go somewhere writable --
+  # mamba fails with "cannot set permissions" on /opt/miniforge/pkgs otherwise.
+  # ENV_PATH is outside the workspace on purpose: checkout must not be able to
+  # clobber a restored cache. /home/runner is fixed on GitHub-hosted Linux
+  # runners, and keeping both on it means conda can hardlink packages into the
+  # environment rather than copying them.
   ENV_PATH: /home/runner/gr-cuda-env
+  CONDA_PKGS_DIRS: /home/runner/conda-pkgs
 
   # Bump to invalidate every cache entry without touching environment.yml.
   CACHE_VERSION: v1
