@@ -45,8 +45,8 @@ env:
   # means gr-cuda changed and not gnuradio. Bumping this is a deliberate PR, and
   # it invalidates the environment cache below.
   #
-  # This commit is the one the QA suite was characterised at: 61 passing, 1
-  # skipped, and the two hangs contained at the bottom of this file.
+  # Against this commit the suite is 133 passed, 1 skipped and 48 subtests, plus
+  # the two tests handled separately at the bottom of this file.
   GNURADIO_REF: aee9fd3f79389c4282a98e8d62c8405c73fd91df
 
   # Conda's own miniforge lives in /opt and is not owned by the runner user, so
@@ -63,7 +63,7 @@ env:
   CACHE_VERSION: v1
 
 jobs:
-  qa:
+  gpu-qa:
     # Triggers. A PR from a branch in this repository runs automatically; a PR
     # from a fork needs the `run-gpu-qa` label.
     #
@@ -100,13 +100,13 @@ jobs:
     # re-image. What a labelled fork PR does cost is GPU minutes, which is what
     # the label gate above is for, bounded by the timeout below.
     runs-on: gpu-t4
-    # Cold, the gnuradio build is the better part of an hour on 4 vCPU. Warm,
-    # this should be about 15 minutes. The ceiling is a backstop against a
-    # runaway job billing until someone notices, not a target.
+    # Measured: 21 minutes cold, about 2 minutes warm. The ceiling is a backstop
+    # against a runaway job burning a runner until someone notices, not a
+    # target -- the per-test deadlines further down are what bound a hang.
     timeout-minutes: 90
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Cheap, and it is the first thing to look at when a CUDA test fails with
       # all-zero output rather than an error: that is what both a
@@ -115,21 +115,26 @@ jobs:
       - name: GPU
         run: nvidia-smi
 
-      # The workflow file is part of the key, not just environment.yml and the
-      # gnuradio commit, because the cached artifact is gnuradio *as configured
-      # by the step below*. Keying only on the commit means changing a
-      # -DENABLE_* flag silently reuses an environment built with the old flags,
-      # and keeps doing so until the entry evicts -- at which point CI's
-      # behaviour changes on its own with no commit to blame. Hashing the whole
-      # file is conservative: editing a comment here costs one cold rebuild.
+      # The key covers everything that determines the cached artifact and
+      # nothing else: the environment spec, the gnuradio build recipe, and the
+      # commit being built. Omitting the recipe would mean changing a -DENABLE_*
+      # flag silently reuses an environment built with the old flags, and keeps
+      # doing so until the entry evicts -- at which point CI's behaviour changes
+      # on its own with no commit to blame.
+      #
+      # This used to hash the whole workflow file, which was correct but far too
+      # broad: editing a comment or a trigger forced a 21-minute rebuild and
+      # stored another 2.2 GB against a 10 GB cache cap, so a handful of edits
+      # filled the cap with near-identical copies. Hence build-gnuradio.sh being
+      # its own file -- it changes when the build changes, and not otherwise.
       - name: Cache key
         id: key
         run: |
-          echo "value=gpu-qa-${CACHE_VERSION}-${{ hashFiles('environment.yml', '.github/workflows/gpu-qa.yml') }}-${GNURADIO_REF}" >> "$GITHUB_OUTPUT"
+          echo "value=gpu-qa-${CACHE_VERSION}-${{ hashFiles('environment.yml', '.github/build-gnuradio.sh') }}-${GNURADIO_REF}" >> "$GITHUB_OUTPUT"
 
       - name: Restore conda environment
         id: cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ env.ENV_PATH }}
           key: ${{ steps.key.outputs.value }}
@@ -158,47 +163,7 @@ jobs:
         run: |
           source /opt/miniforge/etc/profile.d/conda.sh
           conda activate "$ENV_PATH"
-
-          src="$RUNNER_TEMP/gnuradio"
-          git init -q "$src"
-          git -C "$src" remote add origin https://github.com/gnuradio/gnuradio.git
-          git -C "$src" fetch -q --depth 1 origin "$GNURADIO_REF"
-          git -C "$src" checkout -q FETCH_HEAD
-
-          # gr-cuda links exactly one gnuradio target (gnuradio-runtime, see
-          # lib/CMakeLists.txt) and the QA suite imports only gr, blocks, fft
-          # and gr_unittest. Everything switched off below is a GUI, hardware or
-          # docs component that gr-cuda neither links nor imports. QTGUI is the
-          # one that matters twice over: it is the largest component, and it is
-          # the one that fails on a headless runner.
-          #
-          # ENABLE_TESTING is deliberately NOT switched off, though it would be
-          # faster. gnuradio templates its build-time value into the installed
-          # GnuradioConfig.cmake, which only requests Boost's
-          # unit_test_framework component when testing is on. With it off, every
-          # downstream OOT calling GR_ADD_CPP_TEST fails to configure:
-          #
-          #   Target "cuda_qa_seq.cc" links to: Boost::unit_test_framework
-          #   but the target was not found.
-          #
-          # gnuradio's own tests still never run here; they are only built.
-          cmake -S "$src" -B "$src/build" -GNinja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX="$CONDA_PREFIX" \
-            -DCMAKE_PREFIX_PATH="$CONDA_PREFIX" \
-            -DENABLE_DOXYGEN=OFF \
-            -DENABLE_GR_QTGUI=OFF \
-            -DENABLE_GR_UHD=OFF \
-            -DENABLE_GR_AUDIO=OFF \
-            -DENABLE_GR_VIDEO_SDL=OFF \
-            -DENABLE_GR_SOAPY=OFF \
-            -DENABLE_GR_IIO=OFF
-          cmake --build "$src/build" -j "$(nproc)"
-
-          # No `ninja test` here on purpose. This job tests gr-cuda; gnuradio's
-          # own suite is not ours to police, and it does not pass headless.
-          cmake --install "$src/build"
-          rm -rf "$src"
+          .github/build-gnuradio.sh
 
       # Saved here rather than at job end, and this ordering is load-bearing.
       # The plain actions/cache action saves in a post-job step, by which point
@@ -208,7 +173,7 @@ jobs:
       # stays outside the cache deliberately.
       - name: Save conda environment
         if: steps.cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ env.ENV_PATH }}
           key: ${{ steps.key.outputs.value }}
