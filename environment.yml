@@ -2,33 +2,18 @@ channels:
   - conda-forge
   - nodefaults  # Only use conda-forge.
 dependencies:
-  # GNU Radio.
+  # GNU Radio. CI builds it from source and removes these first, keeping them
+  # only for their dependency closure -- see docs/CI.md.
   #
-  # gr-cuda's GPU CI builds gnuradio from source, because the runtime changes it
-  # needs are merged upstream but unreleased. The package below is here for its
-  # dependency closure -- boost, fftw, volk, spdlog, pybind11 and the rest --
-  # which the source build then links against. The workflow removes gnuradio
-  # itself immediately after creating the environment; see
-  # .github/workflows/gpu-qa.yml.
-  #
-  # TODO(GR-3.10.13): when gnuradio 3.10.13 reaches conda-forge, pin it here
-  # (>=3.10.13) and delete the source build from the workflow. As of Sept 2026
-  # conda-forge is still on 3.10.12.0. Note that <=3.10.12 has a fan-out
-  # deadlock that hangs QA outright -- see the #warning in
-  # include/gnuradio/cuda/cuda_buffer.h -- so this pin alone is not usable
-  # without the source build.
+  # TODO(GR-3.10.13): when 3.10.13 reaches conda-forge, pin it here and delete
+  # the source build from .github/build-gnuradio.sh.
   - gnuradio>=3.10.12
   - gnuradio-build-deps  # cmake, ninja, compilers, pkg-config, etc.
   - pygccxml>=3.0.2,<4.0  # pybind11 binding generation
   - python>=3.12
 
-  # CUDA.
-  #
-  # Capped below 13.1 to stay under the NVIDIA driver. A toolkit newer than the
-  # driver fails *silently*: kernel launches are unchecked, so they return zeros
-  # and tests report a numeric mismatch rather than a CUDA error. A 13.0 toolkit
-  # is under the ceiling on both the gpu-t4 CI runner (driver 590.48.01,
-  # supports 13.1) and europa (13.0), so this one pin serves both.
+  # CUDA, capped below 13.1 to stay under the driver on both the CI runner and
+  # europa. A toolkit newer than the driver fails silently: kernels return zeros.
   - cuda-nvcc<13.1
   - cuda-cudart-dev<13.1
   - cuda-driver-dev<13.1
@@ -38,10 +23,8 @@ dependencies:
   # Testing
   - pytest>=8.0.0
   - pytest-cov>=4.0.0
-  # Used by CI, which passes --timeout on the command line rather than setting
-  # it in pyproject.toml. Deliberate: --strict-config makes an unrecognised ini
-  # key an error, so a `timeout` key in shared config would break pytest for
-  # every environment that predates this file.
+  # CI passes --timeout on the command line; it must not go in pyproject.toml,
+  # where --strict-config would break pytest for anyone without the plugin.
   - pytest-timeout>=2.3.0
 
   # Development tools

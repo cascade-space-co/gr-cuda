@@ -154,18 +154,13 @@ See **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)** for more details, **[docs/OPT
 
 Lint runs on every push. The QA suite needs a GPU, so it runs on a dedicated
 runner: automatically for pull requests from a branch in this repository, and
-for merges to `cascade/main` and `cascade/main-gr-3.10.13`. It can also be
-started by hand from the Actions tab.
+for merges to `cascade/main` and `cascade/main-gr-3.10.13`. Pull requests from a
+fork need the `run-gpu-qa` label, since GPU minutes are billed to the
+organisation.
 
-Pull requests **from a fork** need the `run-gpu-qa` label before the GPU job
-will run, since GPU minutes are billed to the organisation and an outside
-contributor should not be able to spend them unasked.
-
-The runner builds GNU Radio from source against a pinned commit, because the
-runtime fixes gr-cuda needs are merged upstream but not yet released to
-conda-forge. That build is cached, so a run is roughly 15 minutes once the cache
-is warm and closer to an hour when it is cold. See
-[`.github/workflows/gpu-qa.yml`](.github/workflows/gpu-qa.yml).
+A run is about 2 minutes warm, or 21 minutes when it has to rebuild GNU Radio
+from source. See **[docs/CI.md](docs/CI.md)** for how it works, the traps, and
+what it deliberately does not cover.
 
 ## Acknowledgements
 

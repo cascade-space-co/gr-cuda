@@ -9,20 +9,12 @@ addopts = [
     "-v",
 ]
 
-# No pytest-timeout settings here on purpose, though CI relies on them. They are
-# passed on the command line in .github/workflows/gpu-qa.yml instead, because
-# `timeout` and `timeout_method` are only recognised when the plugin is
-# installed, and --strict-config above turns an unrecognised ini key into an
-# error rather than a warning. Putting them here would break `pytest` outright
-# for anyone whose environment predates this file -- which, as of writing, is
-# every environment on europa.
+# No pytest-timeout settings here on purpose: --strict-config above makes an
+# unrecognised ini key an error, so `timeout` would break pytest for anyone
+# without the plugin. CI passes it on the command line.
 #
-# Note also that running `pytest` from the repository root does not currently
-# work: python/cuda is a package directory named `cuda`, so pytest imports the
-# suite as the `cuda` package and shadows NVIDIA's, which breaks cupy at
-# collection. CI works around it by running the files from a flat copy; see the
-# "Stage QA files" step in the workflow. Running an individual file directly
-# (`python python/cuda/qa_fft.py`) is unaffected.
+# Plain `pytest` from the repo root does not work -- python/cuda shadows
+# NVIDIA's `cuda` package. Run a file directly, or see docs/CI.md.
 
 [tool.ruff]
 target-version = "py312"

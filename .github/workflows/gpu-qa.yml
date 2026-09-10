@@ -1,8 +1,5 @@
-# Runs the QA suite on a real GPU.
-#
-# Lint stays in ci.yml on every push on an ordinary runner; this is the
-# expensive job and it is deliberately not on every push. See the "Triggers"
-# comment on the job below.
+# Runs the QA suite on a real GPU. How it all works, and the traps:
+# docs/CI.md. Lint stays in ci.yml on every push on an ordinary runner.
 name: GPU QA
 
 on:
@@ -12,22 +9,9 @@ on:
     # currently a strict descendant of it.
     branches: [cascade/main, cascade/main-gr-3.10.13]
   pull_request:
-    # `opened` is load-bearing. Naming types at all replaces the default set
-    # (opened, synchronize, reopened), and without it a PR that is opened with
-    # its commits already pushed never fires anything -- a one-commit PR would
-    # reach merge with no GPU run at all. That was survivable when the label
-    # gated everything, because adding it fired `labeled`; it is not survivable
-    # now that our own PRs are meant to run on their own.
-    #
-    # No `unlabeled`, deliberately, and this is a trade rather than an
-    # oversight. It would let a maintainer stop a fork's run by removing the
-    # label. But a run entering the concurrency group cancels the in-flight one
-    # whether or not its job then runs, so with `unlabeled` present, removing
-    # *any* label from one of our own PRs kills a GPU run in progress -- and
-    # nothing restarts it. That penalises the case we actually have (this repo
-    # has no outside contributors) to serve one we do not. The Cancel button in
-    # the Actions tab stops a run, for forks and for us. If fork PRs ever become
-    # common, adding `unlabeled` back is a one-line change.
+    # `opened` is required: naming types replaces the default set, so a
+    # one-commit PR would otherwise never fire. `unlabeled` is deliberately
+    # absent -- it would cancel in-flight runs on any label change.
     types: [opened, labeled, synchronize, reopened]
   workflow_dispatch:
 
@@ -41,21 +25,12 @@ permissions:
   contents: read
 
 env:
-  # gnuradio main, pinned rather than tracking the branch head so that a red run
-  # means gr-cuda changed and not gnuradio. Bumping this is a deliberate PR, and
-  # it invalidates the environment cache below.
-  #
-  # Against this commit the suite is 133 passed, 1 skipped and 48 subtests, plus
-  # the two tests handled separately at the bottom of this file.
+  # Pinned so a red run means gr-cuda changed, not gnuradio. Bumping it is a
+  # deliberate PR and costs one cold rebuild.
   GNURADIO_REF: aee9fd3f79389c4282a98e8d62c8405c73fd91df
 
-  # Conda's own miniforge lives in /opt and is not owned by the runner user, so
-  # both the environment and the package cache have to go somewhere writable --
-  # mamba fails with "cannot set permissions" on /opt/miniforge/pkgs otherwise.
-  # ENV_PATH is outside the workspace on purpose: checkout must not be able to
-  # clobber a restored cache. /home/runner is fixed on GitHub-hosted Linux
-  # runners, and keeping both on it means conda can hardlink packages into the
-  # environment rather than copying them.
+  # /opt/miniforge is not writable by the runner user, so both the environment
+  # and the package cache live under /home/runner.
   ENV_PATH: /home/runner/gr-cuda-env
   CONDA_PKGS_DIRS: /home/runner/conda-pkgs
 
@@ -64,69 +39,30 @@ env:
 
 jobs:
   gpu-qa:
-    # Triggers. A PR from a branch in this repository runs automatically; a PR
-    # from a fork needs the `run-gpu-qa` label.
-    #
-    # The asymmetry is deliberate, and it is about cost rather than safety --
-    # this job holds no secrets, the token is read-only, and the runner VM is
-    # ephemeral (see runs-on below), so a fork's code cannot take anything or
-    # leave anything behind. What it can do is spend GPU minutes billed to the
-    # org, which is what the label prevents. A stranger cannot self-label, and
-    # GitHub's own first-time-contributor approval gates the run before that.
-    #
-    # Our own PRs are not gated because a gate you have to remember to open is
-    # a gate that gets left closed, and a forgotten label means a CUDA
-    # regression merges unexercised. That is a worse failure than the couple of
-    # dollars a month this costs at gr-cuda's PR volume.
-    #
-    # The fork branch tests for the label being *present* rather than for the
-    # `labeled` event, so it gates for the life of the PR instead of firing
-    # once.
-    #
-    # `pull_request`, never `pull_request_target`: fork code must not get a
-    # token. Fork PRs cannot write to this repo's cache, but they can read the
-    # entry the default branch wrote, so an outside contributor still gets a
-    # warm start.
+    # Our own PRs run unconditionally; forks need the label, which is a cost
+    # control rather than a security boundary. `pull_request`, never
+    # `pull_request_target`.
     if: >-
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name == github.repository ||
       contains(github.event.pull_request.labels.*.name, 'run-gpu-qa')
 
-    # gpu-t4 is a GitHub-hosted larger runner, not a self-hosted machine --
-    # `runs-on: <custom label>` looks like the latter but the runner group is
-    # provisioned by GitHub's Hosted Compute Agent and the VM is ephemeral, one
-    # per job, destroyed afterwards. So running a fork's code here leaves
-    # nothing behind for the next job to pick up, and there is no host to
-    # re-image. What a labelled fork PR does cost is GPU minutes, which is what
-    # the label gate above is for, bounded by the timeout below.
+    # A GitHub-hosted larger runner despite the self-hosted-looking syntax:
+    # the VM is ephemeral, one per job.
     runs-on: gpu-t4
-    # Measured: 21 minutes cold, about 2 minutes warm. The ceiling is a backstop
-    # against a runaway job burning a runner until someone notices, not a
-    # target -- the per-test deadlines further down are what bound a hang.
+    # Backstop against a runaway job, not a target; the per-test deadlines
+    # below are what bound a hang.
     timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@v7
 
-      # Cheap, and it is the first thing to look at when a CUDA test fails with
-      # all-zero output rather than an error: that is what both a
-      # toolkit-newer-than-driver mismatch and a wrong -DCMAKE_CUDA_ARCHITECTURES
-      # look like, because the kernel launches are unchecked.
+      # First thing to check when a CUDA test fails with all-zero output.
       - name: GPU
         run: nvidia-smi
 
-      # The key covers everything that determines the cached artifact and
-      # nothing else: the environment spec, the gnuradio build recipe, and the
-      # commit being built. Omitting the recipe would mean changing a -DENABLE_*
-      # flag silently reuses an environment built with the old flags, and keeps
-      # doing so until the entry evicts -- at which point CI's behaviour changes
-      # on its own with no commit to blame.
-      #
-      # This used to hash the whole workflow file, which was correct but far too
-      # broad: editing a comment or a trigger forced a 21-minute rebuild and
-      # stored another 2.2 GB against a 10 GB cache cap, so a handful of edits
-      # filled the cap with near-identical copies. Hence build-gnuradio.sh being
-      # its own file -- it changes when the build changes, and not otherwise.
+      # Keyed on everything that determines the artifact and nothing else --
+      # hashing the whole workflow file rebuilt on every comment edit.
       - name: Cache key
         id: key
         run: |
@@ -145,13 +81,9 @@ jobs:
           source /opt/miniforge/etc/profile.d/conda.sh
           mamba env create -f environment.yml -p "$ENV_PATH"
 
-          # conda-forge's gnuradio was installed for its dependency closure
-          # only; see environment.yml. --no-prune-deps unlinks gnuradio while
-          # orphaning rather than garbage-collecting boost, fftw, volk and the
-          # rest, which the source build below needs to find. Leaving gnuradio
-          # installed is not an option: its 3.10 CMake config and libraries
-          # shadow the source-built 3.11 at configure and at import time, and
-          # that surfaces as a baffling test error rather than a build error.
+          # conda-forge gnuradio is installed for its dependency closure only and
+          # removed here; --no-prune-deps keeps the closure. Leaving it installed
+          # shadows the source-built gnuradio at configure and import time.
           pkgs="$(mamba list -p "$ENV_PATH" | awk '$1 ~ /^gnuradio/ {print $1}')"
           if [ -n "$pkgs" ]; then
             # shellcheck disable=SC2086
@@ -165,12 +97,8 @@ jobs:
           conda activate "$ENV_PATH"
           .github/build-gnuradio.sh
 
-      # Saved here rather than at job end, and this ordering is load-bearing.
-      # The plain actions/cache action saves in a post-job step, by which point
-      # gr-cuda has been installed into this same prefix -- so every run would
-      # store an environment carrying the previous commit's gr-cuda and restore
-      # it over the next one. gr-cuda is fast to build and changes every PR; it
-      # stays outside the cache deliberately.
+      # Saved BEFORE gr-cuda is built into the same prefix. actions/cache saves
+      # post-job, which would cache the previous commit's gr-cuda along with it.
       - name: Save conda environment
         if: steps.cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v6
@@ -178,9 +106,7 @@ jobs:
           path: ${{ env.ENV_PATH }}
           key: ${{ steps.key.outputs.value }}
 
-      # actions/cache is capped at 10 GB per repository and evicts least
-      # recently used entries. If this creeps toward the cap, the fix is to move
-      # the prebuilt environment to a container image in GHCR.
+      # 10 GB per-repo cap. If this creeps toward it, move to a GHCR image.
       - name: Environment size
         run: |
           echo "cache hit: ${{ steps.cache.outputs.cache-hit || 'false' }}"
@@ -190,15 +116,8 @@ jobs:
         run: |
           source /opt/miniforge/etc/profile.d/conda.sh
           conda activate "$ENV_PATH"
-          # CMAKE_CUDA_ARCHITECTURES=native resolves against the card actually
-          # present, which is a T4 (sm_75) here and a Blackwell (sm_120) on
-          # europa. This job therefore proves logic, not Blackwell codegen.
-          # ENABLE_IBV is pinned rather than left to its default, which is
-          # `find_library(ibverbs)` -- i.e. a function of whatever the runner
-          # image happens to ship. Today that resolves to OFF; if a future image
-          # adds rdma-core it would silently flip ON and start compiling blocks
-          # this runner has no NIC to exercise. Off explicitly means CI's
-          # compiled surface changes only when someone changes this file.
+          # ENABLE_IBV pinned: its default is find_library(ibverbs), which would
+          # make the compiled surface depend on the runner image.
           cmake -S . -B build -GNinja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="$CONDA_PREFIX" \
@@ -208,36 +127,16 @@ jobs:
           cmake --build build -j "$(nproc)"
           cmake --install build
 
-      # QA runs from a copy of the files, which is not fussiness -- it is the fix
-      # for a collection failure that takes out every file at once.
-      #
-      # python/cuda is a package directory named `cuda`. With its __init__.py
-      # present, pytest names the test modules cuda.qa_* and imports the parent
-      # package, so `cuda` binds to gr-cuda's source tree. cupy then does
-      # `from cuda import pathfinder`, gets gr-cuda instead of NVIDIA's package,
-      # and every file errors during collection:
-      #
-      #   ImportError: cannot import name 'pathfinder' from 'cuda'
-      #     (.../python/cuda/__init__.py)
-      #
-      # --import-mode=importlib does not avoid this; the module naming is what
-      # causes it. Copying the files flat, without __init__.py, leaves no `cuda`
-      # package for anything to resolve to. The sibling modules are copied
-      # alongside because five files (qa_add_cupy, qa_fanin_sync,
-      # qa_multiply_const_cupy, qa_parallel_sync, qa_stress_sync) catch the
-      # failing relative import and retry it as a bare-name import, which is
-      # the path taken here.
-      #
-      # This still tests what was just built: the files import gr-cuda as
-      # `from gnuradio import cuda`, which is the copy installed into the conda
-      # prefix, not the source tree they were copied from.
+      # Flat copy without __init__.py: otherwise pytest imports these as the
+      # `cuda` package, shadowing NVIDIA's, and every file fails collection
+      # inside cupy. importlib mode does not help. The sibling modules come too,
+      # for the five files that fall back to bare-name imports.
       - name: Stage QA files
         run: |
           mkdir -p "$RUNNER_TEMP/qa"
           cp python/cuda/*.py "$RUNNER_TEMP/qa/"
           rm -f "$RUNNER_TEMP/qa/__init__.py"
-          # Carried along so CI and developers run under identical pytest
-          # settings, the global timeout included.
+          # Carried along so CI and developers share one pytest config.
           cp pyproject.toml "$RUNNER_TEMP/qa/"
           ls "$RUNNER_TEMP/qa"
 
@@ -249,56 +148,21 @@ jobs:
         run: |
           source /opt/miniforge/etc/profile.d/conda.sh
           conda activate "$ENV_PATH"
-          # The two deselected tests hang on europa but pass here in under three
-          # seconds; see the next step for why they stay out of the gating run
-          # anyway. Everything else gates the job.
-          # Two layers of deadline, because neither is sufficient alone.
+          # timeout-method=thread, not signal: these hang in pthread_join, where a
+          # SIGALRM handler never gets to run. `timeout` wraps it because even the
+          # watchdog thread needs the GIL. The deadline is passed here rather than
+          # set in pyproject.toml, where --strict-config would make it an error for
+          # anyone without pytest-timeout installed.
           #
-          # --timeout-method=thread, not signal. The signal method raises via
-          # SIGALRM, and Python runs a signal handler only at a bytecode
-          # boundary -- so a hang blocked inside a C call never lets it run. The
-          # hangs this guards against are gnuradio flowgraphs stuck in
-          # tb.wait(), i.e. pthread_join, which is specified not to return
-          # EINTR: the alarm would be ignored entirely and the test would ride
-          # out the job's 90-minute ceiling. The thread method kills from a
-          # watchdog thread instead, which works whatever the main thread is
-          # blocked in. It takes the whole process with it, so a hang aborts the
-          # run rather than failing one test -- an acceptable trade for a
-          # deadline that actually fires.
-          #
-          # `timeout` wraps it because even the watchdog thread needs the GIL.
-          # The blocking calls here release it, but a C loop that did not would
-          # defeat both methods, and this step exists to bound spend. 600s is
-          # comfortably above a normal 57s run plus one 300s per-test timeout.
-          #
-          # The pytest deadline is passed here rather than set in pyproject.toml
-          # because --strict-config makes an unrecognised ini key an error, and
-          # `timeout` is only recognised with pytest-timeout installed -- in
-          # shared config it would break pytest for every environment predating
-          # environment.yml.
+          # The two deselected tests are handled by the next step.
           timeout 600 pytest . --timeout=300 --timeout-method=thread \
             --deselect qa_cuda_block.py::qa_cuda_block::test_009_sync_history \
             --deselect qa_fft.py::qa_fft::test_cuda_fft_shift
 
-      # Two tests hang on europa's Blackwell under this same gnuradio commit.
-      # They do not hang here: on the T4 they pass in under three seconds, with
-      # byte-identical test files. That is evidence the cause is timing- or
-      # hardware-dependent rather than a logic error -- 4 vCPU behind PCIe 3
-      # samples a very different interleaving than 32 cores behind PCIe 5.
-      #
-      # They stay deselected from the gating run rather than being promoted into
-      # it. A test that deadlocks on the machine the team actually develops on
-      # is not one to gate on the strength of it passing somewhere else, and
-      # these are race tests, so passing once is not passing. Running them here
-      # reports the result every time and the per-test timeout means that if
-      # they ever do hang on this runner it costs 120 seconds, not the job's
-      # 90-minute ceiling. Worth revisiting once the europa behaviour is
-      # understood.
-      #
-      # The condition runs this even when the gating step failed, because it is
-      # diagnostic information and it is most wanted on the runs that went
-      # wrong. It is skipped only when QA never ran at all, which means the
-      # build failed and there is nothing to say.
+      # These two hang on europa but pass here. Kept out of the gating run
+      # because passing once is not passing for a race test; run here so the
+      # result is still reported. Runs even when the gating step failed --
+      # that is when it is most wanted -- but not when QA never ran at all.
       - name: Known hangs (informational, does not gate)
         if: ${{ !cancelled() && steps.qa.conclusion != 'skipped' }}
         continue-on-error: true
@@ -308,16 +172,9 @@ jobs:
         run: |
           source /opt/miniforge/etc/profile.d/conda.sh
           conda activate "$ENV_PATH"
-          # One pytest process per test, which is the point of this step. The
-          # thread timeout method kills the interpreter rather than raising into
-          # the test, so a single invocation that hung on the first test would
-          # never run the second -- and reporting both is the only reason this
-          # step exists. Separate processes mean a hang costs that test's result
-          # and nothing else.
-          #
-          # Same two-layer deadline as the gating step, and it matters more
-          # here: these are the tests actually known to deadlock. 180s bounds
-          # each one even if the watchdog thread cannot run.
+          # One process per test: the thread timeout method kills the interpreter,
+          # so a single invocation that hung on the first would never run the
+          # second, and reporting both is the point of this step.
           status=0
           for t in \
             qa_cuda_block.py::qa_cuda_block::test_009_sync_history \
@@ -327,6 +184,6 @@ jobs:
             timeout 180 pytest --timeout=120 --timeout-method=thread "$t" || status=1
             echo "::endgroup::"
           done
-          # Reported, not gating: continue-on-error above means a non-zero exit
-          # shows this step as failed without failing the job.
+          # continue-on-error above: a non-zero exit marks the step failed without
+          # failing the job.
           exit "$status"
