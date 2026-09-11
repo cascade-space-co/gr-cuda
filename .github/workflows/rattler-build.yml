@@ -1,0 +1,71 @@
+# Builds our custom recipe/recipe.yaml (Cascade tip-of-main packaging) against
+# our own GNU Radio build on the private "cascade" prefix.dev channel,
+# uploads the resulting .conda package as a workflow artifact for
+# inspection, and publishes it to that same channel.
+#
+# CPU-only runner, no GPU: CMAKE_CUDA_ARCHITECTURES is pinned explicitly in
+# the recipe (not "native"), so nvcc doesn't need a physical GPU/driver to
+# compile device code for that architecture -- cuda-driver-dev's stub
+# libcuda.so is enough to link against. This only proves the CUDA code
+# builds; it never executes on a GPU. Actual GPU execution is covered by
+# gr-cascade's separate GPU CI (self-hosted gpu-t4 runner), which pulls
+# this package in once it's published.
+#
+# Both reading and publishing use OIDC trusted publishing (id-token: write
+# below), not a stored API key -- this repo and this exact workflow
+# filename must be registered as a Trusted Publisher (read+write) on the
+# "cascade" channel's prefix.dev settings first, or either step fails auth.
+#
+# Use https://prefix.dev/<channel> as the channel host, not
+# https://repo.prefix.dev/<channel> -- the latter doesn't serve the OIDC
+# mint endpoint rattler-build needs and fails with 405 on any private-read.
+name: Rattler Build (gr-cuda)
+
+on:
+  push:
+    branches: [brett/rattler-recipe]
+  workflow_dispatch:
+
+concurrency:
+  group: rattler-build-gr-cuda-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install rattler-build
+        uses: mamba-org/setup-micromamba@v3
+        with:
+          environment-name: rattler-build-env
+          create-args: -c conda-forge rattler-build=0.76.0
+
+      - name: Build gr-cuda conda package
+        shell: micromamba-shell {0}
+        run: |
+          rattler-build build \
+            --recipe recipe/recipe.yaml \
+            --output-dir output \
+            -c https://prefix.dev/cascade \
+            -c conda-forge
+
+      - name: Upload built package (workflow artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: gnuradio-cuda-conda-package
+          path: output/linux-64/*.conda
+          if-no-files-found: error
+
+      - name: Publish to prefix.dev (cascade channel)
+        shell: micromamba-shell {0}
+        run: |
+          rattler-build upload prefix -c cascade output/linux-64/*.conda
