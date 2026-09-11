@@ -16,8 +16,8 @@ apply `run-gpu-qa` before it can spend them; an outside contributor cannot apply
 a label themselves. Cascade pull requests are not gated, because a label you have
 to remember to add is one that gets forgotten.
 
-To stop a run, cancel it from the Actions tab. Removing the label does not stop
-one.
+To stop a run, cancel it from the Actions tab — or, on a fork's pull request,
+remove the label.
 
 ## GNU Radio is built from source
 
