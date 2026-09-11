@@ -81,9 +81,16 @@ requirements:
 
 tests:
   - script:
+      # Not `python -c "import gnuradio.cuda"`: the compiled extension
+      # dynamically links libcuda.so.1, the real NVIDIA driver's runtime
+      # library. cuda-driver-dev (a host/build dep) only provides a stub
+      # for linking; it doesn't exist at runtime on a GPU-less machine, so
+      # this import fails specifically in CI (no physical GPU). Actual
+      # import/execution is covered by gr-cascade's GPU CI, which runs on
+      # a real GPU runner.
       - test -f "$PREFIX/lib/libgnuradio-cuda${SHLIB_EXT}"
       - test -f "$PREFIX/include/gnuradio/cuda/api.h"
-      - python -c "import gnuradio.cuda"
+      - find "$PREFIX/lib/python3.12/site-packages/gnuradio/cuda" -maxdepth 1 -iname "cuda_python*.so" | grep -q .
 
 about:
   homepage: https://github.com/cascade-space-co/gr-cuda
