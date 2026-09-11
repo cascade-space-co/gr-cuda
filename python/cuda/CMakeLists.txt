@@ -43,6 +43,13 @@ GR_PYTHON_INSTALL(
 ########################################################################
 include(GrTest)
 
+# Put this build's cuda package ahead of any installed copy while retaining
+# the remaining GNU Radio modules from the active environment.
+file(
+    WRITE ${CMAKE_BINARY_DIR}/test_modules/gnuradio/__init__.py
+    "from pkgutil import extend_path\n__path__ = extend_path(__path__, __name__)\n"
+)
+
 # Create a package directory that tests can import. It includes everything
 # from `python/`.
 add_custom_target(
