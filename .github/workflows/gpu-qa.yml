@@ -8,13 +8,18 @@ on:
   pull_request:
     paths-ignore: ['**/*.md', 'docs/**', 'LICENSE']
     # `opened` is required: naming types replaces the default set, so a
-    # one-commit PR would otherwise never fire. `unlabeled` is deliberately
-    # absent -- it would cancel in-flight runs on any label change.
+    # one-commit PR would otherwise never fire. `labeled` is here only so that
+    # labelling a fork's PR starts it; `unlabeled` is absent because stopping a
+    # run is what the Cancel button is for.
     types: [opened, labeled, synchronize, reopened]
   workflow_dispatch:
 
 concurrency:
-  group: gpu-qa-${{ github.ref }}
+  # A run joins its group, and cancels whatever is in it, before the job's `if`
+  # is evaluated. So a `labeled` event for any other label would otherwise kill
+  # a GPU job mid-flight and restart it. Those events get a group to themselves,
+  # where there is nothing to cancel, and the job below skips them.
+  group: gpu-qa-${{ github.ref }}-${{ (github.event.action == 'labeled' && github.event.label.name != 'run-gpu-qa') && github.run_id || 'default' }}
   cancel-in-progress: true
 
 permissions:
@@ -33,11 +38,15 @@ env:
 jobs:
   gpu-qa:
     # Pull requests from a fork need the `run-gpu-qa` label, which an outside
-    # contributor cannot apply. Ours run unconditionally.
+    # contributor cannot apply. Ours run unconditionally. A `labeled` event for
+    # any other label is ignored, so labelling never costs a GPU run.
     if: >-
       github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository ||
-      contains(github.event.pull_request.labels.*.name, 'run-gpu-qa')
+      (
+        (github.event.action != 'labeled' || github.event.label.name == 'run-gpu-qa') &&
+        (github.event.pull_request.head.repo.full_name == github.repository ||
+         contains(github.event.pull_request.labels.*.name, 'run-gpu-qa'))
+      )
 
     runs-on: gpu-t4
     timeout-minutes: 90
@@ -105,7 +114,10 @@ jobs:
         run: |
           source /opt/miniforge/etc/profile.d/conda.sh
           conda activate "$ENV_PATH"
-          ctest -R '\.cc$' --output-on-failure
+          # ctest has no deadline of its own, so a wedged test would otherwise
+          # hold the runner until the job's 90-minute ceiling. These finish in
+          # about a second.
+          timeout 300 ctest -R '\.cc$' --timeout 120 --output-on-failure
 
       - name: Python tests
         env:
