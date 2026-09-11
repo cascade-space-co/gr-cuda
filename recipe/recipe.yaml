@@ -17,7 +17,9 @@ source:
   use_gitignore: false
 
 build:
-  number: 0
+  # Bumped: recipe now declares run_exports (see requirements: below) so
+  # downstream consumers get an automatic ABI pin instead of hardcoding one.
+  number: 1
   script:
     - mkdir build
     - cd build
@@ -36,6 +38,13 @@ build:
     - cmake --build . --config Release --target install
 
 requirements:
+  run_exports:
+    # Matches GNU Radio's own MAJOR.API.ABI.PATCH convention (base version
+    # here already tracks CMakeLists.txt's VERSION_MAJOR/API/ABI) -- any
+    # consumer that lists gnuradio-cuda in host now gets the exact resolved
+    # build (local segment included) pinned into its own run deps
+    # automatically, instead of needing a hand-maintained ==version pin.
+    - ${{ pin_subpackage("gnuradio-cuda", upper_bound="x.x.x") }}
   build:
     - ${{ compiler("c") }}
     - ${{ stdlib("c") }}
