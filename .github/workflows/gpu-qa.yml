@@ -1,0 +1,135 @@
+# Runs the QA suite on a GPU. See docs/CI.md.
+name: GPU QA
+
+on:
+  push:
+    branches: [cascade/main, cascade/main-gr-3.10.13]
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE']
+  pull_request:
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE']
+    # `opened` is required: naming types replaces the default set, so a
+    # one-commit PR would otherwise never fire. The label events are here so
+    # that labelling a fork's PR starts it and unlabelling stops it.
+    types: [opened, labeled, unlabeled, synchronize, reopened]
+  workflow_dispatch:
+
+concurrency:
+  # A run joins its group, and cancels whatever is in it, before the job's `if`
+  # is evaluated. So a label event for any other label would otherwise kill a
+  # GPU job mid-flight. Those get a group to themselves, where there is nothing
+  # to cancel, and the job below skips them. Events for `run-gpu-qa` itself stay
+  # in the real group, which is how removing it stops a fork's run.
+  group: gpu-qa-${{ github.ref }}-${{ (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) && github.event.label.name != 'run-gpu-qa') && github.run_id || 'default' }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Bumped when we need something new upstream, or on a GNU Radio release.
+  GNURADIO_REF: aee9fd3f79389c4282a98e8d62c8405c73fd91df
+
+  # /opt/miniforge is not writable by the runner user.
+  ENV_PATH: /home/runner/gr-cuda-env
+  CONDA_PKGS_DIRS: /home/runner/conda-pkgs
+
+  CACHE_VERSION: v2
+
+jobs:
+  gpu-qa:
+    # Pull requests from a fork need the `run-gpu-qa` label, which an outside
+    # contributor cannot apply. Ours run unconditionally. Label events for any
+    # other label are ignored, so labelling never costs a GPU run.
+    if: >-
+      github.event_name != 'pull_request' ||
+      (
+        (!contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
+         github.event.label.name == 'run-gpu-qa') &&
+        (github.event.pull_request.head.repo.full_name == github.repository ||
+         contains(github.event.pull_request.labels.*.name, 'run-gpu-qa'))
+      )
+
+    runs-on: gpu-t4
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # First thing to check when a CUDA test fails with all-zero output.
+      - name: GPU
+        run: nvidia-smi
+
+      - name: Cache key
+        id: key
+        run: |
+          echo "value=gpu-qa-${CACHE_VERSION}-${{ hashFiles('.github/ci-setup.sh') }}-${GNURADIO_REF}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore environment
+        id: cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.ENV_PATH }}
+          key: ${{ steps.key.outputs.value }}
+
+      - name: Build environment
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: .github/ci-setup.sh
+
+      - name: Save environment
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ env.ENV_PATH }}
+          key: ${{ steps.key.outputs.value }}
+
+      # The 10 GB per-repo cache cap is the ceiling to watch.
+      - name: Environment size
+        run: |
+          echo "cache hit: ${{ steps.cache.outputs.cache-hit || 'false' }}"
+          du -sh "$ENV_PATH"
+
+      - name: Build gr-cuda
+        run: |
+          source /opt/miniforge/etc/profile.d/conda.sh
+          conda activate "$ENV_PATH"
+          # Build for the runner's own architecture, so the tests below run, plus
+          # sm_120 to compile-check the architecture this is deployed on. Nothing
+          # here executes the sm_120 code; it catches build errors only.
+          arch="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | head -1 | tr -d '.')"
+          archs="$arch;120"
+          [ "$arch" = "120" ] && archs="120"
+          echo "CMAKE_CUDA_ARCHITECTURES=$archs"
+
+          # The runner has no NIC, so libibverbs is absent and ENABLE_IBV would
+          # auto-detect to OFF. Pinned so an image that ships rdma-core does not
+          # quietly turn the IBV blocks on.
+          cmake -S . -B build -GNinja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$CONDA_PREFIX" \
+            -DCMAKE_CUDA_ARCHITECTURES="$archs" \
+            -DENABLE_IBV=OFF
+          cmake --build build -j "$(nproc)"
+
+      - name: C++ tests
+        working-directory: build
+        run: |
+          source /opt/miniforge/etc/profile.d/conda.sh
+          conda activate "$ENV_PATH"
+          # ctest has no deadline of its own, so a wedged test would otherwise
+          # hold the runner until the job's 90-minute ceiling. These finish in
+          # about a second.
+          timeout 300 ctest -R '\.cc$' --timeout 120 --output-on-failure
+
+      - name: Python tests
+        env:
+          PYTHONPATH: build/test_modules
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          source /opt/miniforge/etc/profile.d/conda.sh
+          conda activate "$ENV_PATH"
+          # thread, not the signal default: it fires even when the main thread is
+          # wedged in a C call. `timeout` bounds the step if nothing Python can
+          # run at all.
+          timeout 600 pytest -o consider_namespace_packages=true \
+            --timeout=300 --timeout-method=thread \
+            build/test_modules/gnuradio/cuda

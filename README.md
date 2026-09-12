@@ -150,6 +150,13 @@ CuPy blocks track within 5% of C++ CUDA blocks -- write your GPU blocks in Pytho
 
 See **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)** for more details, **[docs/OPTIMIZATIONS.md](docs/OPTIMIZATIONS.md)** for tuning guidance, and **[docs/LIMITATIONS.md](docs/LIMITATIONS.md)** for known limitations.
 
+## Continuous integration
+
+Lint runs on every push. The GPU test suite runs on pull requests from this
+repository and on merges to `cascade/main` and `cascade/main-gr-3.10.13`; pull
+requests from a fork need the `run-gpu-qa` label. See
+**[docs/CI.md](docs/CI.md)**.
+
 ## Acknowledgements
 
 This OOT is adapted from [gr-cuda_buffer](https://github.com/BlackLynx-Inc/gr-cuda_buffer) by Black Lynx, Inc. and relies on the custom buffer feature developed by David Sorber ([Custom Buffers wiki](https://wiki.gnuradio.org/index.php/CustomBuffers)). Further developed by Josh Morman and heavily modified and extended by Wael Farah & Brett Gottula at Cascade Space.
