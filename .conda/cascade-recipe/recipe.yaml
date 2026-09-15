@@ -10,7 +10,7 @@ source:
   use_gitignore: false
 
 build:
-  number: 2
+  number: 0
   script:
     - mkdir build
     - cd build
