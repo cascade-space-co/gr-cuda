@@ -31,12 +31,6 @@
 *.out
 *.app
 
-# GRC
-failed_conversions.txt
-
 **/.vscode
 build/
 **/__pycache__/
-**/.cache/
-
-/env/
