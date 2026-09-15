@@ -7,8 +7,8 @@
 name: Rattler Build (gr-cuda)
 
 on:
-  push:
-    branches: [brett/rattler-recipe]
+  release:
+    types: [published]
   workflow_dispatch:
 
 concurrency:
@@ -31,7 +31,7 @@ jobs:
           fetch-depth: 0
 
       - name: Derive package version from git tags
-        run: echo "RECIPE_VERSION=$(.conda/cascade-recipe/get_version.sh)" >> "$GITHUB_ENV"
+        run: echo "RECIPE_VERSION=$(.conda/cascade-recipe/get_version.sh --strict)" >> "$GITHUB_ENV"
 
       - name: Install rattler-build
         uses: mamba-org/setup-micromamba@v3
