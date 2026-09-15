@@ -42,7 +42,7 @@ requirements:
     - pkg-config
     - python
   host:
-    - gnuradio-core
+    - gnuradio-core >=3.11.0.0
     - libboost-devel
     - cuda-cudart-dev
     - cuda-driver-dev
