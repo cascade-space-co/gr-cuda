@@ -38,7 +38,8 @@ jobs:
         shell: micromamba-shell {0}
         run: |
           rattler-build build \
-            --recipe recipe/recipe.yaml \
+            --recipe .conda/cascade-recipe/recipe.yaml \
+            --variant-config .conda/cascade-recipe/conda_build_config.yaml \
             --output-dir output \
             -c https://prefix.dev/cascade \
             -c conda-forge
