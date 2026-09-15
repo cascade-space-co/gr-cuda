@@ -1,5 +1,5 @@
 context:
-  version: "2.0.0+cascade.3aa549c5"
+  version: ${{ env.get("RECIPE_VERSION") }}
 
 package:
   name: gnuradio-cuda
