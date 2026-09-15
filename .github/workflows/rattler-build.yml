@@ -1,24 +1,9 @@
-# Builds our custom recipe/recipe.yaml (Cascade tip-of-main packaging) against
-# our own GNU Radio build on the private "cascade" prefix.dev channel,
-# uploads the resulting .conda package as a workflow artifact for
-# inspection, and publishes it to that same channel.
-#
-# CPU-only runner, no GPU: CMAKE_CUDA_ARCHITECTURES is pinned explicitly in
-# the recipe (not "native"), so nvcc doesn't need a physical GPU/driver to
-# compile device code for that architecture -- cuda-driver-dev's stub
-# libcuda.so is enough to link against. This only proves the CUDA code
-# builds; it never executes on a GPU. Actual GPU execution is covered by
-# gr-cascade's separate GPU CI (self-hosted gpu-t4 runner), which pulls
-# this package in once it's published.
+# Builds our custom rattler-build recipe and uploads to prefix.dev
 #
 # Both reading and publishing use OIDC trusted publishing (id-token: write
 # below), not a stored API key -- this repo and this exact workflow
 # filename must be registered as a Trusted Publisher (read+write) on the
 # "cascade" channel's prefix.dev settings first, or either step fails auth.
-#
-# Use https://prefix.dev/<channel> as the channel host, not
-# https://repo.prefix.dev/<channel> -- the latter doesn't serve the OIDC
-# mint endpoint rattler-build needs and fails with 405 on any private-read.
 name: Rattler Build (gr-cuda)
 
 on:
