@@ -37,7 +37,7 @@ parameters:
 -   id: output_multiple
     label: Output Multiple
     dtype: int
-    default: interp
+    default: '1'
     category: Advanced
     hide: part
 
