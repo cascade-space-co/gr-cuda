@@ -105,7 +105,7 @@ GR_ADD_TEST(
 GR_ADD_TEST(
     qa_repeat_cupy
     ${PYTHON_EXECUTABLE}
-    ${CMAKE_BINARY_DIR}/test_modules/gnuradio/cuda/qa_repeat_cupy.py
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_repeat_cupy.py
 )
 GR_ADD_TEST(
     qa_stress_sync
