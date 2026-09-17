@@ -1,0 +1,61 @@
+id: cuda_repeat_cupy
+label: Repeat (CuPy)
+category: '[CUDA]/Stream Operators'
+flags: [ python ]
+
+templates:
+    imports: |-
+        import numpy as np
+        from gnuradio import cuda
+    make: |-
+        cuda.repeat_cupy(
+            interp=${interp},
+            vlen=${vlen},
+            dtype=${type.np_dtype},
+            output_multiple=${output_multiple})
+    callbacks:
+    - set_interpolation(${interp})
+
+parameters:
+-   id: type
+    label: IO Type
+    dtype: enum
+    default: complex
+    options: [complex, float, int, short, byte]
+    option_attributes:
+        np_dtype: [np.complex64, np.float32, np.int32, np.int16, np.uint8]
+    hide: part
+-   id: interp
+    label: Interpolation
+    dtype: int
+    default: '1'
+-   id: vlen
+    label: Vector Length
+    dtype: int
+    default: '1'
+    hide: ${ 'part' if vlen == 1 else 'none' }
+-   id: output_multiple
+    label: Output Multiple
+    dtype: int
+    default: '1'
+    category: Advanced
+    hide: part
+
+inputs:
+-   label: in
+    domain: cuda
+    dtype: ${ type }
+    vlen: ${ vlen }
+
+outputs:
+-   label: out
+    domain: cuda
+    dtype: ${ type }
+    vlen: ${ vlen }
+
+asserts:
+- ${ interp > 0 }
+- ${ vlen > 0 }
+- ${ output_multiple > 0 }
+
+file_format: 1
