@@ -30,6 +30,7 @@ GR_PYTHON_INSTALL(
         nlog10_cupy.py
         add_cupy.py
         fft_cupy.py
+        repeat_cupy.py
         sig_source_cupy.py
         const_source_cupy.py
         vector_source_cupy.py
@@ -100,6 +101,11 @@ GR_ADD_TEST(
     qa_stream_operators
     ${PYTHON_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/qa_stream_operators.py
+)
+GR_ADD_TEST(
+    qa_repeat_cupy
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_BINARY_DIR}/test_modules/gnuradio/cuda/qa_repeat_cupy.py
 )
 GR_ADD_TEST(
     qa_stress_sync

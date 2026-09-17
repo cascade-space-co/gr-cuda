@@ -223,6 +223,7 @@ write_basic_package_version_file(
     COMPATIBILITY SameMajorVersion
 )
 install(
-    FILES ${CMAKE_CURRENT_BINARY_DIR}/cmake/Modules/gnuradio-cudaConfigVersion.cmake
+    FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/cmake/Modules/gnuradio-cudaConfigVersion.cmake
     DESTINATION ${GR_CMAKE_DIR}
 )

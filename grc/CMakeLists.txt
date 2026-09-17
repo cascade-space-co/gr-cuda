@@ -25,6 +25,7 @@ install(
         cuda_noise_source_cupy.block.yml
         cuda_add.block.yml
         cuda_load.block.yml
+        cuda_repeat_cupy.block.yml
         cuda_stream_to_vector.block.yml
         cuda_vector_to_stream.block.yml
         cuda_streams_to_vector.block.yml
