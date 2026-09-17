@@ -122,8 +122,13 @@ set_target_properties(
 include(GrMiscUtils)
 if(COMMAND GR_INSTALL_LIBRARY)
     # GNU Radio 3.11+ expects explicit install rules.
-    gr_register_library(gnuradio-cuda)
-    gr_install_library(TARGET gnuradio-cuda COMPONENT ${CMAKE_PROJECT_NAME})
+    # gersemi: off
+    GR_REGISTER_LIBRARY(gnuradio-cuda)
+    GR_INSTALL_LIBRARY(
+        TARGET gnuradio-cuda
+        COMPONENT ${CMAKE_PROJECT_NAME}
+    )
+    # gersemi: on
 else()
     # GNU Radio <3.11 compatibility path.
     GR_LIBRARY_FOO(gnuradio-cuda)
