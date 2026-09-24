@@ -36,7 +36,9 @@ requirements:
     - ${{ compiler("c") }}
     - ${{ stdlib("c") }}
     - ${{ compiler("cxx") }}
-    - cuda-nvcc
+    # Capped to match cuda-cudart-dev/cuda-driver-dev below -- nvcc and the
+    # toolkit headers it compiles against must be the same CUDA version.
+    - cuda-nvcc <13.1
     - cmake
     - ninja
     - pkg-config
