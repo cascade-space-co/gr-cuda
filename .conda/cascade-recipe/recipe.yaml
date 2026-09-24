@@ -24,6 +24,7 @@ build:
         -DGR_PYTHON_DIR=$SP_DIR \
         -DENABLE_DOXYGEN=OFF \
         -DENABLE_TESTING=ON \
+        -DENABLE_IBV=ON \
         -DCMAKE_CUDA_ARCHITECTURES=120
     - cmake --build . --config Release -- -j${CPU_COUNT}
     - cmake --build . --config Release --target install
@@ -52,6 +53,7 @@ requirements:
     - cuda-cudart-dev <13.1
     - cuda-driver-dev <13.1
     - libcufft-dev
+    - rdma-core
     - numpy
     - pybind11
     - pybind11-abi
@@ -61,11 +63,14 @@ requirements:
     - python
     - cupy
     - numpy
+    - rdma-core
 
 tests:
   - script:
       - test -f "$PREFIX/lib/libgnuradio-cuda${SHLIB_EXT}"
       - test -f "$PREFIX/include/gnuradio/cuda/api.h"
+      - test -f "$PREFIX/include/gnuradio/cuda/ibv_source.h"
+      - test -f "$PREFIX/include/gnuradio/cuda/ibv_sink.h"
       - find "$PREFIX/lib/python3.12/site-packages/gnuradio/cuda" -maxdepth 1 -iname "cuda_python*.so" | grep -q .
 
 about:
