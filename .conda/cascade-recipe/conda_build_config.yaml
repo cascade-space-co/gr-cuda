@@ -4,6 +4,12 @@ c_compiler:
   - gcc
 cxx_compiler:
   - gxx
+# Capped below 16 -- CUDA 13.0's nvcc doesn't support gcc 16 as a host
+# compiler, and this needs to match gnuradio's own compiler pin.
+c_compiler_version:
+  - "15"
+cxx_compiler_version:
+  - "15"
 c_stdlib:
   - sysroot
 c_stdlib_version:
