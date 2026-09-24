@@ -10,7 +10,7 @@ source:
   use_gitignore: false
 
 build:
-  number: 0
+  number: 1
   script:
     - mkdir build
     - cd build
@@ -43,9 +43,12 @@ requirements:
     - python
   host:
     - gnuradio-core >=3.11.0.0a0
-    - libboost-devel
-    - cuda-cudart-dev
-    - cuda-driver-dev
+    # Pinned to match what uhd 4.9.x's current builds require, so an OOT
+    # module linking against both doesn't hit an unsatisfiable solve.
+    - libboost-devel ==1.88.0
+    # Capped to match our development host's NVIDIA driver.
+    - cuda-cudart-dev <13.1
+    - cuda-driver-dev <13.1
     - libcufft-dev
     - numpy
     - pybind11
