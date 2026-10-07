@@ -16,6 +16,9 @@ parameters:
     default: '1'
     hide: ${ 'part' if vlen == 1 else 'none' }
 
+asserts:
+- ${ vlen > 0 }
+
 inputs:
 -   domain: cuda
     dtype: ${ type }
