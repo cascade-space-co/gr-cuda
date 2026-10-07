@@ -1,5 +1,5 @@
-id: cuda_tee
-label: Tee (CUDA)
+id: cuda_tee_host
+label: Tee (Host)
 category: '[CUDA]'
 
 parameters:
@@ -20,25 +20,25 @@ asserts:
 - ${ vlen > 0 }
 
 inputs:
--   domain: cuda
+-   domain: stream
     dtype: ${ type }
     vlen: ${ vlen }
 
 outputs:
--   domain: cuda
+-   domain: stream
     dtype: ${ type }
     vlen: ${ vlen }
--   domain: cuda
+-   domain: stream
     dtype: ${ type }
     vlen: ${ vlen }
 
 templates:
     imports: |-
         from gnuradio import cuda
-    make: cuda.tee(${type.size}*${vlen}, gpu=True)
+    make: cuda.tee(${type.size}*${vlen}, gpu=False)
 
 documentation: |-
-    Accepts one CUDA-domain input and produces two identical CUDA-domain
+    Accepts one host-domain input and produces two identical host-domain
     outputs via explicit memory copy.
 
     GNU Radio does not support mixed fan-out: a single output port cannot
@@ -49,6 +49,6 @@ documentation: |-
     port they need, and GNU Radio's buffer negotiation handles any cross-domain
     (H2D / D2H) transfers at the boundaries automatically.
 
-    All ports use cuda_buffer; copies are cudaMemcpyAsync D2D.
+    All ports use default host buffers; copies are performed with memcpy.
 
 file_format: 1

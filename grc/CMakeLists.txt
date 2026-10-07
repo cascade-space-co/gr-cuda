@@ -36,6 +36,7 @@ install(
         cuda_probe_rate.block.yml
         cuda_throttle.block.yml
         cuda_tee.block.yml
+        cuda_tee_host.block.yml
     DESTINATION share/gnuradio/grc/blocks
 )
 
