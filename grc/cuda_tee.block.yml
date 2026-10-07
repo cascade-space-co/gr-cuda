@@ -10,21 +10,29 @@ parameters:
     option_attributes:
         size: [gr.sizeof_gr_complex, gr.sizeof_float, gr.sizeof_int, gr.sizeof_short, gr.sizeof_char]
     hide: part
+-   id: vlen
+    label: Vector Length
+    dtype: int
+    default: '1'
+    hide: ${ 'part' if vlen == 1 else 'none' }
 
 inputs:
 -   domain: cuda
     dtype: ${ type }
+    vlen: ${ vlen }
 
 outputs:
 -   domain: cuda
     dtype: ${ type }
+    vlen: ${ vlen }
 -   domain: cuda
     dtype: ${ type }
+    vlen: ${ vlen }
 
 templates:
     imports: |-
         from gnuradio import cuda
-    make: cuda.tee(${type.size})
+    make: cuda.tee(${type.size}*${vlen}, gpu=True)
 
 documentation: |-
     Accepts one CUDA-domain input and produces two identical CUDA-domain
