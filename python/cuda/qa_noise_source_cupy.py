@@ -131,6 +131,36 @@ class qa_noise_source_cupy(gr_unittest.TestCase):
         self.assertAlmostEqual(res.real.std(), ref.real.std(), delta=0.05 * AMPL)
         self.assertAlmostEqual(res.imag.std(), ref.imag.std(), delta=0.05 * AMPL)
 
+    # -- vector output ------------------------------------------------------
+
+    def _collect_vlen(self, dtype, noise_type, vlen, nvec):
+        is_complex = np.dtype(dtype).kind == "c"
+        sink = blocks.vector_sink_c(vlen) if is_complex else blocks.vector_sink_f(vlen)
+        itemsize = (gr.sizeof_gr_complex if is_complex else gr.sizeof_float) * vlen
+        dut = cuda.noise_source_cupy(noise_type, 1.0, seed=43, vlen=vlen, dtype=dtype)
+        return _collect(self.tb, dut, itemsize, sink, nvec)
+
+    def test_vlen_real_gaussian(self):
+        vlen = 64
+        data = self._collect_vlen(np.float32, cuda.GR_GAUSSIAN, vlen, N // vlen)
+        self.assertEqual(data.size, (N // vlen) * vlen)
+        self.assertAlmostEqual(data.mean(), 0, delta=0.02)
+        self.assertAlmostEqual(data.var(), 1.0, delta=0.02)
+        # Every vector position gets independent noise, not a repeated draw.
+        per_bin = data.reshape(-1, vlen).var(axis=0)
+        np.testing.assert_allclose(per_bin, 1.0, atol=0.1)
+
+    def test_vlen_complex_gaussian(self):
+        vlen = 1024
+        data = self._collect_vlen(np.complex64, cuda.GR_GAUSSIAN, vlen, N // vlen)
+        self.assertEqual(data.size, (N // vlen) * vlen)
+        self.assertAlmostEqual(data.real.var(), 0.5, delta=0.02)
+        self.assertAlmostEqual(data.imag.var(), 0.5, delta=0.02)
+
+    def test_vlen_rejects_zero(self):
+        with self.assertRaises(ValueError):
+            cuda.noise_source_cupy(cuda.GR_GAUSSIAN, AMPL, seed=1, vlen=0)
+
     # -- misc ---------------------------------------------------------------
 
     def test_reproducibility(self):

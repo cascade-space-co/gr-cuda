@@ -76,6 +76,7 @@ class noise_source_cupy(cuda.sync_block):
         noise_type: int = GR_GAUSSIAN,
         amplitude: float = 1.0,
         seed: int = 0,
+        vlen: int = 1,
         dtype: np.dtype = np.complex64,
     ):
         """
@@ -88,10 +89,16 @@ class noise_source_cupy(cuda.sync_block):
             Noise amplitude.
         seed : int
             RNG seed. 0 selects a nondeterministic seed.
+        vlen : int
+            Vector length (items per output element). Every item is an
+            independent variate.
         dtype : numpy.dtype
             Output sample type (complex64, float32, int32, int16).
         """
         self._dtype = np.dtype(dtype)
+        self._vlen = int(vlen)
+        if self._vlen < 1:
+            raise ValueError("vlen must be >= 1")
         self._is_complex = self._dtype.kind == "c"
         self._noise_type = int(noise_type)
         self._ampl = float(amplitude)
@@ -105,7 +112,8 @@ class noise_source_cupy(cuda.sync_block):
         comp_bytes = self._dtype.itemsize // (2 if self._is_complex else 1)
         self._gdtype = cp.float64 if comp_bytes > 4 else cp.float32
         self._rng = cp.random.RandomState(_normalize_seed(seed))
-        cuda.sync_block.__init__(self, "noise_source_cupy", None, [self._dtype])
+        io_dtype = (self._dtype, self._vlen) if self._vlen > 1 else self._dtype
+        cuda.sync_block.__init__(self, "noise_source_cupy", None, [io_dtype])
 
     def _variates(self, count, scale):
         """``count`` scaled variates at ``self._gdtype`` precision (no cast).
@@ -138,15 +146,18 @@ class noise_source_cupy(cuda.sync_block):
 
     def work(self, input_items, output_items):
         out = output_items[0]
-        n = len(out)
+        n = len(out)  # number of output elements (vectors)
         if n == 0:
             return 0
+        flat = out.reshape(-1)
         if self._is_complex:
-            # Reinterpret the complex buffer as 2n interleaved float components
+            # Reinterpret the complex buffer as interleaved float components
             # and fill it with one contiguous draw (re/im share the same dist).
-            out.view(self._gdtype)[:] = self._variates(2 * n, self._ampl / np.sqrt(2.0))
+            flat.view(self._gdtype)[:] = self._variates(
+                2 * flat.size, self._ampl / np.sqrt(2.0)
+            )
         else:
-            out[:] = self._variates(n, self._ampl)
+            flat[:] = self._variates(flat.size, self._ampl)
         return n
 
     def set_type(self, noise_type: int):

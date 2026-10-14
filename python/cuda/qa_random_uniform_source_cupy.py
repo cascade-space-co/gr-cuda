@@ -102,6 +102,36 @@ class qa_random_uniform_source_cupy(gr_unittest.TestCase):
         )
         np.testing.assert_array_equal(a, b)
 
+    # -- vector output ------------------------------------------------------
+
+    def test_vlen_range(self):
+        lo, hi, vlen = -3, 7, 16
+        nvec = N // vlen
+        dut = cuda.random_uniform_source_cupy(lo, hi, seed=5, vlen=vlen, dtype=np.int32)
+        res = _collect(
+            self.tb, dut, gr.sizeof_int * vlen, blocks.vector_sink_i(vlen), nvec
+        )
+        self.assertEqual(res.size, nvec * vlen)
+        self.assertGreaterEqual(res.min(), lo)
+        self.assertLess(res.max(), hi)
+        # Each vector position independently covers the whole range.
+        for col in res.reshape(-1, vlen).T:
+            self.assertEqual(set(np.unique(col)), set(range(lo, hi)))
+
+    def test_vlen_byte(self):
+        lo, hi, vlen = 0, 4, 8
+        dut = cuda.random_uniform_source_cupy(lo, hi, seed=3, vlen=vlen, dtype=np.uint8)
+        res = _collect(
+            self.tb, dut, gr.sizeof_char * vlen, blocks.vector_sink_b(vlen), 1000
+        )
+        self.assertEqual(res.size, 1000 * vlen)
+        self.assertGreaterEqual(res.min(), lo)
+        self.assertLess(res.max(), hi)
+
+    def test_vlen_rejects_zero(self):
+        with self.assertRaises(ValueError):
+            cuda.random_uniform_source_cupy(0, 2, vlen=0)
+
 
 if __name__ == "__main__":
     gr_unittest.run(qa_random_uniform_source_cupy)
