@@ -29,6 +29,7 @@ class random_uniform_source_cupy(cuda.sync_block):
         minimum: int = 0,
         maximum: int = 2,
         seed: int = 0,
+        vlen: int = 1,
         dtype: np.dtype = np.int32,
     ):
         """
@@ -40,6 +41,9 @@ class random_uniform_source_cupy(cuda.sync_block):
             Exclusive upper bound.
         seed : int
             RNG seed. 0 selects a nondeterministic seed.
+        vlen : int
+            Vector length (items per output element). Every item is an
+            independent draw.
         dtype : numpy.dtype
             Output integer type (int32, int16, uint8). Note the byte variant
             is unsigned, matching the in-tree ``random_uniform_source_b``
@@ -50,15 +54,20 @@ class random_uniform_source_cupy(cuda.sync_block):
         self._max = int(maximum)
         if self._max <= self._min:
             raise ValueError("maximum must be greater than minimum")
+        self._vlen = int(vlen)
+        if self._vlen < 1:
+            raise ValueError("vlen must be >= 1")
         self._rng = cp.random.RandomState(_normalize_seed(seed))
-        cuda.sync_block.__init__(
-            self, "random_uniform_source_cupy", None, [self._dtype]
-        )
+        io_dtype = (self._dtype, self._vlen) if self._vlen > 1 else self._dtype
+        cuda.sync_block.__init__(self, "random_uniform_source_cupy", None, [io_dtype])
 
     def work(self, input_items, output_items):
         out = output_items[0]
-        n = len(out)
+        n = len(out)  # number of output elements (vectors)
         if n == 0:
             return 0
-        out[:] = self._rng.randint(self._min, self._max, size=n).astype(self._dtype)
+        flat = out.reshape(-1)
+        flat[:] = self._rng.randint(self._min, self._max, size=flat.size).astype(
+            self._dtype
+        )
         return n
