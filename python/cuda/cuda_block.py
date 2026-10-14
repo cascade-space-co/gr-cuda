@@ -20,12 +20,21 @@ Drop-in replacements for ``gr.sync_block``, etc. that automatically:
 Auto-sync contract
 ------------------
 
-Everything is handled transparently:
+Handled for you:
 
 - Each block gets its own CUDA stream.
 - ``work()`` / ``general_work()`` run inside that stream automatically.
 - Stream registration and inter-block synchronization are invisible.
 - Custom ``start()`` overrides are safe; registration still happens.
+
+Your responsibility:
+
+- Device work outside ``work()`` (``__init__``, ``start()``, setters,
+  getters, message handlers) must run inside ``with self.stream:``.
+- In ``__init__``, use ``self.stream`` only after the
+  ``cuda.sync_block.__init__(...)`` (or equivalent) call.
+
+See docs/WRITING_BLOCKS.md.
 
 Example::
 
@@ -93,7 +102,7 @@ def _wrap_general_work(fn):
     contract is identical to C++ (enqueue all stream work before you publish),
     and the C++ path has no such deferral.  Write blocks to the contract so
     they port cleanly; do not rely on calling produce/consume before enqueuing
-    the work they publish.  See docs/LIMITATIONS.md.
+    the work they publish.  See docs/WRITING_BLOCKS.md.
 
     Consequence of the deferral: produce/consume side effects (e.g.
     ``nitems_written()``) are not observable *within* the same

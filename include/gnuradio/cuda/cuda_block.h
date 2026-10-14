@@ -72,6 +72,15 @@ namespace gr {
  * and inserts GPU-side event waits/records in write_pointer(),
  * _read_pointer(), post_work(), and update_read_pointer().
  *
+ * \section rules Rules
+ *
+ *   - Pass \c d_stream to every kernel launch, async copy, and library call:
+ *     in work(), and also in constructors, start(), and setters.
+ *   - In general_work(), enqueue all GPU work before produce() /
+ *     consume_each().
+ *
+ * See docs/WRITING_BLOCKS.md.
+ *
  * \sa cuda_buffer for the underlying synchronization model.
  */
 class cuda_block
