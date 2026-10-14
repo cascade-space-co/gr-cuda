@@ -53,14 +53,16 @@ class vector_source_cupy(cuda.sync_block):
                 f"data length ({host.size}) must be a multiple of vlen ({self._vlen})"
             )
 
-        self._data = cp.asarray(host)
-        self._size = int(self._data.size)
+        self._size = int(host.size)
         self._repeat = bool(repeat)
         self._offset = 0  # position within the data vector, in items
         self._tags = list(tags) if tags else []
 
         io_dtype = (self._dtype, self._vlen) if self._vlen > 1 else self._dtype
         cuda.sync_block.__init__(self, "vector_source_cupy", None, [io_dtype])
+
+        with self.stream:
+            self._data = cp.asarray(host)
 
         # Match in-tree behavior: when tags are present, only emit whole copies
         # of the data vector per work() call so tag offsets stay aligned.
@@ -133,7 +135,8 @@ class vector_source_cupy(cuda.sync_block):
             raise ValueError(
                 f"data length ({host.size}) must be a multiple of vlen ({self._vlen})"
             )
-        self._data = cp.asarray(host)
+        with self.stream:
+            self._data = cp.asarray(host)
         self._size = int(self._data.size)
         self._tags = list(tags) if tags else []
         self.rewind()
