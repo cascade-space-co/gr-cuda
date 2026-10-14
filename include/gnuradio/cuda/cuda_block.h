@@ -75,7 +75,8 @@ namespace gr {
  * \section rules Rules
  *
  *   - Pass \c d_stream to every kernel launch, async copy, and library call:
- *     in work(), and also in constructors, start(), and setters.
+ *     in work() / general_work(), and also in constructors, start(),
+ *     setters, getters, and message handlers.
  *   - In general_work(), enqueue all GPU work before produce() /
  *     consume_each().
  *

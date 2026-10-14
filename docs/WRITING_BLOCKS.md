@@ -13,10 +13,11 @@ languages, and explains each one.
    `consume()` / `consume_each()`.**
 3. **Python only: in your `__init__`, use `self.stream` only after the
    `cuda.sync_block.__init__(...)` call** (or `cuda.basic_block.__init__`,
-   etc.). Plain Python attributes can be set before it; device state cannot.
+   etc.). Plain Python attributes can be set before it; device work cannot.
 
-Breaking a rule does not raise an error. The block races with its neighbours
-and produces wrong data intermittently.
+Breaking rule 1 or 2 does not raise an error. The block races with its
+neighbours and produces wrong data intermittently. Using `self.stream` before
+the base `__init__` call raises `RecursionError`.
 
 ## How synchronization works
 
@@ -25,7 +26,7 @@ in C++, `self.stream` (`cupy.cuda.Stream`) in Python. `cuda_buffer` orders
 blocks by recording CUDA events on the producer's stream and making the
 consumer's stream wait on them. Only work submitted on the block's stream is
 covered by those events. Work on any other stream, including the default
-stream, is not ordered with anything.
+stream, is not covered by `cuda_buffer`'s event ordering.
 
 ## Rule 1: use the block's stream
 
