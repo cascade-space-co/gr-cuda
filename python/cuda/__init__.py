@@ -31,6 +31,9 @@ from .complex_to_mag_squared_cupy import complex_to_mag_squared_cupy
 from .multiply_const_cupy import multiply_const_cupy
 from .nlog10_cupy import nlog10_cupy
 from .repeat_cupy import repeat_cupy
+from .keep_one_in_n_cupy import keep_one_in_n_cupy
+from .keep_m_in_n_cupy import keep_m_in_n_cupy
+from .vector_select_cupy import vector_select_cupy
 
 # Waveform generators (CuPy)
 from .sig_source_cupy import (

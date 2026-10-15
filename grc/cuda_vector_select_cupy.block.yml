@@ -1,0 +1,80 @@
+id: cuda_vector_select_cupy
+label: Vector Select (CuPy)
+category: '[CUDA]/Stream Operators'
+flags: [ python ]
+
+templates:
+    imports: |-
+        import numpy as np
+        from gnuradio import cuda
+    make: |-
+        cuda.vector_select_cupy(
+            vlen=${vlen},
+            indices=${indices},
+            dtype=${type.np_dtype},
+            output_multiple=${output_multiple})
+    callbacks:
+    - set_indices(${indices})
+
+parameters:
+-   id: type
+    label: IO Type
+    dtype: enum
+    default: complex
+    options: [complex, float, int, short, byte]
+    option_attributes:
+        np_dtype: [np.complex64, np.float32, np.int32, np.int16, np.uint8]
+    hide: part
+-   id: vlen
+    label: Input Vector Length
+    dtype: int
+    default: '2'
+-   id: indices
+    label: Indices
+    dtype: int_vector
+    default: '[0]'
+-   id: output_multiple
+    label: Output Multiple
+    dtype: int
+    default: '1'
+    category: Advanced
+    hide: part
+
+inputs:
+-   label: in
+    domain: cuda
+    dtype: ${ type }
+    vlen: ${ vlen }
+
+outputs:
+-   label: out
+    domain: cuda
+    dtype: ${ type }
+    vlen: ${ len(indices) }
+
+asserts:
+- ${ vlen > 0 }
+- ${ len(indices) > 0 }
+- ${ all(0 <= i < vlen for i in indices) }
+- ${ output_multiple > 0 }
+
+documentation: |-
+    Selects elements of each input vector on the GPU.
+
+    Each output item holds the input elements listed in Indices, in that order.
+    For example, with Input Vector Length 8 and Indices [0, 3, 5], every output
+    item is a 3-element vector made of elements 0, 3 and 5 of the input vector.
+    With a single index, written as 3 or [3], the output is a plain stream,
+    which picks one channel of a multi-channel stream. Indices may repeat or
+    reorder elements.
+
+    The sample rate does not change, and tags pass through unchanged.
+
+    Indices can be changed at runtime, but the number of indices cannot,
+    because it sets the output vector length.
+
+    Output Multiple asks the scheduler for output batches in multiples of this
+    size, which can reduce per-call overhead. As with any GNU Radio block, the
+    end of a finite stream that does not fill a whole batch may be dropped.
+
+file_format: 1

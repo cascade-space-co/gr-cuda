@@ -31,6 +31,9 @@ GR_PYTHON_INSTALL(
         add_cupy.py
         fft_cupy.py
         repeat_cupy.py
+        keep_one_in_n_cupy.py
+        keep_m_in_n_cupy.py
+        vector_select_cupy.py
         sig_source_cupy.py
         const_source_cupy.py
         vector_source_cupy.py
@@ -106,6 +109,21 @@ GR_ADD_TEST(
     qa_repeat_cupy
     ${PYTHON_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/qa_repeat_cupy.py
+)
+GR_ADD_TEST(
+    qa_keep_one_in_n_cupy
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_keep_one_in_n_cupy.py
+)
+GR_ADD_TEST(
+    qa_keep_m_in_n_cupy
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_keep_m_in_n_cupy.py
+)
+GR_ADD_TEST(
+    qa_vector_select_cupy
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_vector_select_cupy.py
 )
 GR_ADD_TEST(
     qa_stress_sync
