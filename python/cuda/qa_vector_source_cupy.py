@@ -129,6 +129,9 @@ class qa_vector_source_cupy(gr_unittest.TestCase):
         self.assertEqual(dut.output_multiple(), 1)
         self.assertEqual(run_tag_offsets(dut, 1, 24, 5), [1, 7, 13, 19])
 
+        dut.set_data(np.arange(5))
+        self.assertEqual(run_tag_offsets(dut, 1, 10, 5), [])
+
 
 if __name__ == "__main__":
     gr_unittest.run(qa_vector_source_cupy)
