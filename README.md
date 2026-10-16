@@ -101,7 +101,7 @@ int my_block_impl::general_work(int noutput_items,
 
 See [`cuda_block.h`](include/gnuradio/cuda/cuda_block.h) and [`multiply_const_impl.cc`](lib/multiply_const_impl.cc) for a full example.
 
-> **Important.** In C++ blocks, pass `d_stream` to every kernel launch and every CUDA / library API call. In Python blocks, sticking to CuPy inside `work()` / `general_work()` works out of the box. See **[docs/LIMITATIONS.md](docs/LIMITATIONS.md)** for the full stream contract and guidance on mixing in other GPU libraries.
+> **Important.** All device work must run on the block's stream, including in constructors, setters, and getters. Read **[docs/WRITING_BLOCKS.md](docs/WRITING_BLOCKS.md)** before writing your own blocks.
 
 > Want to use gr-cuda blocks in your own out-of-tree module? See **[docs/OOT_INTEGRATION.md](docs/OOT_INTEGRATION.md)**.
 

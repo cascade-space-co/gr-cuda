@@ -7,7 +7,9 @@ a good starting point, but profiling your specific system (e.g. with
 
 ## 1. Start with defaults
 
-`cuda_buffer` enforces a 32 MB floor on every GPU-side buffer allocation.
+Host-to-device and device-to-host transfers need large batches to saturate
+PCIe bandwidth, so `cuda_buffer` enforces a 32 MB floor on every GPU-side
+buffer allocation.
 The GNU Radio scheduler caps each `work()` call at `bufsize / 2`, so
 out of the box each block processes ~16 MB per call. This is often
 sufficient for moderate-throughput pipelines; try it first.
