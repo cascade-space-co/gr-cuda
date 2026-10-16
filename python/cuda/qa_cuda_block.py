@@ -127,9 +127,10 @@ class _convolve_f32(cuda.sync_block):
     """sync_block: FIR filter using set_history()."""
 
     def __init__(self, taps):
-        self._taps = cp.asarray(taps, dtype=np.float32)
         cuda.sync_block.__init__(self, "convolve_f32", [np.float32], [np.float32])
         self.set_history(len(taps))
+        with self.stream:
+            self._taps = cp.asarray(taps, dtype=np.float32)
 
     def work(self, input_items, output_items):
         output_items[0][:] = cp.convolve(input_items[0], self._taps, mode="valid")
@@ -184,6 +185,53 @@ class _const_source_f32(cuda.sync_block):
             return -1
         n = min(len(output_items[0]), remaining)
         output_items[0][:n] = self._value
+        self._produced += n
+        return n
+
+
+_slow_fill = cp.RawKernel(
+    r"""
+extern "C" __global__ void slow_fill(float* out, int n, float v, long long cycles)
+{
+    long long start = clock64();
+    while (clock64() - start < cycles) {
+    }
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n)
+        out[i] = v;
+}
+""",
+    "slow_fill",
+)
+
+
+class _stream_init_source_f32(cuda.sync_block):
+    """Source whose __init__ fills device state with a slow kernel on self.stream.
+
+    Block streams are non-blocking, so device work in __init__ is only ordered
+    before work() if both run on the same stream. This checks that self.stream
+    is that stream, which is what docs/WRITING_BLOCKS.md tells users to rely on.
+    The slow kernel makes a broken ordering read zeros instead of passing by luck.
+    """
+
+    def __init__(self, value: float, count: int):
+        self._count = count
+        self._produced = 0
+        cuda.sync_block.__init__(self, "stream_init_source_f32", None, [np.float32])
+        with self.stream:
+            self._data = cp.zeros(count, dtype=np.float32)
+            _slow_fill(
+                ((count + 255) // 256,),
+                (256,),
+                (self._data, np.int32(count), np.float32(value), np.int64(10**9)),
+            )
+
+    def work(self, input_items, output_items):
+        remaining = self._count - self._produced
+        if remaining <= 0:
+            return -1
+        n = min(len(output_items[0]), remaining)
+        output_items[0][:n] = self._data[self._produced : self._produced + n]
         self._produced += n
         return n
 
@@ -367,6 +415,18 @@ class qa_cuda_block(gr_unittest.TestCase):
         self.tb.connect(src, dut)
         self.tb.run()
         np.testing.assert_allclose(float(dut.total), float(N), rtol=1e-6)
+
+    def test_014_init_work_on_stream_ordered_before_work(self):
+        # Device work queued in __init__ under `with self.stream:` must finish
+        # before work() reads it.
+        N = 10000
+        value = 7.0
+        src = _stream_init_source_f32(value, N)
+        snk = blocks.vector_sink_f()
+        self.tb.connect(src, snk)
+        self.tb.run()
+        result = np.array(snk.data(), dtype=np.float32)
+        np.testing.assert_array_equal(result, np.full(N, value, dtype=np.float32))
 
 
 if __name__ == "__main__":
