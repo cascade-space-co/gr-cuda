@@ -209,9 +209,10 @@ class qa_keep_m_in_n(gr_unittest.TestCase):
 
         out = np.asarray(sink.data())
         # The input is a ramp, so out // n is the input block and out % n the
-        # position kept from it. Output must cover consecutive input blocks.
+        # position kept from it. The input is whole blocks and the output
+        # multiple is one group, so every input block must appear, in order.
         ids, starts = np.unique(out // n, return_index=True)
-        np.testing.assert_array_equal(ids, np.arange(len(ids)))
+        np.testing.assert_array_equal(ids, np.arange(num_items // n))
         return [tuple(p) for p in np.split(out % n, starts[1:])]
 
     def assert_switches_once(self, patterns, old, new):
