@@ -18,6 +18,8 @@ install(
         cuda_buffer_reader.h
         copy.h
         fft.h
+        keep_m_in_n.h
+        keep_one_in_n.h
         multiply_const.h
         load.h
         nop.h
@@ -27,6 +29,7 @@ install(
         tee.h
         seq_stamp.h
         seq_strip.h
+        vector_select.h
     DESTINATION include/gnuradio/cuda
 )
 

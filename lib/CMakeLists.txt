@@ -30,6 +30,10 @@ list(
     add_impl.cc
     add.cu
     interleave.cu
+    gather.cu
+    keep_one_in_n_impl.cc
+    keep_m_in_n_impl.cc
+    vector_select_impl.cc
     fft_impl.cc
     fft.cu
     stream_to_vector_impl.cc
