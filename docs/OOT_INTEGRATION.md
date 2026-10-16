@@ -25,3 +25,5 @@ set_target_properties(gnuradio-myoot-cu PROPERTIES
 target_link_libraries(gnuradio-myoot PUBLIC gnuradio::gnuradio-runtime gnuradio::gnuradio-cuda)
 target_link_libraries(gnuradio-myoot PRIVATE gnuradio-myoot-cu)
 ```
+
+Before writing your own blocks, read [WRITING_BLOCKS.md](WRITING_BLOCKS.md).

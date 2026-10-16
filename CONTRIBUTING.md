@@ -109,7 +109,7 @@ conventions trip it up:
 - Keep commits focused; write a clear commit message explaining the *why*.
 - Run `pre-commit run --all-files` and `ninja test` before opening a PR.
 - New blocks should ship with QA coverage and a GRC YAML definition.
-- See [docs/LIMITATIONS.md](docs/LIMITATIONS.md) for the GPU stream contract that all
+- See [docs/WRITING_BLOCKS.md](docs/WRITING_BLOCKS.md) for the rules that all
   blocks must follow.
 
 ## License
