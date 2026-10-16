@@ -105,6 +105,32 @@ class qa_vector_source_cupy(gr_unittest.TestCase):
 
         self.assertEqual(dut_offsets, ref_offsets)
 
+    def test_set_data_updates_output_multiple(self):
+        def make_tag(offset):
+            tag = gr.tag_t()
+            tag.offset = offset
+            tag.key = pmt.string_to_symbol("k")
+            tag.value = pmt.to_pmt(offset)
+            tag.srcid = pmt.to_pmt("src")
+            return tag
+
+        dut = cuda.vector_source_cupy(
+            np.arange(8), True, 1, [make_tag(2)], dtype=np.float32
+        )
+        self.assertEqual(dut.output_multiple(), 8)
+        dut.set_data(np.arange(6), [make_tag(1)])
+        self.assertEqual(dut.output_multiple(), 6)
+
+        # Tags must follow the new length: one per 6-item copy.
+        head = blocks.head(gr.sizeof_float, 24)
+        snk = blocks.vector_sink_f()
+        self.tb.connect(dut, head, snk)
+        self.tb.run()
+        self.assertEqual(sorted(t.offset for t in snk.tags()), [1, 7, 13, 19])
+
+        dut.set_data(np.arange(5))
+        self.assertEqual(dut.output_multiple(), 1)
+
 
 if __name__ == "__main__":
     gr_unittest.run(qa_vector_source_cupy)

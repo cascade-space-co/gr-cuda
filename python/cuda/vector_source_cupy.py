@@ -6,6 +6,8 @@
 
 """GPU vector source (CuPy port of ``blocks.vector_source_x``)."""
 
+import threading
+
 import cupy as cp
 import numpy as np
 from gnuradio import cuda
@@ -57,17 +59,23 @@ class vector_source_cupy(cuda.sync_block):
         self._repeat = bool(repeat)
         self._offset = 0  # position within the data vector, in items
         self._tags = list(tags) if tags else []
+        # set_data() and rewind() may run on another thread while work() runs.
+        self._lock = threading.Lock()
 
         io_dtype = (self._dtype, self._vlen) if self._vlen > 1 else self._dtype
         cuda.sync_block.__init__(self, "vector_source_cupy", None, [io_dtype])
 
         with self.stream:
             self._data = cp.asarray(host)
+        self._update_output_multiple()
 
-        # Match in-tree behavior: when tags are present, only emit whole copies
-        # of the data vector per work() call so tag offsets stay aligned.
-        if self._tags:
+    def _update_output_multiple(self):
+        """Match in-tree behavior: when tags are present, only emit whole copies
+        of the data vector per work() call so tag offsets stay aligned."""
+        if self._tags and self._size:
             self.set_output_multiple(self._size // self._vlen)
+        else:
+            self.set_output_multiple(1)
 
     def _emit_tags(self, base_item):
         """Emit configured tags at absolute output item ``base_item`` + offset."""
@@ -75,7 +83,10 @@ class vector_source_cupy(cuda.sync_block):
             self.add_item_tag(0, base_item + tag.offset, tag.key, tag.value, tag.srcid)
 
     def work(self, input_items, output_items):
-        out = output_items[0]
+        with self._lock:
+            return self._fill(output_items[0])
+
+    def _fill(self, out):
         n = len(out)  # number of output elements (vectors)
         if self._size == 0:
             return -1
@@ -127,7 +138,8 @@ class vector_source_cupy(cuda.sync_block):
         return n_produced
 
     def rewind(self):
-        self._offset = 0
+        with self._lock:
+            self._offset = 0
 
     def set_data(self, data, tags=None):
         host = np.asarray(data, dtype=self._dtype).ravel()
@@ -136,7 +148,10 @@ class vector_source_cupy(cuda.sync_block):
                 f"data length ({host.size}) must be a multiple of vlen ({self._vlen})"
             )
         with self.stream:
-            self._data = cp.asarray(host)
-        self._size = int(self._data.size)
-        self._tags = list(tags) if tags else []
-        self.rewind()
+            d_data = cp.asarray(host)
+        with self._lock:
+            self._data = d_data
+            self._size = int(host.size)
+            self._tags = list(tags) if tags else []
+            self._offset = 0
+            self._update_output_multiple()
