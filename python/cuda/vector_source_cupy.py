@@ -57,7 +57,7 @@ class vector_source_cupy(cuda.sync_block):
 
         self._size = int(host.size)
         self._repeat = bool(repeat)
-        self._offset = 0  # position within the data vector, in items
+        self._offset = 0  # position within the data vector, in scalars
         self._tags = list(tags) if tags else []
         # set_data() and rewind() may run on another thread while work() runs.
         self._lock = threading.Lock()
@@ -67,20 +67,6 @@ class vector_source_cupy(cuda.sync_block):
 
         with self.stream:
             self._data = cp.asarray(host)
-        self._update_output_multiple()
-
-    def _update_output_multiple(self):
-        """Match in-tree behavior: when tags are present, only emit whole copies
-        of the data vector per work() call so tag offsets stay aligned."""
-        if self._tags and self._size:
-            self.set_output_multiple(self._size // self._vlen)
-        else:
-            self.set_output_multiple(1)
-
-    def _emit_tags(self, base_item):
-        """Emit configured tags at absolute output item ``base_item`` + offset."""
-        for tag in self._tags:
-            self.add_item_tag(0, base_item + tag.offset, tag.key, tag.value, tag.srcid)
 
     def work(self, input_items, output_items):
         with self._lock:
@@ -113,10 +99,16 @@ class vector_source_cupy(cuda.sync_block):
             if rem:
                 out_flat[full * size :] = base[:rem]
 
+            # Tag every repetition of each tagged item in this call. Calls can
+            # start anywhere in the data vector, so locate each tag from the
+            # current phase rather than assuming the call starts a new copy.
             if self._tags:
                 items_per_copy = size // vlen
-                for i in range(0, n, items_per_copy):
-                    self._emit_tags(written + i)
+                phase = self._offset // vlen
+                for tag in self._tags:
+                    first = (tag.offset - phase) % items_per_copy
+                    for i in range(first, n, items_per_copy):
+                        self.add_item_tag(0, written + i, tag.key, tag.value, tag.srcid)
 
             self._offset = (self._offset + n_items) % size
             return n
@@ -154,4 +146,3 @@ class vector_source_cupy(cuda.sync_block):
             self._size = int(host.size)
             self._tags = list(tags) if tags else []
             self._offset = 0
-            self._update_output_multiple()
