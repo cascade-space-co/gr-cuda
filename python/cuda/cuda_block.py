@@ -29,10 +29,9 @@ Handled for you:
 
 Your responsibility:
 
-- Device work outside ``work()`` (``__init__``, ``start()``, setters,
-  getters, message handlers) must run inside ``with self.stream:``.
-- In ``__init__``, use ``self.stream`` only after the
-  ``cuda.sync_block.__init__(...)`` (or equivalent) call.
+- Device work outside ``work()`` or ``general_work()`` (``__init__``,
+  ``start()``, setters, getters, message handlers) must run inside
+  ``with self.stream:``.
 
 See docs/WRITING_BLOCKS.md.
 
@@ -232,14 +231,13 @@ class cuda_block:
         cuda.register_cuda_stream(self.gateway, self.stream.ptr)
         return super().start()
 
-    @property
+    # cached_property stores the stream in the instance __dict__ directly, so
+    # it works before gr.*_block.__init__ sets up the gateway (a plain
+    # attribute miss would recurse in the gateway's __getattr__).
+    @functools.cached_property
     def stream(self):
         """Non-blocking CuPy CUDA stream, created on first access."""
-        try:
-            return self._cuda_stream
-        except AttributeError:
-            self._cuda_stream = cp.cuda.Stream(non_blocking=True)
-            return self._cuda_stream
+        return cp.cuda.Stream(non_blocking=True)
 
 
 class sync_block(cuda_block, gr.sync_block):

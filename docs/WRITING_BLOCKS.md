@@ -11,13 +11,9 @@ languages, and explains each one.
    and message handlers.
 2. **In `general_work()`, enqueue all GPU work before calling `produce()` /
    `consume()` / `consume_each()`.**
-3. **Python only: in your `__init__`, use `self.stream` only after the
-   `cuda.sync_block.__init__(...)` call** (or `cuda.basic_block.__init__`,
-   etc.). Plain Python attributes can be set before it; device work cannot.
 
-Breaking rule 1 or 2 does not raise an error. The block races with its
-neighbours and produces wrong data intermittently. Using `self.stream` before
-the base `__init__` call raises `RecursionError`.
+Breaking either rule does not raise an error. The block races with its
+neighbours and produces wrong data intermittently.
 
 ## How synchronization works
 
@@ -42,11 +38,12 @@ stream, is not covered by `cuda_buffer`'s event ordering.
 
 ### Outside `work()`
 
-The constructor, `start()`, setters, getters, and message handlers are **not**
-wrapped. In Python, put device work there inside `with self.stream:` yourself;
-in C++, pass `d_stream` as usual. Otherwise the work lands on the default stream
-and is not ordered with `work()`: for example, `work()` may read the data a
-setter uploads before the upload completes.
+The constructor, `start()`, setters, getters, and message handlers do **not**
+run inside `with self.stream:` (`start()` is wrapped in Python, but only to
+guarantee stream registration). In Python, put device work there inside
+`with self.stream:` yourself; in C++, pass `d_stream` as usual. Otherwise the
+work lands on the default stream and is not ordered with `work()`: for example,
+`work()` may read the data a setter uploads before the upload completes.
 
 ```python
 class my_lookup(cuda.sync_block):
@@ -67,14 +64,33 @@ class my_lookup(cuda.sync_block):
 `with self.stream:` orders GPU work only; it does not make setters thread-safe
 with respect to `work()`. That is the same as for any GNU Radio block.
 
+### Reading GPU results on the host
+
+GPU work is asynchronous, so a getter that returns a value computed on the
+device must wait for the work that produces it, or it returns stale data.
+
+- **Python**: inside `with self.stream:`, `.get()`, `.item()`, `float()` and
+  `int()` copy on `self.stream` and block until the copy finishes, so they see
+  all work enqueued on the stream before them. Outside it, the copy runs on the
+  default stream, which does not wait for the block's non-blocking stream.
+- **C++**: `cudaMemcpyAsync(..., cudaMemcpyDeviceToHost, d_stream)`, then
+  `cudaStreamSynchronize(d_stream)` before using the host value.
+
+```python
+def table_sum(self):  # a getter on my_lookup above
+    with self.stream:
+        return float(self._table.sum())  # waits for self.stream
+```
+
 ### Other GPU libraries in Python
 
 CuPy is the only library exercised by the QA suite. Mixing in other GPU
 libraries (PyTorch, Numba CUDA, PyCUDA, …) is untested and requires you to route
 their work onto `self.stream` yourself. For libraries with thread-local "current
 stream" state (PyTorch, cuDNN handles, cuFFT plans), the cleanest pattern is to
-bind them once in `start()`. GR's TPB scheduler runs `start()` and every
-subsequent `work()` call on the same worker thread, so the binding persists:
+bind them once in `start()`. GR's Thread Per Block (TPB) scheduler runs
+`start()` and every subsequent `work()` call on the same worker thread, so the
+binding persists:
 
 ```python
 class my_torch_block(cuda.sync_block):
@@ -115,19 +131,3 @@ in C++ and Python**: write your block as if it applied to both.
       re-querying the framework mid-call.
     - Deferral only covers the ordering of work on `self.stream`. Work
       submitted on any other stream still races (see rule 1).
-
-## Rule 3: use `self.stream` only after `cuda.sync_block.__init__(...)`
-
-In Python, `self.stream` is created on first access, which needs the GNU Radio
-gateway that `cuda.sync_block.__init__(...)` (or the `basic_block` /
-`decim_block` / `interp_block` equivalent) sets up. Accessing it before that
-call recurses in the gateway's `__getattr__` until Python raises
-`RecursionError`:
-
-```python
-def __init__(self, taps):
-    self._ntaps = len(taps)                     # fine: plain Python
-    cuda.sync_block.__init__(self, "my_fir", [np.float32], [np.float32])
-    with self.stream:                           # fine: after the call above
-        self._taps = cp.asarray(taps, dtype=np.float32)
-```
