@@ -19,10 +19,11 @@ namespace cuda {
  * \ingroup cuda
  *
  * GPU equivalent of gr::blocks::keep_m_in_n. From each block of \p n input
- * items it outputs the \p m items starting at \p offset. If offset + m > n,
- * the selection wraps to the start of the same block; kept items always stay
- * in their original order. Tags are propagated by the scheduler at the
- * relative rate m / n.
+ * items it outputs \p m items. If offset + m <= n, these are
+ * block[offset:offset+m]. Otherwise the selection wraps, and the output is
+ * block[0:offset+m-n] followed by block[offset:n], as in GNU Radio; kept
+ * items always stay in their original order. Tags are propagated by the
+ * scheduler at the relative rate m / n.
  */
 class CUDA_API keep_m_in_n : virtual public gr::block
 {

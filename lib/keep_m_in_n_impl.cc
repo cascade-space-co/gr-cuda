@@ -9,9 +9,12 @@
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/io_signature.h>
 #include <algorithm>
+#include <cstdint>
+#include <limits>
 #include <numeric>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace gr {
 namespace cuda {
@@ -56,21 +59,26 @@ void keep_m_in_n_impl::configure(int m, int n, int offset)
                                     ") must be less than n (" + std::to_string(n) +
                                     ")");
     }
+    // Output always comes in whole groups of m.
+    const int64_t batch = std::lcm(int64_t{ m }, int64_t{ d_output_multiple });
+    if (batch > std::numeric_limits<int>::max()) {
+        throw std::invalid_argument("keep_m_in_n: lcm(m, output_multiple) = " +
+                                    std::to_string(batch) + " is too large");
+    }
     d_m = m;
     d_n = n;
     d_offset = offset;
 
     // Same order as gr::blocks::keep_m_in_n: block[0:excess], then
-    // block[offset:n].
-    const int excess = std::max(offset + m - n, 0);
+    // block[offset:n]. Written as offset - (n - m) so it cannot overflow.
+    const int excess = offset > n - m ? offset - (n - m) : 0;
     std::vector<int> cols(m);
     for (int j = 0; j < m; j++) {
         cols[j] = j < excess ? j : offset + j - excess;
     }
     d_cols.set(std::move(cols));
 
-    // Output always comes in whole groups of m.
-    set_output_multiple(std::lcm(m, d_output_multiple));
+    set_output_multiple(static_cast<int>(batch));
     set_relative_rate(m, n);
 }
 

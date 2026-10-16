@@ -5,6 +5,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
+import time
+
 import numpy as np
 import pmt
 from gnuradio import blocks, cuda, gr, gr_unittest
@@ -182,6 +184,51 @@ class qa_keep_m_in_n(gr_unittest.TestCase):
             cuda.keep_m_in_n(4, 1, 2, output_multiple=0)
         with self.assertRaises(TypeError):
             cuda.keep_m_in_n(4, 1, 2, output_multiple=1.5)
+        # lcm(65537, 65536) does not fit in an int.
+        with self.assertRaises(ValueError):
+            cuda.keep_m_in_n(4, 65537, 65537, output_multiple=65536)
+        block = cuda.keep_m_in_n(4, 1, 65537, output_multiple=65536)
+        with self.assertRaises(ValueError):
+            block.set_m(65537)
+        self.assertEqual(block.output_multiple(), 65536)
+
+    def run_while_changing(self, m, n, offset, change):
+        """Run an int32 ramp through the block, call change(block) mid-run,
+        and return the kept positions of each input block, in order."""
+        num_items = n * 80_000
+        block = cuda.keep_m_in_n(gr.sizeof_int, m, n, offset)
+        tb = gr.top_block()
+        source = blocks.vector_source_i(np.arange(num_items, dtype=np.int32))
+        throttle = blocks.throttle(gr.sizeof_int, 400_000)
+        sink = blocks.vector_sink_i()
+        tb.connect(source, throttle, block, sink)
+        tb.start()
+        time.sleep(0.3)
+        change(block)
+        tb.wait()
+
+        out = np.asarray(sink.data())
+        # The input is a ramp, so out // n is the input block and out % n the
+        # position kept from it. Output must cover consecutive input blocks.
+        ids, starts = np.unique(out // n, return_index=True)
+        np.testing.assert_array_equal(ids, np.arange(len(ids)))
+        return [tuple(p) for p in np.split(out % n, starts[1:])]
+
+    def assert_switches_once(self, patterns, old, new):
+        is_new = [p == new for p in patterns]
+        self.assertTrue(any(is_new), "the change took effect after the stream ended")
+        switch = is_new.index(True)
+        self.assertGreater(switch, 0, "the change took effect before the run")
+        self.assertEqual(set(patterns[:switch]), {old})
+        self.assertEqual(set(patterns[switch:]), {new})
+
+    def test_008_set_offset_while_running(self):
+        patterns = self.run_while_changing(2, 5, 0, lambda b: b.set_offset(3))
+        self.assert_switches_once(patterns, (0, 1), (3, 4))
+
+    def test_009_set_m_while_running(self):
+        patterns = self.run_while_changing(2, 5, 0, lambda b: b.set_m(3))
+        self.assert_switches_once(patterns, (0, 1), (0, 1, 2))
 
 
 if __name__ == "__main__":

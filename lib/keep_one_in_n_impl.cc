@@ -10,6 +10,7 @@
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/io_signature.h>
 #include <algorithm>
+#include <cstdint>
 #include <stdexcept>
 
 namespace gr {
@@ -73,7 +74,7 @@ int keep_one_in_n_impl::general_work(int noutput_items,
         // Input ran out: consume all of it and carry the partial group's
         // count into the next call.
         consumed = ninput;
-        d_count = count + kept * n - consumed;
+        d_count = static_cast<int>(int64_t{ count } + int64_t{ kept } * n - consumed);
     }
 
     // One row per kept item, n items apart, starting at the first kept item.

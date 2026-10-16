@@ -9,6 +9,7 @@
 #include <gnuradio/cuda/cuda_error.h>
 #include <algorithm>
 #include <cstdint>
+#include <utility>
 
 namespace {
 
