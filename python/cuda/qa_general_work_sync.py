@@ -27,9 +27,10 @@ class _gpu_delay(cuda.basic_block):
 
     def __init__(self, delay, dtype=np.float32):
         self._delay = delay
-        self._buf = cp.zeros(0, dtype=dtype)
         self._dtype = dtype
         cuda.basic_block.__init__(self, "gpu_delay", [dtype], [dtype])
+        with self.stream:
+            self._buf = cp.zeros(0, dtype=dtype)
 
     def forecast(self, noutput_items, ninputs):
         return [noutput_items + self._delay] * ninputs
@@ -86,8 +87,9 @@ class _gpu_scale_explicit_produce(cuda.basic_block):
 
     def __init__(self, k, dtype=np.float32):
         self.k = dtype(k)
-        self._scratch = cp.ones(500_000, dtype=cp.float32)
         cuda.basic_block.__init__(self, "gpu_scale_explicit", [dtype], [dtype])
+        with self.stream:
+            self._scratch = cp.ones(500_000, dtype=cp.float32)
 
     def forecast(self, noutput_items, ninputs):
         return [noutput_items] * ninputs
