@@ -29,6 +29,9 @@ list(
     add_python.cc
     copy_python.cc
     fft_python.cc
+    keep_one_in_n_python.cc
+    keep_m_in_n_python.cc
+    vector_select_python.cc
     multiply_const_python.cc
     load_python.cc
     nop_python.cc

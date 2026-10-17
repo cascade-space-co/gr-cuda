@@ -108,6 +108,21 @@ GR_ADD_TEST(
     ${CMAKE_CURRENT_SOURCE_DIR}/qa_repeat_cupy.py
 )
 GR_ADD_TEST(
+    qa_keep_one_in_n
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_keep_one_in_n.py
+)
+GR_ADD_TEST(
+    qa_keep_m_in_n
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_keep_m_in_n.py
+)
+GR_ADD_TEST(
+    qa_vector_select
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_vector_select.py
+)
+GR_ADD_TEST(
     qa_stress_sync
     ${PYTHON_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/qa_stress_sync.py

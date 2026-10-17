@@ -26,6 +26,9 @@ install(
         cuda_add.block.yml
         cuda_load.block.yml
         cuda_repeat_cupy.block.yml
+        cuda_keep_one_in_n.block.yml
+        cuda_keep_m_in_n.block.yml
+        cuda_vector_select.block.yml
         cuda_stream_to_vector.block.yml
         cuda_vector_to_stream.block.yml
         cuda_streams_to_vector.block.yml
