@@ -44,10 +44,12 @@ int null_source_impl::work(int noutput_items,
     // bandwidth, starving downstream compute kernels that share the same GPU,
     // and skewing the results.
     if (d_memset) {
-        auto out = static_cast<uint8_t*>(output_items[0]);
-        check_cuda_errors(cudaMemsetAsync(out, 0, noutput_items * d_itemsize, d_stream),
-                          "null_source: cudaMemsetAsync",
-                          d_logger);
+        for (auto out : output_items) {
+            check_cuda_errors(
+                cudaMemsetAsync(out, 0, noutput_items * d_itemsize, d_stream),
+                "null_source: cudaMemsetAsync",
+                d_logger);
+        }
     }
 
     return noutput_items;

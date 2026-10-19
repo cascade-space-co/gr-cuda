@@ -32,4 +32,8 @@ inputs:
   vlen: ${vlen}
   multiplicity: ${num_inputs}
 
+documentation: |-
+    Consumes and discards data in GPU memory, used mainly for testing and
+    benchmarking CUDA blocks without device-to-host transfers.
+
 file_format: 1

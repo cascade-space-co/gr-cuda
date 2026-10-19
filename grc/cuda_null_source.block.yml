@@ -25,9 +25,11 @@ parameters:
   default: '1'
   hide: ${ 'part' if num_outputs == 1 else 'none' }
 - id: memset
-  label: Zero-fill (memset)
-  dtype: bool
+  label: Zero Fill
+  dtype: enum
   default: 'True'
+  options: ['True', 'False']
+  option_labels: ['Yes', 'No']
   hide: part
 
 outputs:
@@ -36,5 +38,14 @@ outputs:
   dtype: ${type}
   vlen: ${vlen}
   multiplicity: ${num_outputs}
+
+documentation: |-
+    A source of zeros in GPU memory, used mainly for testing and benchmarking
+    CUDA blocks without host-to-device transfers.
+
+    Zero Fill: if Yes, every output is cleared with cudaMemsetAsync on every
+    call. If No, the outputs are left untouched and contain whatever was in
+    the buffer. This avoids spending GPU memory bandwidth on the memset, which
+    can otherwise skew benchmarks of downstream blocks.
 
 file_format: 1
