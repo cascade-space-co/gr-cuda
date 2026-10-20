@@ -17,6 +17,12 @@ parameters:
     dtype: int
     default: '1'
     hide: ${ 'part' if vlen == 1 else 'none' }
+-   id: output_multiple
+    label: Output Multiple
+    dtype: int
+    default: '1'
+    category: Advanced
+    hide: part
 
 inputs:
 -   domain: cuda
@@ -30,10 +36,15 @@ outputs:
 
 asserts:
 - ${ vlen > 0 }
+- ${ output_multiple > 0 }
 
 templates:
     imports: |-
         from gnuradio import cuda
-    make: cuda.nlog10_cupy(n=${n}, vlen=${vlen}, k=${k})
+    make: |-
+        cuda.nlog10_cupy(n=${n}, vlen=${vlen}, k=${k})
+        % if output_multiple() != 1:
+        self.${id}.set_output_multiple(${output_multiple})
+        % endif
 
 file_format: 1

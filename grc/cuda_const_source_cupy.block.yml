@@ -16,6 +16,12 @@ parameters:
     label: Constant
     dtype: ${ type.const_type }
     default: '0'
+-   id: output_multiple
+    label: Output Multiple
+    dtype: int
+    default: '1'
+    category: Advanced
+    hide: part
 
 outputs:
 -   domain: cuda
@@ -25,8 +31,15 @@ templates:
     imports: |-
         from gnuradio import cuda
         import numpy as np
-    make: cuda.const_source_cupy(${const}, dtype=${type.np_dtype})
+    make: |-
+        cuda.const_source_cupy(${const}, dtype=${type.np_dtype})
+        % if output_multiple() != 1:
+        self.${id}.set_output_multiple(${output_multiple})
+        % endif
     callbacks:
     - set_const(${const})
+
+asserts:
+- ${ output_multiple > 0 }
 
 file_format: 1

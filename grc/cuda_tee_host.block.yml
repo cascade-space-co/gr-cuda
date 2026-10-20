@@ -15,9 +15,16 @@ parameters:
     dtype: int
     default: '1'
     hide: ${ 'part' if vlen == 1 else 'none' }
+-   id: output_multiple
+    label: Output Multiple
+    dtype: int
+    default: '1'
+    category: Advanced
+    hide: part
 
 asserts:
 - ${ vlen > 0 }
+- ${ output_multiple > 0 }
 
 inputs:
 -   domain: stream
@@ -35,7 +42,11 @@ outputs:
 templates:
     imports: |-
         from gnuradio import cuda
-    make: cuda.tee(${type.size}*${vlen}, gpu=False)
+    make: |-
+        cuda.tee(${type.size}*${vlen}, gpu=False)
+        % if output_multiple() != 1:
+        self.${id}.set_output_multiple(${output_multiple})
+        % endif
 
 documentation: |-
     Accepts one host-domain input and produces two identical host-domain

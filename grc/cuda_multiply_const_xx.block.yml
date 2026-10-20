@@ -21,6 +21,12 @@ parameters:
     dtype: int
     default: '1'
     hide: ${ 'part' if vlen == 1 else 'none' }
+-   id: output_multiple
+    label: Output Multiple
+    dtype: int
+    default: '1'
+    category: Advanced
+    hide: part
 
 inputs:
 -   domain: cuda
@@ -34,17 +40,26 @@ outputs:
 
 asserts:
 - ${ vlen > 0 }
+- ${ output_multiple > 0 }
 
 templates:
     imports: from gnuradio import cuda
-    make: cuda.multiply_const_${type.fcn}(${const}, ${vlen})
+    make: |-
+        cuda.multiply_const_${type.fcn}(${const}, ${vlen})
+        % if output_multiple() != 1:
+        self.${id}.set_output_multiple(${output_multiple})
+        % endif
     callbacks:
     - set_k(${const})
 
 cpp_templates:
     includes: ['#include <gnuradio/multiply_const.h>']
     declarations: 'cuda::multiply_const_${type.fcn}::sptr ${id};'
-    make: 'this->${id} = cuda::multiply_const_${type.fcn}::make(${const}, ${vlen});'
+    make: |-
+        this->${id} = cuda::multiply_const_${type.fcn}::make(${const}, ${vlen});
+        % if output_multiple() != 1:
+        this->${id}->set_output_multiple(${output_multiple});
+        % endif
     callbacks:
     - set_k(${const})
 
