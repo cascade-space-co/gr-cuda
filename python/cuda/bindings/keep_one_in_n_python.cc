@@ -11,7 +11,7 @@
 /* BINDTOOL_GEN_AUTOMATIC(0)                                                       */
 /* BINDTOOL_USE_PYGCCXML(0)                                                        */
 /* BINDTOOL_HEADER_FILE(keep_one_in_n.h)                                           */
-/* BINDTOOL_HEADER_FILE_HASH(2d08e823ff30446d3ed930455b10f2d0) */
+/* BINDTOOL_HEADER_FILE_HASH(2dc21c563a1b27168393993a28e8bbbb) */
 /***********************************************************************************/
 
 #include <pybind11/complex.h>
@@ -30,9 +30,6 @@ void bind_keep_one_in_n(py::module& m)
                gr::block,
                gr::basic_block,
                std::shared_ptr<keep_one_in_n>>(m, "keep_one_in_n")
-        .def(py::init(&keep_one_in_n::make),
-             py::arg("itemsize"),
-             py::arg("n"),
-             py::arg("output_multiple") = 1)
+        .def(py::init(&keep_one_in_n::make), py::arg("itemsize"), py::arg("n"))
         .def("set_n", &keep_one_in_n::set_n, py::arg("n"));
 }

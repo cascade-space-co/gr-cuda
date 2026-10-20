@@ -119,9 +119,8 @@ class qa_vector_select(gr_unittest.TestCase):
         expected = expected_select(values, 8, [6, 1]).reshape(-1, 2)
         for output_multiple in (1, 64, 5000):
             with self.subTest(output_multiple=output_multiple):
-                block = cuda.vector_select(
-                    gr.sizeof_gr_complex, 8, [6, 1], output_multiple
-                )
+                block = cuda.vector_select(gr.sizeof_gr_complex, 8, [6, 1])
+                block.set_output_multiple(output_multiple)
                 self.assertEqual(block.output_multiple(), output_multiple)
                 result, _ = run_select(block, values, 8, 2, np.complex64)
                 result = result.reshape(-1, 2)
@@ -135,7 +134,6 @@ class qa_vector_select(gr_unittest.TestCase):
             {"vlen": 4, "indices": [4]},
             {"vlen": 4, "indices": [-1]},
             {"vlen": 4, "indices": [0], "itemsize": 0},
-            {"vlen": 4, "indices": [0], "output_multiple": 0},
         ]
         for kwargs in invalid_arguments:
             with self.subTest(kwargs=kwargs):

@@ -16,12 +16,12 @@
 namespace gr {
 namespace cuda {
 
-keep_one_in_n::sptr keep_one_in_n::make(size_t itemsize, int n, int output_multiple)
+keep_one_in_n::sptr keep_one_in_n::make(size_t itemsize, int n)
 {
-    return gnuradio::make_block_sptr<keep_one_in_n_impl>(itemsize, n, output_multiple);
+    return gnuradio::make_block_sptr<keep_one_in_n_impl>(itemsize, n);
 }
 
-keep_one_in_n_impl::keep_one_in_n_impl(size_t itemsize, int n, int output_multiple)
+keep_one_in_n_impl::keep_one_in_n_impl(size_t itemsize, int n)
     : gr::block("keep_one_in_n",
                 io_signature::make(1, 1, itemsize, cuda_buffer::type),
                 io_signature::make(1, 1, itemsize, cuda_buffer::type)),
@@ -30,11 +30,7 @@ keep_one_in_n_impl::keep_one_in_n_impl(size_t itemsize, int n, int output_multip
     if (itemsize == 0) {
         throw std::invalid_argument("keep_one_in_n: itemsize must be positive");
     }
-    if (output_multiple < 1) {
-        throw std::invalid_argument("keep_one_in_n: output_multiple must be positive");
-    }
     set_n(n);
-    set_output_multiple(output_multiple);
     // The output rate is not fixed, so tags are placed in general_work.
     set_tag_propagation_policy(TPP_DONT);
 }

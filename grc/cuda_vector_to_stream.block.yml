@@ -48,6 +48,7 @@ templates:
         % endif
 
 asserts:
+- ${ num_items > 0 }
 - ${ output_multiple > 0 }
 - ${ output_multiple == 1 or output_multiple % num_items == 0 }
 

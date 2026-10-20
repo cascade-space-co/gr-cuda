@@ -26,10 +26,7 @@ private:
     void check_indices(const std::vector<int>& indices) const;
 
 public:
-    vector_select_impl(size_t itemsize,
-                       size_t vlen,
-                       const std::vector<int>& indices,
-                       int output_multiple);
+    vector_select_impl(size_t itemsize, size_t vlen, const std::vector<int>& indices);
     ~vector_select_impl() override = default;
 
     void set_indices(const std::vector<int>& indices) override;

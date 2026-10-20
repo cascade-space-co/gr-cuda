@@ -5,7 +5,11 @@ flags: [ python ]
 
 templates:
     imports: from gnuradio import cuda
-    make: cuda.keep_one_in_n(${type.size}*${vlen}, ${n}, ${output_multiple})
+    make: |-
+        cuda.keep_one_in_n(${type.size}*${vlen}, ${n})
+        % if output_multiple() != 1:
+        self.${id}.set_output_multiple(${output_multiple})
+        % endif
     callbacks:
     - set_n(${n})
 

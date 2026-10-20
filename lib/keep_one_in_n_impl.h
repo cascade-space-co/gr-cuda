@@ -22,7 +22,7 @@ private:
     int d_count; // items left until the next kept item, inclusive
 
 public:
-    keep_one_in_n_impl(size_t itemsize, int n, int output_multiple);
+    keep_one_in_n_impl(size_t itemsize, int n);
     ~keep_one_in_n_impl() override = default;
 
     void set_n(int n) override;
