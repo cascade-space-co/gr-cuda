@@ -30,6 +30,7 @@ install(
         seq_stamp.h
         seq_strip.h
         vector_select.h
+        type_converters.h
     DESTINATION include/gnuradio/cuda
 )
 

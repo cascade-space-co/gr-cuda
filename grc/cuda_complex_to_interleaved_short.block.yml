@@ -1,0 +1,63 @@
+id: cuda_complex_to_interleaved_short
+label: Complex To IShort (CUDA)
+category: '[CUDA]/Type Converters'
+flags: [ python ]
+
+templates:
+    imports: from gnuradio import cuda
+    make: |-
+        cuda.complex_to_interleaved_short(${vector_output}, ${scale_factor})
+        % if output_multiple() != 1:
+        self.${id}.set_output_multiple(${output_multiple})
+        % endif
+    callbacks:
+    - set_scale_factor(${scale_factor})
+
+parameters:
+-   id: scale_factor
+    label: Scale Factor
+    dtype: real
+    default: '1.0'
+-   id: vector_output
+    label: Vector Output
+    dtype: enum
+    default: 'False'
+    options: ['False', 'True']
+    option_labels: ['No', 'Yes']
+    option_attributes:
+        vlen: [1, 2]
+-   id: output_multiple
+    label: Output Multiple
+    dtype: int
+    default: '1'
+    category: Advanced
+    hide: part
+
+inputs:
+-   label: in
+    domain: cuda
+    dtype: complex
+
+outputs:
+-   label: out
+    domain: cuda
+    dtype: short
+    vlen: ${ vector_output.vlen }
+
+asserts:
+- ${ output_multiple == 1 or vector_output.vlen == 2 or output_multiple % 2 == 0 }
+- ${ output_multiple > 0 }
+
+documentation: |-
+    Converts complex samples to interleaved I/Q shorts on the GPU:
+    out = in * Scale Factor, rounded to the nearest integer (ties to even) and
+    saturated to the short range. For full-scale output use 32767.
+
+    With Vector Output, each complex becomes one vector of two shorts;
+    otherwise two shorts, so Output Multiple must then be even.
+
+    Output Multiple asks the scheduler for output batches in multiples of this
+    size, which can reduce per-call overhead. As with any GNU Radio block, the
+    end of a finite stream that does not fill a whole batch may be dropped.
+
+file_format: 1

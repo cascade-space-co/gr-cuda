@@ -212,3 +212,8 @@ GR_ADD_TEST(
     ${PYTHON_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/qa_noise_source_cupy.py
 )
+GR_ADD_TEST(
+    qa_type_converters
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_type_converters.py
+)

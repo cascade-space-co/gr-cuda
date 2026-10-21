@@ -1,0 +1,53 @@
+id: cuda_complex_to_mag
+label: Complex To Mag (CUDA)
+category: '[CUDA]/Type Converters'
+flags: [ python ]
+
+templates:
+    imports: from gnuradio import cuda
+    make: |-
+        cuda.complex_to_mag(${vlen})
+        % if output_multiple() != 1:
+        self.${id}.set_output_multiple(${output_multiple})
+        % endif
+
+parameters:
+-   id: vlen
+    label: Vector Length
+    dtype: int
+    default: '1'
+    hide: ${ 'part' if vlen == 1 else 'none' }
+-   id: output_multiple
+    label: Output Multiple
+    dtype: int
+    default: '1'
+    category: Advanced
+    hide: part
+
+inputs:
+-   label: in
+    domain: cuda
+    dtype: complex
+    vlen: ${ vlen }
+
+outputs:
+-   label: out
+    domain: cuda
+    dtype: float
+    vlen: ${ vlen }
+
+asserts:
+- ${ vlen > 0 }
+- ${ output_multiple > 0 }
+
+documentation: |-
+    Outputs the magnitude of each complex sample, computed on the GPU.
+
+    Uses hypot(re, im), so unlike Complex to Mag it does not overflow to inf
+    or underflow to 0 for very large or very small samples.
+
+    Output Multiple asks the scheduler for output batches in multiples of this
+    size, which can reduce per-call overhead. As with any GNU Radio block, the
+    end of a finite stream that does not fill a whole batch may be dropped.
+
+file_format: 1
