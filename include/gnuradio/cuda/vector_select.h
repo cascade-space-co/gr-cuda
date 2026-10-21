@@ -35,12 +35,8 @@ public:
      * \param vlen The number of elements per input vector
      * \param indices Elements to keep, each in [0, vlen). The output vector
      *        length is indices.size().
-     * \param output_multiple Output batch size requested from the scheduler
      */
-    static sptr make(size_t itemsize,
-                     size_t vlen,
-                     const std::vector<int>& indices,
-                     int output_multiple = 1);
+    static sptr make(size_t itemsize, size_t vlen, const std::vector<int>& indices);
 
     /*!
      * \brief Select different elements. The number of indices cannot change.

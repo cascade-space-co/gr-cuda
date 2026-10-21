@@ -11,8 +11,10 @@ templates:
         cuda.repeat_cupy(
             interp=${interp},
             vlen=${vlen},
-            dtype=${type.np_dtype},
-            output_multiple=${output_multiple})
+            dtype=${type.np_dtype})
+        % if output_multiple() != 1:
+        self.${id}.set_output_multiple(${output_multiple})
+        % endif
     callbacks:
     - set_interpolation(${interp})
 

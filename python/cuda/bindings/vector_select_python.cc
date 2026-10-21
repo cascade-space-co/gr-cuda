@@ -11,7 +11,7 @@
 /* BINDTOOL_GEN_AUTOMATIC(0)                                                       */
 /* BINDTOOL_USE_PYGCCXML(0)                                                        */
 /* BINDTOOL_HEADER_FILE(vector_select.h)                                           */
-/* BINDTOOL_HEADER_FILE_HASH(9de62f3e5dbe25a04b98674c36f20ec3) */
+/* BINDTOOL_HEADER_FILE_HASH(617f19be643250b53c5da755698397e9) */
 /***********************************************************************************/
 
 #include <pybind11/complex.h>
@@ -35,15 +35,13 @@ void bind_vector_select(py::module& m)
         .def(py::init(&vector_select::make),
              py::arg("itemsize"),
              py::arg("vlen"),
-             py::arg("indices"),
-             py::arg("output_multiple") = 1)
-        .def(py::init([](size_t itemsize, size_t vlen, int index, int output_multiple) {
-                 return vector_select::make(itemsize, vlen, { index }, output_multiple);
+             py::arg("indices"))
+        .def(py::init([](size_t itemsize, size_t vlen, int index) {
+                 return vector_select::make(itemsize, vlen, { index });
              }),
              py::arg("itemsize"),
              py::arg("vlen"),
-             py::arg("indices"),
-             py::arg("output_multiple") = 1)
+             py::arg("indices"))
         .def("set_indices", &vector_select::set_indices, py::arg("indices"))
         .def(
             "set_indices",

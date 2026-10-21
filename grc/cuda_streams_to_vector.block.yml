@@ -22,6 +22,12 @@ parameters:
     dtype: int
     default: '1'
     hide: ${ 'part' if vlen == 1 else 'none' }
+-   id: output_multiple
+    label: Output Multiple
+    dtype: int
+    default: '1'
+    category: Advanced
+    hide: part
 
 inputs:
 -   domain: cuda
@@ -36,6 +42,13 @@ outputs:
 
 templates:
     imports: from gnuradio import cuda
-    make: cuda.streams_to_vector(${type.size}*${vlen}, ${num_streams})
+    make: |-
+        cuda.streams_to_vector(${type.size}*${vlen}, ${num_streams})
+        % if output_multiple() != 1:
+        self.${id}.set_output_multiple(${output_multiple})
+        % endif
+
+asserts:
+- ${ output_multiple > 0 }
 
 file_format: 1

@@ -44,22 +44,11 @@ class repeat_cupy(cuda.basic_block):
         Number of scalar values in each stream item. Default is 1.
     dtype : numpy dtype, optional
         Scalar data type. Default is ``numpy.float32``.
-    output_multiple : int, optional
-        Ask the scheduler for output batches in multiples of this size. Larger
-        values can amortize scheduler and host-to-device transfer overhead.
-        Default is 1.
     """
 
-    def __init__(
-        self,
-        interp: int,
-        vlen: int = 1,
-        dtype=np.float32,
-        output_multiple: int = 1,
-    ):
+    def __init__(self, interp: int, vlen: int = 1, dtype=np.float32):
         interp = _positive_integer(interp, "interp")
         vlen = _positive_integer(vlen, "vlen")
-        output_multiple = _positive_integer(output_multiple, "output_multiple")
 
         self._interpolation = interp
         self._left_to_copy = 0
@@ -75,7 +64,6 @@ class repeat_cupy(cuda.basic_block):
             [io_dtype],
             [io_dtype],
         )
-        self.set_output_multiple(output_multiple)
         self.set_tag_propagation_policy(gr.TPP_DONT)
 
         self._interpolation_port = pmt.intern("interpolation")

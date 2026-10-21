@@ -5,7 +5,11 @@ flags: [ python ]
 
 templates:
     imports: from gnuradio import cuda
-    make: cuda.vector_select(${type.size}, ${vlen}, ${indices}, ${output_multiple})
+    make: |-
+        cuda.vector_select(${type.size}, ${vlen}, ${indices})
+        % if output_multiple() != 1:
+        self.${id}.set_output_multiple(${output_multiple})
+        % endif
     callbacks:
     - set_indices(${indices})
 

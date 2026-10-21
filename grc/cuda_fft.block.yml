@@ -33,6 +33,12 @@ parameters:
     default: 'False'
     options: ['True', 'False']
     option_labels: ['Yes', 'No']
+-   id: output_multiple
+    label: Output Multiple
+    dtype: int
+    default: '1'
+    category: Advanced
+    hide: part
 
 
 inputs:
@@ -48,6 +54,13 @@ outputs:
 templates:
     imports: |-
         from gnuradio import cuda
-    make: cuda.fft(${fft_size}, forward=${forward}, window=${window}, shift=${shift}, real_input=${input_type.is_real})
+    make: |-
+        cuda.fft(${fft_size}, forward=${forward}, window=${window}, shift=${shift}, real_input=${input_type.is_real})
+        % if output_multiple() != 1:
+        self.${id}.set_output_multiple(${output_multiple})
+        % endif
+
+asserts:
+- ${ output_multiple > 0 }
 
 file_format: 1
