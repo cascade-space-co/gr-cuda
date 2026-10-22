@@ -61,13 +61,13 @@ T* out_ptr(gr_vector_void_star& items, size_t port = 0)
     {                                                                            \
     }
 
-#define CUDA_PLAIN_CTOR(name, in_ports, in_t, out_ports, out_t)    \
-    name##_impl::name##_impl(size_t vlen)                          \
-        : gr::sync_block(#name,                                    \
-                         sig(1, in_ports, vlen * sizeof(in_t)),    \
-                         sig(1, out_ports, vlen * sizeof(out_t))), \
-          d_vlen(vlen)                                             \
-    {                                                              \
+#define CUDA_PLAIN_CTOR(name, in_min, in_max, in_t, out_min, out_max, out_t) \
+    name##_impl::name##_impl(size_t vlen)                                    \
+        : gr::sync_block(#name,                                              \
+                         sig(in_min, in_max, vlen * sizeof(in_t)),           \
+                         sig(out_min, out_max, vlen * sizeof(out_t))),       \
+          d_vlen(vlen)                                                       \
+    {                                                                        \
     }
 
 #define CUDA_WORK(name)                                           \
@@ -198,7 +198,7 @@ CUDA_WORK(float_to_uchar)
 // Integer to integer
 
 CUDA_MAKE_VLEN(char_to_short)
-CUDA_PLAIN_CTOR(char_to_short, 1, int8_t, 1, int16_t)
+CUDA_PLAIN_CTOR(char_to_short, 1, 1, int8_t, 1, 1, int16_t)
 CUDA_WORK(char_to_short)
 {
     exec_char_to_short(in_ptr<int8_t>(input_items),
@@ -209,7 +209,7 @@ CUDA_WORK(char_to_short)
 }
 
 CUDA_MAKE_VLEN(short_to_char)
-CUDA_PLAIN_CTOR(short_to_char, 1, int16_t, 1, int8_t)
+CUDA_PLAIN_CTOR(short_to_char, 1, 1, int16_t, 1, 1, int8_t)
 CUDA_WORK(short_to_char)
 {
     exec_short_to_char(in_ptr<int16_t>(input_items),
@@ -223,7 +223,7 @@ CUDA_WORK(short_to_char)
 // Complex and float
 
 CUDA_MAKE_VLEN(float_to_complex)
-CUDA_PLAIN_CTOR(float_to_complex, 2, float, 1, gr_complex)
+CUDA_PLAIN_CTOR(float_to_complex, 1, 2, float, 1, 1, gr_complex)
 CUDA_WORK(float_to_complex)
 {
     exec_float_to_complex(in_ptr<float>(input_items),
@@ -236,7 +236,7 @@ CUDA_WORK(float_to_complex)
 }
 
 CUDA_MAKE_VLEN(complex_to_float)
-CUDA_PLAIN_CTOR(complex_to_float, 1, gr_complex, 2, float)
+CUDA_PLAIN_CTOR(complex_to_float, 1, 1, gr_complex, 1, 2, float)
 CUDA_WORK(complex_to_float)
 {
     exec_complex_to_float(in_ptr<float2>(input_items),
@@ -250,7 +250,7 @@ CUDA_WORK(complex_to_float)
 
 #define CUDA_COMPLEX_PART(name, part)                      \
     CUDA_MAKE_VLEN(name)                                   \
-    CUDA_PLAIN_CTOR(name, 1, gr_complex, 1, float)         \
+    CUDA_PLAIN_CTOR(name, 1, 1, gr_complex, 1, 1, float)   \
     CUDA_WORK(name)                                        \
     {                                                      \
         exec_complex_to_part(in_ptr<float2>(input_items),  \
@@ -268,7 +268,7 @@ CUDA_COMPLEX_PART(complex_to_mag_squared, complex_part::mag_squared)
 CUDA_COMPLEX_PART(complex_to_arg, complex_part::arg)
 
 CUDA_MAKE_VLEN(complex_to_magphase)
-CUDA_PLAIN_CTOR(complex_to_magphase, 1, gr_complex, 2, float)
+CUDA_PLAIN_CTOR(complex_to_magphase, 1, 1, gr_complex, 2, 2, float)
 CUDA_WORK(complex_to_magphase)
 {
     exec_complex_to_magphase(in_ptr<float2>(input_items),
@@ -280,7 +280,7 @@ CUDA_WORK(complex_to_magphase)
 }
 
 CUDA_MAKE_VLEN(magphase_to_complex)
-CUDA_PLAIN_CTOR(magphase_to_complex, 2, float, 1, gr_complex)
+CUDA_PLAIN_CTOR(magphase_to_complex, 2, 2, float, 1, 1, gr_complex)
 CUDA_WORK(magphase_to_complex)
 {
     exec_magphase_to_complex(in_ptr<float>(input_items, 0),

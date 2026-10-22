@@ -265,6 +265,23 @@ class qa_type_converters(gr_unittest.TestCase):
             atol=1e-6,
         )
 
+    def test_port_counts(self):
+        # (block, input min/max, output min/max)
+        cases = [
+            (cuda.complex_to_magphase(), (1, 1), (2, 2)),
+            (cuda.magphase_to_complex(), (2, 2), (1, 1)),
+            (cuda.complex_to_float(), (1, 1), (1, 2)),
+            (cuda.float_to_complex(), (1, 2), (1, 1)),
+        ]
+        for block, inputs, outputs in cases:
+            with self.subTest(block=block.name()):
+                in_sig = block.input_signature()
+                out_sig = block.output_signature()
+                self.assertEqual((in_sig.min_streams(), in_sig.max_streams()), inputs)
+                self.assertEqual(
+                    (out_sig.min_streams(), out_sig.max_streams()), outputs
+                )
+
     def test_complex_float_ports(self):
         z = complexes()
         re, im = z.real.copy(), z.imag.copy()

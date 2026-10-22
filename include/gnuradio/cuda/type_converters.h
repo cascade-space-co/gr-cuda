@@ -19,9 +19,9 @@
  * buffers. Each block takes the same arguments as its gr::blocks counterpart
  * and produces the same results, except where noted.
  *
- * Integer outputs are rounded to nearest (ties to even) and saturated to the
- * output type. Integer-to-float scales divide; float-to-integer scales
- * multiply.
+ * Float-to-integer conversions are rounded to nearest (ties to even) and
+ * saturated to the output type. Integer-to-float scales divide;
+ * float-to-integer scales multiply.
  */
 
 namespace gr {
@@ -213,7 +213,7 @@ public:
  * \ingroup cuda
  *
  * Uses hypotf, so unlike gr::blocks it does not overflow to inf or underflow
- * to 0 when re^2 + im^2 is outside the float range.
+ * to 0 when re^2 + im^2 is outside the float range but the magnitude is not.
  */
 class CUDA_API complex_to_mag : virtual public gr::sync_block
 {
