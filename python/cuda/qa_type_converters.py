@@ -184,9 +184,22 @@ class qa_type_converters(gr_unittest.TestCase):
         data = np.array(
             [1e19, -1e19, np.inf, -np.inf, 3e9, -3e9, np.nan], dtype=np.float32
         )
+        cases = [
+            (cuda.float_to_char(), np.int8),
+            (cuda.float_to_short(), np.int16),
+            (cuda.float_to_int(), np.int32),
+            (cuda.float_to_uchar(), np.uint8),
+        ]
+        for block, dtype in cases:
+            with self.subTest(block=block.name()):
+                out = run(block, [(data, 1)], [(dtype, 1)])[0]
+                info = np.iinfo(dtype)
+                np.testing.assert_array_equal(out, [info.max, info.min] * 3 + [0])
+
+        # The largest float below 2^31 fits in an int; 2^31 does not.
+        data = np.array([2147483520.0, 2.0**31, -(2.0**31)], dtype=np.float32)
         out = run(cuda.float_to_int(), [(data, 1)], [(np.int32, 1)])[0]
-        info = np.iinfo(np.int32)
-        np.testing.assert_array_equal(out, [info.max, info.min] * 3 + [0])
+        np.testing.assert_array_equal(out, [2147483520, 2**31 - 1, -(2**31)])
 
     def test_char_short(self):
         for vlen in (1, 5):

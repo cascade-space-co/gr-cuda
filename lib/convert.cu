@@ -102,10 +102,17 @@ struct float_to_int_op {
 
     __device__ value load(size_t i) const
     {
-        // Float-to-int conversion rounds to nearest even and saturates to the
-        // int range (NaN gives 0); narrower types are then clamped.
-        const int r = __float2int_rn(in[i] * scale + bias);
-        return static_cast<T>(min(max(r, int_range<T>::lo), int_range<T>::hi));
+        // __float2int_rn is undefined for NaN and out-of-range values, so
+        // saturate before converting. float(INT_MAX) rounds up to 2^31, and
+        // every float below it fits in an int.
+        const float x = in[i] * scale + bias;
+        if (isnan(x))
+            return T(0);
+        if (x >= static_cast<float>(int_range<T>::hi))
+            return static_cast<T>(int_range<T>::hi);
+        if (x <= static_cast<float>(int_range<T>::lo))
+            return static_cast<T>(int_range<T>::lo);
+        return static_cast<T>(__float2int_rn(x));
     }
     __device__ void store(size_t i, value v) const { out[i] = v; }
 };

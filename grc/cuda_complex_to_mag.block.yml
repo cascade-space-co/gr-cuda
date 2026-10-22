@@ -44,7 +44,8 @@ documentation: |-
     Outputs the magnitude of each complex sample, computed on the GPU.
 
     Uses hypot(re, im), so unlike Complex to Mag it does not overflow to inf
-    or underflow to 0 for very large or very small samples.
+    or underflow to 0 when re^2 + im^2 is outside the float range but the
+    magnitude is not.
 
     Output Multiple asks the scheduler for output batches in multiples of this
     size, which can reduce per-call overhead. As with any GNU Radio block, the
