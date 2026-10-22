@@ -32,9 +32,8 @@ public:
      * \brief Make a keep_one_in_n block.
      * \param itemsize The number of bytes per item
      * \param n Keep one item out of every n
-     * \param output_multiple Output batch size requested from the scheduler
      */
-    static sptr make(size_t itemsize, int n, int output_multiple = 1);
+    static sptr make(size_t itemsize, int n);
 
     /*!
      * \brief Set n and restart the count.

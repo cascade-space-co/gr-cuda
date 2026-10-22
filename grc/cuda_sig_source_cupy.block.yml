@@ -39,6 +39,12 @@ parameters:
     label: Initial Phase (Radians)
     dtype: real
     default: '0'
+-   id: output_multiple
+    label: Output Multiple
+    dtype: int
+    default: '1'
+    category: Advanced
+    hide: part
 
 outputs:
 -   domain: cuda
@@ -48,8 +54,12 @@ templates:
     imports: |-
         from gnuradio import cuda
         import numpy as np
-    make: cuda.sig_source_cupy(${samp_rate}, ${waveform}, ${freq}, ${amp}, ${offset},
-        ${phase}, dtype=${type.np_dtype})
+    make: |-
+        cuda.sig_source_cupy(${samp_rate}, ${waveform}, ${freq}, ${amp}, ${offset},
+            ${phase}, dtype=${type.np_dtype})
+        % if output_multiple() != 1:
+        self.${id}.set_output_multiple(${output_multiple})
+        % endif
     callbacks:
     - set_sampling_freq(${samp_rate})
     - set_waveform(${waveform})
@@ -57,5 +67,8 @@ templates:
     - set_amplitude(${amp})
     - set_offset(${offset})
     - set_phase(${phase})
+
+asserts:
+- ${ output_multiple > 0 }
 
 file_format: 1

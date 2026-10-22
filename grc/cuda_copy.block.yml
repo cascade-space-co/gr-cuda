@@ -4,7 +4,11 @@ category: '[CUDA]'
 
 templates:
   imports: from gnuradio import cuda
-  make: cuda.copy(${type.size}*${vlen})
+  make: |-
+      cuda.copy(${type.size}*${vlen})
+      % if output_multiple() != 1:
+      self.${id}.set_output_multiple(${output_multiple})
+      % endif
 parameters:
 -   id: type
     label: Type
@@ -19,6 +23,12 @@ parameters:
     dtype: int
     default: '1'
     hide: ${ 'part' if vlen == 1 else 'none' }
+-   id: output_multiple
+    label: Output Multiple
+    dtype: int
+    default: '1'
+    category: Advanced
+    hide: part
 inputs:
 - label: in
   domain: cuda
@@ -29,5 +39,8 @@ outputs:
   domain: cuda
   dtype: ${type}
   vlen: ${vlen}
+
+asserts:
+- ${ output_multiple > 0 }
 
 file_format: 1

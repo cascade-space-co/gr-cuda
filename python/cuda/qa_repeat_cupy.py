@@ -148,7 +148,8 @@ class qa_repeat_cupy(gr_unittest.TestCase):
         np.testing.assert_array_equal(result, expected)
 
     def test_004_output_multiple_and_runtime_interpolation(self):
-        repeat = cuda.repeat_cupy(interp=7, output_multiple=16)
+        repeat = cuda.repeat_cupy(interp=7)
+        repeat.set_output_multiple(16)
         self.assertEqual(repeat.output_multiple(), 16)
         self.assertEqual(repeat.interpolation(), 7)
 
@@ -179,8 +180,6 @@ class qa_repeat_cupy(gr_unittest.TestCase):
             {"interp": 1.5},
             {"interp": 1, "vlen": 0},
             {"interp": 1, "vlen": 1.5},
-            {"interp": 1, "output_multiple": 0},
-            {"interp": 1, "output_multiple": 1.5},
             {"interp": 1, "dtype": object},
             {"interp": 1, "dtype": "V0"},
         ]

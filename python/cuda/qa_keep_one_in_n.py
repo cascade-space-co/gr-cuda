@@ -123,7 +123,6 @@ class qa_keep_one_in_n(gr_unittest.TestCase):
         invalid_arguments = [
             {"itemsize": 4, "n": 0},
             {"itemsize": 0, "n": 1},
-            {"itemsize": 4, "n": 2, "output_multiple": 0},
         ]
         for kwargs in invalid_arguments:
             with self.subTest(kwargs=kwargs):
@@ -143,7 +142,8 @@ class qa_keep_one_in_n(gr_unittest.TestCase):
             expected, _ = run_keep(cpu_block(n, 1, np.float32), values, 1, np.float32)
             for output_multiple in (1, 64, 5000):
                 with self.subTest(n=n, output_multiple=output_multiple):
-                    block = cuda.keep_one_in_n(4, n, output_multiple)
+                    block = cuda.keep_one_in_n(4, n)
+                    block.set_output_multiple(output_multiple)
                     self.assertEqual(block.output_multiple(), output_multiple)
                     result, _ = run_keep(block, values, 1, np.float32)
                     self.assertGreater(len(result), len(expected) - output_multiple)

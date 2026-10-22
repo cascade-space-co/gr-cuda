@@ -20,6 +20,12 @@ parameters:
     dtype: int
     default: '1'
     hide: part
+-   id: output_multiple
+    label: Output Multiple
+    dtype: int
+    default: '1'
+    category: Advanced
+    hide: part
 
 inputs:
 -   domain: cuda
@@ -34,6 +40,13 @@ outputs:
 
 templates:
     imports: from gnuradio import cuda
-    make: cuda.add_cupy(${num_inputs}, ${type.dtype}, ${vlen})
+    make: |-
+        cuda.add_cupy(${num_inputs}, ${type.dtype}, ${vlen})
+        % if output_multiple() != 1:
+        self.${id}.set_output_multiple(${output_multiple})
+        % endif
+
+asserts:
+- ${ output_multiple > 0 }
 
 file_format: 1

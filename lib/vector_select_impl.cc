@@ -28,19 +28,15 @@ size_t nonempty_size(const std::vector<int>& indices)
 
 } // namespace
 
-vector_select::sptr vector_select::make(size_t itemsize,
-                                        size_t vlen,
-                                        const std::vector<int>& indices,
-                                        int output_multiple)
+vector_select::sptr
+vector_select::make(size_t itemsize, size_t vlen, const std::vector<int>& indices)
 {
-    return gnuradio::make_block_sptr<vector_select_impl>(
-        itemsize, vlen, indices, output_multiple);
+    return gnuradio::make_block_sptr<vector_select_impl>(itemsize, vlen, indices);
 }
 
 vector_select_impl::vector_select_impl(size_t itemsize,
                                        size_t vlen,
-                                       const std::vector<int>& indices,
-                                       int output_multiple)
+                                       const std::vector<int>& indices)
     : gr::sync_block("vector_select",
                      io_signature::make(1, 1, itemsize * vlen, cuda_buffer::type),
                      io_signature::make(
@@ -53,12 +49,8 @@ vector_select_impl::vector_select_impl(size_t itemsize,
         throw std::invalid_argument(
             "vector_select: itemsize and vlen must be positive");
     }
-    if (output_multiple < 1) {
-        throw std::invalid_argument("vector_select: output_multiple must be positive");
-    }
     check_indices(indices);
     d_cols.set(indices);
-    set_output_multiple(output_multiple);
 }
 
 void vector_select_impl::check_indices(const std::vector<int>& indices) const
