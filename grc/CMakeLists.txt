@@ -40,6 +40,29 @@ install(
         cuda_throttle.block.yml
         cuda_tee.block.yml
         cuda_tee_host.block.yml
+        cuda_char_to_float.block.yml
+        cuda_uchar_to_float.block.yml
+        cuda_short_to_float.block.yml
+        cuda_int_to_float.block.yml
+        cuda_float_to_char.block.yml
+        cuda_float_to_uchar.block.yml
+        cuda_float_to_short.block.yml
+        cuda_float_to_int.block.yml
+        cuda_char_to_short.block.yml
+        cuda_short_to_char.block.yml
+        cuda_float_to_complex.block.yml
+        cuda_complex_to_float.block.yml
+        cuda_complex_to_real.block.yml
+        cuda_complex_to_imag.block.yml
+        cuda_complex_to_mag.block.yml
+        cuda_complex_to_mag_squared.block.yml
+        cuda_complex_to_arg.block.yml
+        cuda_complex_to_magphase.block.yml
+        cuda_magphase_to_complex.block.yml
+        cuda_complex_to_interleaved_char.block.yml
+        cuda_complex_to_interleaved_short.block.yml
+        cuda_interleaved_char_to_complex.block.yml
+        cuda_interleaved_short_to_complex.block.yml
     DESTINATION share/gnuradio/grc/blocks
 )
 
