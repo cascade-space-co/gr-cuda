@@ -35,10 +35,9 @@ def run_repeat(
     repeat = make_block(interp, vlen, dtype)
     sink = sink_type(vlen=vlen)
     tb.connect(source, repeat, sink)
-    if max_noutput_items is None:
-        tb.run()
-    else:
-        tb.run(max_noutput_items=max_noutput_items)
+    if max_noutput_items is not None:
+        repeat.set_max_noutput_items(max_noutput_items)
+    tb.run()
     return np.asarray(sink.data(), dtype=dtype), sink.tags()
 
 

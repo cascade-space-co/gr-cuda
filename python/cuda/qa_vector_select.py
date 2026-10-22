@@ -97,6 +97,7 @@ class qa_vector_select(gr_unittest.TestCase):
             np.arange(vlen, dtype=np.float32), repeat=True, vlen=vlen
         )
         throttle = blocks.throttle(gr.sizeof_float * vlen, 100_000)
+        throttle.set_max_noutput_items(1000)
         sink = blocks.vector_sink_f(vlen=2)
         tb.connect(source, throttle, block, sink)
         tb.start()
