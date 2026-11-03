@@ -20,8 +20,10 @@ def as_cupy(numpy_array: np.ndarray) -> cp.ndarray:
     """
     Wrap a numpy array backed by CUDA memory into a CuPy array (zero-copy).
 
-    The numpy array's data pointer must be a device pointer (e.g. from a
-    cuda_buffer). This is validated at runtime.
+    The numpy array's data pointer must be device-accessible (e.g. from a
+    cuda_buffer): device or managed memory, or registered host memory the
+    GPU can use at the same address, as on zero-copy edges of integrated
+    GPUs. This is validated at runtime.
 
     Parameters
     ----------
@@ -36,14 +38,15 @@ def as_cupy(numpy_array: np.ndarray) -> cp.ndarray:
     Raises
     ------
     ValueError
-        If the pointer is not a valid CUDA device or managed pointer.
+        If the pointer is not device-accessible.
     """
     ptr, _ = numpy_array.__array_interface__["data"]
 
     try:
         attrs = cp.cuda.runtime.pointerGetAttributes(ptr)
         # attrs.type: 0=Unregistered Host, 1=Host, 2=Device, 3=Managed
-        if attrs.type != 2 and attrs.type != 3:
+        host_mapped = attrs.type == 1 and attrs.devicePointer == ptr
+        if attrs.type != 2 and attrs.type != 3 and not host_mapped:
             raise ValueError(f"Pointer is not a device pointer (type={attrs.type})")
     except cp.cuda.runtime.CUDARuntimeError as err:
         raise ValueError("Pointer is not a valid CUDA pointer") from err

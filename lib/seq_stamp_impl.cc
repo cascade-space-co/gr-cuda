@@ -47,7 +47,7 @@ int seq_stamp_impl::work(int noutput_items,
                                         d_payload_size,
                                         d_payload_size,
                                         noutput_items,
-                                        cudaMemcpyDeviceToDevice,
+                                        cudaMemcpyDefault,
                                         d_stream),
                       "seq_stamp: cudaMemcpy2DAsync payload",
                       d_logger);
