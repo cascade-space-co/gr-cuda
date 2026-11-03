@@ -56,6 +56,34 @@ unsigned int cuda_event_flags()
     return flags;
 }
 
+/*!
+ * Decide whether H2D/D2H edges should share the host ring with the GPU.
+ *
+ * Only on integrated GPUs, where host and device memory are the same DRAM.
+ * The GPU must also reach system memory through the CPU's page tables, so
+ * that it honours the host ring's double mapping (the second half aliasing
+ * the first).
+ */
+bool use_zero_copy(const gr::logger_ptr& log)
+{
+    int device = 0;
+    check_cuda_errors(cudaGetDevice(&device), "cuda_buffer: cudaGetDevice", log);
+    int integrated = 0;
+    int host_page_tables = 0;
+    check_cuda_errors(
+        cudaDeviceGetAttribute(&integrated, cudaDevAttrIntegrated, device),
+        "cuda_buffer: cudaDevAttrIntegrated",
+        log);
+    check_cuda_errors(
+        cudaDeviceGetAttribute(&host_page_tables,
+                               cudaDevAttrPageableMemoryAccessUsesHostPageTables,
+                               device),
+        "cuda_buffer: cudaDevAttrPageableMemoryAccessUsesHostPageTables",
+        log);
+
+    return integrated && host_page_tables;
+}
+
 } // namespace
 
 namespace gr {
@@ -183,9 +211,22 @@ void cuda_buffer::on_transfer_type_set(const transfer_type& type)
     d_host_ring = detail::host_mmap_ring::create(d_aligned_bytes, d_logger);
     d_host_ring->register_pinned();
     d_base = d_host_ring->base_ptr();
-    d_logger->debug("cuda_buffer: allocated {} byte host ring for {} edge",
+
+    if (use_zero_copy(d_logger)) {
+        d_zero_copy = true;
+        d_device_ring.reset();
+        d_cuda_buf = d_base;
+
+        static std::once_flag logged;
+        std::call_once(logged, [this] {
+            d_logger->info("cuda_buffer: integrated GPU detected, zero-copy enabled "
+                           "(H2D/D2H edges share host memory with the GPU)");
+        });
+    }
+    d_logger->debug("cuda_buffer: allocated {} byte host ring for {} edge ({})",
                     d_aligned_bytes,
-                    (type == transfer_type::HOST_TO_DEVICE) ? "H2D" : "D2H");
+                    (type == transfer_type::HOST_TO_DEVICE) ? "H2D" : "D2H",
+                    d_zero_copy ? "zero-copy" : "copy");
 }
 
 
@@ -211,6 +252,11 @@ void* cuda_buffer::write_pointer()
 
     switch (d_transfer_type) {
     case transfer_type::HOST_TO_DEVICE:
+        // Zero-copy: GPU consumers read this memory in place and free it as
+        // soon as their kernels are queued, so the CPU must wait for those
+        // reads to finish before overwriting it.
+        if (d_zero_copy)
+            cudaEventSynchronize(d_read_done_evt);
         return &d_base[d_write_index * d_sizeof_item];
 
     case transfer_type::DEVICE_TO_HOST:
@@ -316,6 +362,10 @@ void cuda_buffer::post_work(int nitems)
 
 void cuda_buffer::post_work_h2d(unsigned wi, unsigned tail, unsigned nitems)
 {
+    // The CPU producer's stores are already visible to the GPU.
+    if (d_zero_copy)
+        return;
+
     cudaError_t rc;
 
     // Wait until all downstream GPU consumers have finished reading
@@ -354,6 +404,11 @@ void cuda_buffer::post_work_d2h(unsigned wi, unsigned tail, unsigned nitems)
     // Wait until the upstream GPU kernel has finished writing to
     // device memory before we read it for the D2H copy.
     wait_device_ready(d_stream);
+
+    if (d_zero_copy) {
+        mark_host_ready(d_stream);
+        return;
+    }
 
     char* d_src = &d_cuda_buf[wi * d_sizeof_item];
     char* h_dst = &d_base[wi * d_sizeof_item];

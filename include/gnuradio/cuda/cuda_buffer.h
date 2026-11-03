@@ -45,6 +45,13 @@ class host_mmap_ring;
  * Because both sides are double-mapped, compaction is never needed and
  * space_available() / index_sub() from buffer_double_mapped work correctly.
  *
+ * \section zerocopy Zero-copy on shared-memory GPUs
+ *
+ * On integrated GPUs that read system memory through the CPU's page
+ * tables (e.g. DGX Spark), H2D and D2H edges skip the device ring and
+ * the copies: both sides use the host ring directly.  This is detected
+ * automatically; discrete GPUs always use the copy path.
+ *
  * \section sync Synchronization model
  *
  * Three CUDA events coordinate producer/consumer overlap:
@@ -225,6 +232,9 @@ private:
 
     std::unique_ptr<detail::host_mmap_ring> d_host_ring;
     size_t d_aligned_bytes = 0;
+
+    // Host and device share the host ring (d_cuda_buf == d_base).
+    bool d_zero_copy = false;
 
     cudaStream_t d_stream = nullptr;
 

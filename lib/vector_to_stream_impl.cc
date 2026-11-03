@@ -48,7 +48,7 @@ int vector_to_stream_impl::work(int noutput_items,
         // Since the input is a stream of vectors, copying this many bytes
         // effectively flattens the vectors into a stream of scalars.
         check_cuda_errors(
-            cudaMemcpyAsync(out, in, total_bytes, cudaMemcpyDeviceToDevice, d_stream),
+            cudaMemcpyAsync(out, in, total_bytes, cudaMemcpyDefault, d_stream),
             "vector_to_stream: cudaMemcpyAsync D2D",
             d_logger);
     }

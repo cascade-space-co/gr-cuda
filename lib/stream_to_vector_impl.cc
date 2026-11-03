@@ -48,7 +48,7 @@ int stream_to_vector_impl::work(int noutput_items,
         // effectively groups the scalars into vectors in the output buffer.
 
         check_cuda_errors(
-            cudaMemcpyAsync(out, in, total_bytes, cudaMemcpyDeviceToDevice, d_stream),
+            cudaMemcpyAsync(out, in, total_bytes, cudaMemcpyDefault, d_stream),
             "stream_to_vector: cudaMemcpyAsync D2D",
             d_logger);
     }

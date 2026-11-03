@@ -73,7 +73,7 @@ int throttle_impl::work(int noutput_items,
     // Perform copy (throttle is just a pass-through data-wise)
     check_cuda_errors(
         cudaMemcpyAsync(
-            out, in, noutput_items * d_itemsize, cudaMemcpyDeviceToDevice, d_stream),
+            out, in, noutput_items * d_itemsize, cudaMemcpyDefault, d_stream),
         "throttle: cudaMemcpyAsync D2D",
         d_logger);
 

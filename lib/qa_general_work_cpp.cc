@@ -139,12 +139,10 @@ public:
 
         auto in = static_cast<const float*>(input_items[0]);
         auto out = static_cast<float*>(output_items[0]);
-        check_cuda_errors(cudaMemcpyAsync(out,
-                                          in,
-                                          static_cast<size_t>(n) * F,
-                                          cudaMemcpyDeviceToDevice,
-                                          d_stream),
-                          "gw_copy: D2D");
+        check_cuda_errors(
+            cudaMemcpyAsync(
+                out, in, static_cast<size_t>(n) * F, cudaMemcpyDefault, d_stream),
+            "gw_copy: D2D");
 
         consume_each(n);
         produce(0, n);
@@ -194,7 +192,7 @@ public:
                                             F,
                                             F,
                                             static_cast<size_t>(n_in),
-                                            cudaMemcpyDeviceToDevice,
+                                            cudaMemcpyDefault,
                                             d_stream),
                           "gw_interp: D2D 2D");
 
@@ -240,7 +238,7 @@ public:
                                             static_cast<size_t>(decim_) * F,
                                             F,
                                             static_cast<size_t>(n),
-                                            cudaMemcpyDeviceToDevice,
+                                            cudaMemcpyDefault,
                                             d_stream),
                           "gw_decim: D2D 2D");
 
@@ -280,12 +278,10 @@ public:
 
         auto in0 = static_cast<const float*>(input_items[0]);
         auto out = static_cast<float*>(output_items[0]);
-        check_cuda_errors(cudaMemcpyAsync(out,
-                                          in0,
-                                          static_cast<size_t>(n) * F,
-                                          cudaMemcpyDeviceToDevice,
-                                          d_stream),
-                          "gw_combine_2to1: D2D");
+        check_cuda_errors(
+            cudaMemcpyAsync(
+                out, in0, static_cast<size_t>(n) * F, cudaMemcpyDefault, d_stream),
+            "gw_combine_2to1: D2D");
 
         consume(0, n);
         consume(1, n);
@@ -325,12 +321,10 @@ public:
 
         auto in1 = static_cast<const float*>(input_items[1]);
         auto out = static_cast<float*>(output_items[0]);
-        check_cuda_errors(cudaMemcpyAsync(out,
-                                          in1,
-                                          static_cast<size_t>(n) * F,
-                                          cudaMemcpyDeviceToDevice,
-                                          d_stream),
-                          "gw_asym_combine_2to1: D2D");
+        check_cuda_errors(
+            cudaMemcpyAsync(
+                out, in1, static_cast<size_t>(n) * F, cudaMemcpyDefault, d_stream),
+            "gw_asym_combine_2to1: D2D");
 
         consume(0, n * 2);
         consume(1, n);
@@ -367,18 +361,14 @@ public:
         auto in = static_cast<const float*>(input_items[0]);
         auto out0 = static_cast<float*>(output_items[0]);
         auto out1 = static_cast<float*>(output_items[1]);
-        check_cuda_errors(cudaMemcpyAsync(out0,
-                                          in,
-                                          static_cast<size_t>(n) * F,
-                                          cudaMemcpyDeviceToDevice,
-                                          d_stream),
-                          "gw_split_1to2: D2D out0");
-        check_cuda_errors(cudaMemcpyAsync(out1,
-                                          in,
-                                          static_cast<size_t>(n) * F,
-                                          cudaMemcpyDeviceToDevice,
-                                          d_stream),
-                          "gw_split_1to2: D2D out1");
+        check_cuda_errors(
+            cudaMemcpyAsync(
+                out0, in, static_cast<size_t>(n) * F, cudaMemcpyDefault, d_stream),
+            "gw_split_1to2: D2D out0");
+        check_cuda_errors(
+            cudaMemcpyAsync(
+                out1, in, static_cast<size_t>(n) * F, cudaMemcpyDefault, d_stream),
+            "gw_split_1to2: D2D out1");
 
         consume_each(n);
         produce(0, n);
@@ -424,19 +414,17 @@ public:
         auto out0 = static_cast<float*>(output_items[0]);
         auto out1 = static_cast<float*>(output_items[1]);
 
-        check_cuda_errors(cudaMemcpyAsync(out0,
-                                          in,
-                                          static_cast<size_t>(n) * F,
-                                          cudaMemcpyDeviceToDevice,
-                                          d_stream),
-                          "gw_asym_split_1to2: D2D out0");
+        check_cuda_errors(
+            cudaMemcpyAsync(
+                out0, in, static_cast<size_t>(n) * F, cudaMemcpyDefault, d_stream),
+            "gw_asym_split_1to2: D2D out0");
         check_cuda_errors(cudaMemcpy2DAsync(out1,
                                             F,
                                             in,
                                             2 * F,
                                             F,
                                             static_cast<size_t>(n / 2),
-                                            cudaMemcpyDeviceToDevice,
+                                            cudaMemcpyDefault,
                                             d_stream),
                           "gw_asym_split_1to2: D2D 2D out1");
 
@@ -500,16 +488,16 @@ public:
         auto out = static_cast<float*>(output_items[0]);
 
         check_cuda_errors(
-            cudaMemcpyAsync(d_scratch_, in, bytes, cudaMemcpyDeviceToDevice, d_stream),
+            cudaMemcpyAsync(d_scratch_, in, bytes, cudaMemcpyDefault, d_stream),
             "gw_copy_stress: in→scratch");
         for (int i = 0; i < passes_; ++i) {
             check_cuda_errors(
                 cudaMemcpyAsync(
-                    d_scratch_, d_scratch_, bytes, cudaMemcpyDeviceToDevice, d_stream),
+                    d_scratch_, d_scratch_, bytes, cudaMemcpyDefault, d_stream),
                 "gw_copy_stress: bounce");
         }
         check_cuda_errors(
-            cudaMemcpyAsync(out, d_scratch_, bytes, cudaMemcpyDeviceToDevice, d_stream),
+            cudaMemcpyAsync(out, d_scratch_, bytes, cudaMemcpyDefault, d_stream),
             "gw_copy_stress: scratch→out");
 
         consume_each(n);
