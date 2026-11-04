@@ -92,14 +92,16 @@ host_mmap_ring::create(size_t requested_bytes,
     return ring;
 }
 
-void host_mmap_ring::register_pinned()
+void host_mmap_ring::register_pinned(bool both_halves)
 {
-    // Register only one half. post_work() splits wrap-crossing DMA
-    // into [0, N) segments.
-    cudaError_t rc = cudaHostRegister(d_base, d_bytes, cudaHostRegisterDefault);
+    // By default register only one half. post_work() splits wrap-crossing
+    // DMA into [0, N) segments. Zero-copy edges register both halves,
+    // since blocks pass pointers that run past N straight to CUDA copies.
+    const size_t bytes = both_halves ? 2 * d_bytes : d_bytes;
+    cudaError_t rc = cudaHostRegister(d_base, bytes, cudaHostRegisterDefault);
     check_cuda_errors(rc, "host_circ_create: cudaHostRegister failed", d_logger);
     d_registered = true;
-    d_logger->debug("host_mmap_ring: pinned {} bytes at {}", d_bytes, d_base);
+    d_logger->debug("host_mmap_ring: pinned {} bytes at {}", bytes, d_base);
 }
 
 char* host_mmap_ring::base_ptr() { return static_cast<char*>(d_base); }
