@@ -19,11 +19,11 @@ touches its data, which measures only the copies on discrete GPUs and
 measures nothing meaningful on zero-copy edges.
 
 Usage:
-    python benchmark_transfer.py                          # all modes, 1 chain
-    python benchmark_transfer.py --chains 3               # 3 parallel chains
-    python benchmark_transfer.py --mode h2d --chains 1    # H2D only
-    python benchmark_transfer.py --buff-exp-min 18 --buff-exp-max 22
-    python benchmark_transfer.py --passthru nop           # copies only
+    benchmark_gr_cuda_transfer.py                          # all modes, 1 chain
+    benchmark_gr_cuda_transfer.py --chains 3               # 3 parallel chains
+    benchmark_gr_cuda_transfer.py --mode h2d --chains 1    # H2D only
+    benchmark_gr_cuda_transfer.py --buff-exp-min 18 --buff-exp-max 22
+    benchmark_gr_cuda_transfer.py --passthru nop           # copies only
 """
 
 import argparse
@@ -151,13 +151,19 @@ def zero_copy_status():
         import cupy as cp
     except ImportError:
         return "unknown (CuPy not installed)"
-    rt = cp.cuda.runtime
-    device = cp.cuda.Device().id
-    integrated = rt.deviceGetAttribute(rt.cudaDevAttrIntegrated, device)
-    host_page_tables = rt.deviceGetAttribute(
-        rt.cudaDevAttrPageableMemoryAccessUsesHostPageTables, device
-    )
-    if integrated and host_page_tables:
+    try:
+        rt = cp.cuda.runtime
+        device = cp.cuda.Device().id
+        integrated = rt.deviceGetAttribute(rt.cudaDevAttrIntegrated, device)
+        host_page_tables = rt.deviceGetAttribute(
+            rt.cudaDevAttrPageableMemoryAccessUsesHostPageTables, device
+        )
+        host_pointer_ok = rt.deviceGetAttribute(
+            rt.cudaDevAttrCanUseHostPointerForRegisteredMem, device
+        )
+    except Exception as e:
+        return f"unknown ({e})"
+    if integrated and host_page_tables and host_pointer_ok:
         return "yes (integrated GPU, H2D/D2H edges share host memory)"
     return "no (H2D/D2H edges copy between host and device)"
 

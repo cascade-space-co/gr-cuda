@@ -43,7 +43,7 @@ int copy_impl::work(int noutput_items,
     check_cuda_errors(
         cudaMemcpyAsync(
             out, in, noutput_items * d_itemsize, cudaMemcpyDefault, d_stream),
-        "copy: cudaMemcpyAsync D2D",
+        "copy: cudaMemcpyAsync",
         d_logger);
 
     // Tell runtime system how many output items we produced.

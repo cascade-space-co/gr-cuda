@@ -217,3 +217,8 @@ GR_ADD_TEST(
     ${PYTHON_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/qa_type_converters.py
 )
+GR_ADD_TEST(
+    qa_zero_copy_wrap
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_zero_copy_wrap.py
+)

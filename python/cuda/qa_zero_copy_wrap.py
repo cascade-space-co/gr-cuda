@@ -52,7 +52,10 @@ def zero_copy_active():
     host_page_tables = rt.deviceGetAttribute(
         rt.cudaDevAttrPageableMemoryAccessUsesHostPageTables, device
     )
-    return bool(integrated and host_page_tables)
+    host_pointer_ok = rt.deviceGetAttribute(
+        rt.cudaDevAttrCanUseHostPointerForRegisteredMem, device
+    )
+    return bool(integrated and host_page_tables and host_pointer_ok)
 
 
 @unittest.skipUnless(zero_copy_active(), "zero-copy is only used on integrated GPUs")
