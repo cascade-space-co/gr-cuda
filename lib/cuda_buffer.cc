@@ -208,12 +208,15 @@ void cuda_buffer::on_transfer_type_set(const transfer_type& type)
         return;
     }
 
+    // Zero-copy blocks receive pointers anywhere in the 2N region and pass
+    // them straight to CUDA copies, which reject ranges that run past the
+    // end of a registration, so the whole 2N region must be registered.
+    d_zero_copy = use_zero_copy(d_logger);
     d_host_ring = detail::host_mmap_ring::create(d_aligned_bytes, d_logger);
-    d_host_ring->register_pinned();
+    d_host_ring->register_pinned(d_zero_copy);
     d_base = d_host_ring->base_ptr();
 
-    if (use_zero_copy(d_logger)) {
-        d_zero_copy = true;
+    if (d_zero_copy) {
         d_device_ring.reset();
         d_cuda_buf = d_base;
 

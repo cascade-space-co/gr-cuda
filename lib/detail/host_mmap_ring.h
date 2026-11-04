@@ -39,7 +39,13 @@ public:
     static std::unique_ptr<host_mmap_ring>
     create(size_t requested_bytes, const std::shared_ptr<gr::logger>& logger = nullptr);
 
-    void register_pinned();
+    /*!
+     * Pin the ring for CUDA. By default only the first half is registered,
+     * so CUDA copies must stay within [0, N). With \p both_halves the full
+     * 2N range is registered, letting CUDA copies start anywhere in [0, N)
+     * and run past N into the alias.
+     */
+    void register_pinned(bool both_halves = false);
     char* base_ptr();
 
 private:
