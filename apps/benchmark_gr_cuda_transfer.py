@@ -11,11 +11,19 @@ Measures Host-to-Device (H2D), Device-to-Host (D2H), and full round-trip
 transfer rates through the cuda_buffer pipeline for various buffer sizes
 and numbers of parallel chains.
 
+The GPU block in the middle of each chain is a multiply by 1 by default, so
+a kernel reads and writes every sample.  On integrated GPUs with zero-copy
+edges there is no host/device copy, and the kernel touching the shared host
+memory is the real cost.  ``--passthru nop`` instead uses a block that never
+touches its data, which measures only the copies on discrete GPUs and
+measures nothing meaningful on zero-copy edges.
+
 Usage:
     python benchmark_transfer.py                          # all modes, 1 chain
     python benchmark_transfer.py --chains 3               # 3 parallel chains
     python benchmark_transfer.py --mode h2d --chains 1    # H2D only
     python benchmark_transfer.py --buff-exp-min 18 --buff-exp-max 22
+    python benchmark_transfer.py --passthru nop           # copies only
 """
 
 import argparse
@@ -29,37 +37,44 @@ from gnuradio import blocks, cuda, gr
 BUFFER_MULTIPLE = 32
 
 
-def make_chain(mode, buff_len):
+def make_passthru(passthru):
+    """GPU block in the middle of each chain."""
+    if passthru == "kernel":
+        return cuda.multiply_const_cc(1.0)
+    return cuda.nop(gr.sizeof_gr_complex)
+
+
+def make_chain(mode, buff_len, passthru_kind):
     """Build one transfer chain.
 
     Returns (blocks_list, connections, meter_block).
     meter_block is the block whose nitems_read(0) gives the item count.
     """
     if mode == "h2d":
-        # CPU -> GPU: null_source writes into cuda_buffer, nop forces the DMA,
-        # null_sink consumes on device.  Without the nop block the DMA event
-        # synchronisation is not enforced and the counter races ahead.
+        # CPU -> GPU: null_source writes into cuda_buffer, the GPU block reads
+        # it, null_sink consumes on device.  Without a GPU block in between the
+        # DMA event synchronisation is not enforced and the counter races ahead.
         src = blocks.null_source(gr.sizeof_gr_complex)
-        passthru = cuda.nop(gr.sizeof_gr_complex)
+        passthru = make_passthru(passthru_kind)
         sink = cuda.null_sink(gr.sizeof_gr_complex)
         blk_list = [src, passthru, sink]
         conns = [(src, 0, passthru, 0), (passthru, 0, sink, 0)]
         meter = sink
 
     elif mode == "d2h":
-        # GPU -> CPU: null_source produces on device, nop forces the DMA,
-        # CPU null_sink reads via cuda_buffer D2H path.
+        # GPU -> CPU: null_source produces on device, the GPU block writes the
+        # D2H buffer, CPU null_sink reads via cuda_buffer D2H path.
         src = cuda.null_source(gr.sizeof_gr_complex, memset=False)
-        passthru = cuda.nop(gr.sizeof_gr_complex)
+        passthru = make_passthru(passthru_kind)
         sink = blocks.null_sink(gr.sizeof_gr_complex)
         blk_list = [src, passthru, sink]
         conns = [(src, 0, passthru, 0), (passthru, 0, sink, 0)]
         meter = sink
 
     elif mode == "full":
-        # Full round-trip: CPU -> H2D -> GPU nop -> D2H -> CPU
+        # Full round-trip: CPU -> H2D -> GPU block -> D2H -> CPU
         src = blocks.null_source(gr.sizeof_gr_complex)
-        passthru = cuda.nop(gr.sizeof_gr_complex)
+        passthru = make_passthru(passthru_kind)
         sink = blocks.null_sink(gr.sizeof_gr_complex)
         blk_list = [src, passthru, sink]
         conns = [(src, 0, passthru, 0), (passthru, 0, sink, 0)]
@@ -78,7 +93,7 @@ def make_chain(mode, buff_len):
     return blk_list, conns, meter
 
 
-def run_benchmark(mode, num_chains, buff_len, duration, warmup=1.0):
+def run_benchmark(mode, num_chains, buff_len, duration, passthru, warmup=1.0):
     """Run a single benchmark configuration.
 
     Returns (total_items, elapsed_seconds).
@@ -88,7 +103,7 @@ def run_benchmark(mode, num_chains, buff_len, duration, warmup=1.0):
     all_blocks = []  # prevent garbage collection
 
     for _ in range(num_chains):
-        blk_list, conns, meter = make_chain(mode, buff_len)
+        blk_list, conns, meter = make_chain(mode, buff_len, passthru)
         all_blocks.extend(blk_list)
         meters.append(meter)
         for s, sp, d, dp in conns:
@@ -122,6 +137,29 @@ def format_bytes(n):
     if n >= 1024:
         return f"{n / 1024:.0f} KiB"
     return f"{n} B"
+
+
+PASSTHRU_LABELS = {
+    "kernel": "multiply_const_cc(1), a kernel touches every sample",
+    "nop": "nop, data is never touched",
+}
+
+
+def zero_copy_status():
+    """Mirror cuda_buffer's zero-copy decision for the current device."""
+    try:
+        import cupy as cp
+    except ImportError:
+        return "unknown (CuPy not installed)"
+    rt = cp.cuda.runtime
+    device = cp.cuda.Device().id
+    integrated = rt.deviceGetAttribute(rt.cudaDevAttrIntegrated, device)
+    host_page_tables = rt.deviceGetAttribute(
+        rt.cudaDevAttrPageableMemoryAccessUsesHostPageTables, device
+    )
+    if integrated and host_page_tables:
+        return "yes (integrated GPU, H2D/D2H edges share host memory)"
+    return "no (H2D/D2H edges copy between host and device)"
 
 
 MODE_LABELS = {
@@ -172,6 +210,13 @@ def main():
         default=22,
         help="Max buffer size as power of 2 (default: 22 = 4M items)",
     )
+    parser.add_argument(
+        "--passthru",
+        choices=["kernel", "nop"],
+        default="kernel",
+        help="GPU block between source and sink: 'kernel' multiplies every "
+        "sample by 1, 'nop' never touches its data (default: kernel)",
+    )
     args = parser.parse_args()
 
     modes = ["h2d", "d2h", "full"] if args.mode == "all" else [args.mode]
@@ -183,6 +228,8 @@ def main():
     print(f"  Duration:     {args.duration}s per measurement ({args.warmup}s warmup)")
     print(f"  Item size:    {item_bytes} bytes (gr_complex)")
     print(f"  Buffer sizes: 2^{args.buff_exp_min} .. 2^{args.buff_exp_max} items")
+    print(f"  GPU block:    {PASSTHRU_LABELS[args.passthru]}")
+    print(f"  Zero-copy:    {zero_copy_status()}")
     print()
 
     for mode in modes:
@@ -197,7 +244,7 @@ def main():
             buff_len = 2**exp
             buf_bytes_str = format_bytes(buff_len * item_bytes)
             total_items, elapsed = run_benchmark(
-                mode, args.chains, buff_len, args.duration, args.warmup
+                mode, args.chains, buff_len, args.duration, args.passthru, args.warmup
             )
             gsps = total_items / elapsed / 1e9
             gbps = gsps * item_bytes
@@ -209,7 +256,7 @@ def main():
 
     print("Note: NVIDIA profiling tools (nsys, ncu) may report higher raw DMA")
     print("transfer rates. This benchmark measures end-to-end throughput including")
-    print("GNU Radio scheduler overhead and PCIe round-trip latency.")
+    print("GNU Radio scheduler overhead and host/device transfer latency.")
 
 
 if __name__ == "__main__":
