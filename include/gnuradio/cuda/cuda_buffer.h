@@ -199,19 +199,21 @@ public:
 
 protected:
     /*!
-     * \brief Allocate double-mapped host + device circular buffers.
+     * \brief Size the double-mapped host + device circular buffers.
      *
      * Replaces the vmcircbuf path with CUDA VMM for device memory and
-     * POSIX mmap + cudaHostRegister for pinned host memory.
+     * POSIX mmap + cudaHostRegister for pinned host memory.  The rings
+     * themselves are allocated in on_transfer_type_set().
      */
     bool allocate_buffer(int nitems) override;
 
     /*!
-     * \brief Allocate host ring when the transfer type requires it.
+     * \brief Allocate the rings the transfer type requires.
      *
      * Called exactly once by gr::buffer::set_transfer_type().
-     * H2D and D2H edges get a pinned, double-mapped host ring;
-     * D2D edges skip host allocation entirely.
+     * H2D and D2H edges get a pinned, double-mapped host ring, plus a
+     * device ring unless they are zero-copy; D2D edges get only a device
+     * ring.
      */
     void on_transfer_type_set(const transfer_type& type) override;
 

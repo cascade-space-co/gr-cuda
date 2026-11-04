@@ -62,7 +62,8 @@ unsigned int cuda_event_flags()
  * Only on integrated GPUs, where host and device memory are the same DRAM.
  * The GPU must also reach system memory through the CPU's page tables, so
  * that it honours the host ring's double mapping (the second half aliasing
- * the first).
+ * the first), and accept registered host memory at its host address, since
+ * blocks are handed host pointers.
  */
 bool use_zero_copy(const gr::logger_ptr& log)
 {
@@ -70,6 +71,7 @@ bool use_zero_copy(const gr::logger_ptr& log)
     check_cuda_errors(cudaGetDevice(&device), "cuda_buffer: cudaGetDevice", log);
     int integrated = 0;
     int host_page_tables = 0;
+    int host_pointer_ok = 0;
     check_cuda_errors(
         cudaDeviceGetAttribute(&integrated, cudaDevAttrIntegrated, device),
         "cuda_buffer: cudaDevAttrIntegrated",
@@ -80,8 +82,13 @@ bool use_zero_copy(const gr::logger_ptr& log)
                                device),
         "cuda_buffer: cudaDevAttrPageableMemoryAccessUsesHostPageTables",
         log);
+    check_cuda_errors(
+        cudaDeviceGetAttribute(
+            &host_pointer_ok, cudaDevAttrCanUseHostPointerForRegisteredMem, device),
+        "cuda_buffer: cudaDevAttrCanUseHostPointerForRegisteredMem",
+        log);
 
-    return integrated && host_page_tables;
+    return integrated && host_page_tables && host_pointer_ok;
 }
 
 } // namespace
@@ -147,11 +154,12 @@ cuda_buffer::~cuda_buffer()
 }
 
 /*!
- * \brief Allocate the double-mapped host + device circular buffers.
+ * \brief Size the double-mapped host + device circular buffers.
  *
  * Called from the cuda_buffer constructor (the base buffer_double_mapped
- * used defer_alloc_t, so no vmcircbuf was created).  Sets d_base,
- * d_bufsize, d_cuda_buf from our own CUDA VMM + mmap allocations.
+ * used defer_alloc_t, so no vmcircbuf was created).  Sets d_bufsize and
+ * d_aligned_bytes; on_transfer_type_set() allocates the rings once the edge
+ * type shows which ones are needed.
  */
 bool cuda_buffer::allocate_buffer(int nitems)
 {
@@ -192,12 +200,7 @@ bool cuda_buffer::allocate_buffer(int nitems)
                     aligned_bytes,
                     d_bufsize);
 
-
-    // Device: VMM double-mapped circular buffer (owned by RAII helper).
-    d_device_ring = detail::device_vmm_ring::create(aligned_bytes, d_logger);
-    d_cuda_buf = d_device_ring->data();
-
-    // Host ring is deferred to on_transfer_type_set(); D2D edges skip it.
+    // Rings are deferred to on_transfer_type_set().
     return true;
 }
 
@@ -205,6 +208,8 @@ void cuda_buffer::on_transfer_type_set(const transfer_type& type)
 {
     if (type == transfer_type::DEVICE_TO_DEVICE) {
         d_logger->debug("cuda_buffer: D2D edge — skipping host allocation");
+        d_device_ring = detail::device_vmm_ring::create(d_aligned_bytes, d_logger);
+        d_cuda_buf = d_device_ring->data();
         return;
     }
 
@@ -216,8 +221,11 @@ void cuda_buffer::on_transfer_type_set(const transfer_type& type)
     d_host_ring->register_pinned(d_zero_copy);
     d_base = d_host_ring->base_ptr();
 
-    if (d_zero_copy) {
-        d_device_ring.reset();
+    if (!d_zero_copy) {
+        // Device: VMM double-mapped circular buffer (owned by RAII helper).
+        d_device_ring = detail::device_vmm_ring::create(d_aligned_bytes, d_logger);
+        d_cuda_buf = d_device_ring->data();
+    } else {
         d_cuda_buf = d_base;
 
         static std::once_flag logged;
