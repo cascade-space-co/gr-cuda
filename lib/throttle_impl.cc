@@ -74,7 +74,7 @@ int throttle_impl::work(int noutput_items,
     check_cuda_errors(
         cudaMemcpyAsync(
             out, in, noutput_items * d_itemsize, cudaMemcpyDefault, d_stream),
-        "throttle: cudaMemcpyAsync D2D",
+        "throttle: cudaMemcpyAsync",
         d_logger);
 
     // Throttling Logic (happens on CPU side to delay next scheduler call)

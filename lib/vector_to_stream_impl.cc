@@ -41,7 +41,8 @@ int vector_to_stream_impl::work(int noutput_items,
     size_t total_bytes = noutput_items * d_itemsize;
 
     if (total_bytes > 0) {
-        // Perform Device-to-Device copy.
+        // Copy between the buffers; either may be host memory on zero-copy
+        // edges, and cudaMemcpyDefault resolves the direction.
         // This is equivalent to the CPU implementation which does:
         // memcpy(out, in, noutput_items * block_size);
         // Here, noutput_items is the number of scalars produced.
@@ -49,7 +50,7 @@ int vector_to_stream_impl::work(int noutput_items,
         // effectively flattens the vectors into a stream of scalars.
         check_cuda_errors(
             cudaMemcpyAsync(out, in, total_bytes, cudaMemcpyDefault, d_stream),
-            "vector_to_stream: cudaMemcpyAsync D2D",
+            "vector_to_stream: cudaMemcpyAsync",
             d_logger);
     }
 
