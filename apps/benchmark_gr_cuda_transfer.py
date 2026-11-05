@@ -13,7 +13,9 @@ and numbers of parallel chains.
 
 Buffer sizes are given in bytes, as powers of 2, and are the size of each
 edge's ring.  Every work() call is a quarter of the ring (RING_CALLS), so
-producer and consumer don't take turns on the same two halves.
+producer and consumer don't take turns on the same two halves.  cuda_buffer
+rounds rings up to the GPU's VMM granularity (2 MiB on GB10), so smaller
+rings are larger than their label.
 
 The GPU block in the middle of each chain is a multiply by 1, so a kernel
 reads and writes every sample, as a real GPU block would.  On integrated GPUs
@@ -230,6 +232,8 @@ def main():
     args = parser.parse_args()
 
     item_bytes = gr.sizeof_gr_complex
+    if args.buff_exp_min > args.buff_exp_max:
+        parser.error("--buff-exp-min must not exceed --buff-exp-max")
     if 2**args.buff_exp_min < RING_CALLS * item_bytes:
         parser.error(f"--buff-exp-min: the ring must hold at least {RING_CALLS} items")
     if 2**args.buff_exp_max // item_bytes > MAX_RING_ITEMS:
@@ -257,7 +261,7 @@ def main():
     for mode in modes:
         print(f"--- {MODE_LABELS[mode]} ---")
         print(
-            f"  {'ring_bytes':<12s}  {'ring':>10s}  {'call':>10s}"
+            f"  {'ring_exp':<12s}  {'ring':>10s}  {'call':>10s}"
             f"  {'total_items':<18s}  {'Gsps':<8s}  {'GB/s':<8s}"
         )
         print(f"  {'─' * 12}  {'─' * 10}  {'─' * 10}  {'─' * 18}  {'─' * 8}  {'─' * 8}")
