@@ -146,7 +146,7 @@ Benchmarked on an **NVIDIA DGX Spark (GB10)** and an **NVIDIA RTX PRO 6000 Black
 | CuPy FFT C64→C64 (Python) | 13.5 Gsps | 88.3 Gsps |
 | FFTW C64→C64 (CPU baseline) | 0.45 Gsps | 1.01 Gsps |
 
-\* The GB10 is an integrated GPU, so its host/device edges are zero-copy and nothing is copied; its numbers measure a kernel touching every sample in shared memory. The RTX PRO 6000 numbers measure PCIe copies. Both saturate from the default 32 MiB ring.
+\* The GB10 is an integrated GPU, so its host/device edges are zero-copy and nothing is copied; its numbers measure a kernel touching every sample in shared memory. The RTX PRO 6000 numbers are end-to-end through PCIe, with the kernel in the path. Both saturate from the default 32 MiB ring.
 
 CuPy blocks track within 5% of C++ CUDA blocks -- write your GPU blocks in Python with no meaningful performance penalty.
 
