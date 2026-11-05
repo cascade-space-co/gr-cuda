@@ -80,6 +80,11 @@ PYBIND11_MODULE(cuda_python, m)
     py::class_<gr::cuda_buffer, std::shared_ptr<gr::cuda_buffer>>(m, "cuda_buffer")
         .def_readonly_static("type", &gr::cuda_buffer::type);
 
+    m.def("zero_copy_enabled",
+          &gr::cuda_buffer::zero_copy_enabled,
+          "Whether H2D/D2H edges on the current device share host memory with "
+          "the GPU (integrated GPUs) instead of copying");
+
     /**************************************/
     // The following comment block is used for
     // gr_modtool to insert binding function calls

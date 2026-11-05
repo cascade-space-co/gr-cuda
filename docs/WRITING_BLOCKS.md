@@ -31,7 +31,11 @@ stream, is not covered by `cuda_buffer`'s event ordering.
 - **C++**: pass `d_stream` to every kernel launch
   (`<<<grid, block, 0, d_stream>>>`) and every CUDA / library API call
   (`cudaMemcpyAsync(..., d_stream)`, `cufftSetStream(plan, d_stream)`,
-  `cublasSetStream(handle, d_stream)`, …).
+  `cublasSetStream(handle, d_stream)`, …). Always copy to or from
+  `input_items` / `output_items` with `cudaMemcpyDefault`, never an explicit
+  direction such as `cudaMemcpyDeviceToDevice`: a block cannot know what its
+  buffers are backed by (on integrated GPUs like DGX Spark, some are host
+  memory), and `cudaMemcpyDefault` lets CUDA work it out.
 - **Python**: `cuda.sync_block` and friends wrap `work()` / `general_work()` in
   `with self.stream:`, so any `cp.*` call inside picks up the stream
   automatically.
