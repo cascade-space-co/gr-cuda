@@ -65,7 +65,7 @@ unsigned int cuda_event_flags()
  * the first), and accept registered host memory at its host address, since
  * blocks are handed host pointers.
  */
-bool use_zero_copy(const gr::logger_ptr& log)
+bool use_zero_copy(const gr::logger_ptr& log = nullptr)
 {
     int device = 0;
     check_cuda_errors(cudaGetDevice(&device), "cuda_buffer: cudaGetDevice", log);
@@ -97,6 +97,8 @@ namespace gr {
 
 constexpr size_t CUDA_MIN_BUFFER_BYTES = 32 << 20; // 32 MB
 buffer_type cuda_buffer::type(buftype<cuda_buffer, cuda_buffer>{});
+
+bool cuda_buffer::zero_copy_enabled() { return use_zero_copy(); }
 
 cuda_buffer::cuda_buffer(int nitems,
                          size_t sizeof_item,

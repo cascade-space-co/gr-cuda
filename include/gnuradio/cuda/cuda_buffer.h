@@ -188,6 +188,15 @@ public:
     void wait_read_done(cudaStream_t producer_stream);
 
     /*!
+     * \brief Whether H2D/D2H edges on the current device are zero-copy.
+     *
+     * True on integrated GPUs that share host memory through the CPU's
+     * page tables; such edges use the host ring on both sides.  Throws if
+     * the device attributes can't be queried.
+     */
+    static bool zero_copy_enabled();
+
+    /*!
      * \brief Factory method used by GNU Radio's buffer allocation machinery.
      */
     static buffer_sptr make_buffer(int nitems,
