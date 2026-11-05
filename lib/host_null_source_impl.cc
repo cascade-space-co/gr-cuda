@@ -34,7 +34,8 @@ int host_null_source_impl::work(int noutput_items,
                                 gr_vector_void_star& output_items)
 {
     if (d_memset)
-        std::memset(output_items[0], 0, static_cast<size_t>(noutput_items) * d_itemsize);
+        std::memset(
+            output_items[0], 0, static_cast<size_t>(noutput_items) * d_itemsize);
 
     return noutput_items;
 }
