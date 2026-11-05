@@ -38,6 +38,7 @@ list(
     nop_python.cc
     cuda_helpers_python.cc
     null_source_python.cc
+    host_null_source_python.cc
     null_sink_python.cc
     probe_rate_python.cc
     throttle_python.cc
