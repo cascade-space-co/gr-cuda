@@ -18,7 +18,6 @@ import os
 import threading
 import unittest
 
-import cupy as cp
 import numpy as np
 from gnuradio import blocks, gr, gr_unittest
 
@@ -46,16 +45,10 @@ TIMEOUT_S = 60
 
 
 def zero_copy_active():
-    rt = cp.cuda.runtime
-    device = cp.cuda.Device().id
-    integrated = rt.deviceGetAttribute(rt.cudaDevAttrIntegrated, device)
-    host_page_tables = rt.deviceGetAttribute(
-        rt.cudaDevAttrPageableMemoryAccessUsesHostPageTables, device
-    )
-    host_pointer_ok = rt.deviceGetAttribute(
-        rt.cudaDevAttrCanUseHostPointerForRegisteredMem, device
-    )
-    return bool(integrated and host_page_tables and host_pointer_ok)
+    try:
+        return cuda.zero_copy_enabled()
+    except RuntimeError:
+        return False
 
 
 @unittest.skipUnless(zero_copy_active(), "zero-copy is only used on integrated GPUs")
