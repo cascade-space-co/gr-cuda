@@ -231,9 +231,7 @@ def main():
 
     item_bytes = gr.sizeof_gr_complex
     if 2**args.buff_exp_min < RING_CALLS * item_bytes:
-        parser.error(
-            f"--buff-exp-min: the ring must hold at least {RING_CALLS} items"
-        )
+        parser.error(f"--buff-exp-min: the ring must hold at least {RING_CALLS} items")
     if 2**args.buff_exp_max // item_bytes > MAX_RING_ITEMS:
         parser.error(
             f"--buff-exp-max: the ring must hold at most {MAX_RING_ITEMS:,} items"
