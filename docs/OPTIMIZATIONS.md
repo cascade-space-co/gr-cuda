@@ -100,12 +100,12 @@ This puts the thread to sleep and yields the CPU core while waiting:
 gpu_busy_wait = false
 ```
 
-> **Note:** The performance impact is system-dependent. Sleeping
-> introduces OS thread wake-up latency each time an event completes,
-> which can measurably reduce transfer bandwidth on some systems (e.g.
-> PCIe 5.0 → RTX PRO 6000). Profile both modes on your hardware with
-> the transfer benchmark (`benchmark_gr_cuda_transfer.py`) before
-> choosing.
+> **Note:** Busy-waiting gave the highest throughput in the transfer
+> benchmark, especially with small buffers, but each waiting thread
+> keeps a CPU core spinning. That cost grows with the number of GPU
+> blocks. Busy-wait is recommended for maximum performance with a small
+> number of GPU blocks. Profile both modes on your hardware with
+> `benchmark_gr_cuda_transfer.py` before choosing.
 
 ## 5. CuPy temporary allocations
 

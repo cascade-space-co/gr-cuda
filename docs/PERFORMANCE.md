@@ -3,34 +3,37 @@
 All numbers are single-chain, `gr_complex` (complex64, 8 bytes/item).
 Run the benchmarks on your own system with `benchmark_gr_cuda_transfer.py` and `benchmark_gr_cuda_fft.py` (installed to `bin/`).
 
-## PCIe transfer throughput
+## Transfer throughput
+
+The GPU block in each chain is `multiply_const_cc(1)`, so a kernel reads and writes every sample. Buffer sizes are the ring size per edge; each `work()` call is a quarter of the ring. All numbers at default settings (`--passthru kernel`, `gpu_busy_wait = true`, 10s duration, 1s warmup), with `--buff-exp-min 20 --buff-exp-max 32` (rings from 1 MiB to 4 GiB; `cuda_buffer` rounds rings below the GPU's 2 MiB allocation granularity up to 2 MiB).
 
 ### NVIDIA RTX PRO 6000 Blackwell — AMD EPYC 9335, PCIe 5.0 x16
 
-| Direction | Peak GB/s | Peak Gsps | Best buffer size |
-|-----------|----------:|----------:|:----------------:|
-| H2D (CPU → GPU)       | 54.1 | 6.76 | 2^19 |
-| D2H (GPU → CPU)       | 56.4 | 7.05 | 2^22 |
-| Full round-trip        | 38.7 | 4.84 | 2^19 |
+| Direction | Peak GB/s | Peak Gsps |
+|-----------|----------:|----------:|
+| H2D (CPU → GPU)       | 56.8 | 7.10 |
+| D2H (GPU → CPU)       | 54.0 | 6.75 |
+| Full round-trip        | 40.5 | 5.06 |
 
-### NVIDIA DGX Spark (GB10) — ARM Cortex-X925, PCIe 5.0 x16
+### NVIDIA DGX Spark (GB10) — ARM Cortex-X925, unified memory
 
-| Direction | Peak GB/s | Peak Gsps | Best buffer size |
-|-----------|----------:|----------:|:----------------:|
-| H2D (CPU → GPU)       | 58.3 | 7.28 | 2^22 |
-| D2H (GPU → CPU)       | 59.1 | 7.39 | 2^22 |
-| Full round-trip        | 29.2 | 3.65 | 2^22 |
+| Direction | Peak GB/s | Peak Gsps |
+|-----------|----------:|----------:|
+| H2D (CPU → GPU)       | 116.0 | 14.50 |
+| D2H (GPU → CPU)       | 108.8 | 13.60 |
+| Full round-trip        | 82.3 | 10.28 |
 
 ### Notes
 
-- **H2D and D2H** both approach theoretical PCIe 5.0 x16 bandwidth (~56-59 GB/s depending on platform and direction).
-- **Full round-trip** is limited by serialisation of H2D and D2H within each batch.
-- **D2H asymmetry** varies by platform. The GB10 is nearly symmetric (H2D ≈ D2H), while the RTX PRO 6000 shows higher H2D latency at small buffer sizes.
-- **Buffer size sweet spot** is platform-dependent. The GB10 needs large buffers (2^20+) for H2D but saturates D2H early; the RTX PRO 6000 peaks around 2^19. Start with `set_output_multiple()` of 2^19 to 2^22.
+- **RTX PRO 6000**: all directions are within about 10% of their peak from a 16 MiB buffer.
+- **GB10**: H2D and D2H edges are zero-copy on integrated GPUs, so no host/device copy takes place. These numbers measure the kernel working on shared memory and aren't comparable with the PCIe ones. All directions are within about 10% of their peak from a 16 MiB buffer.
+- **GB10 CPU sources**: on zero-copy H2D edges the CPU waits for the GPU to finish reading before it writes again, so the two take turns. The benchmark's CPU source writes nothing; a source that writes its data will be slower.
+- **GB10 small buffers**: 4–8 MiB buffers measured higher than the table (up to 24.3 Gsps H2D at 8 MiB). With a read and a write per sample that's about 389 GB/s, more than the 273 GB/s DRAM peak, so these buffers are likely served from on-chip cache, which flowgraphs with more edges won't fit in. The table lists peaks from 16 MiB up.
+- **`gpu_busy_wait = false`** gave lower results at small and mid-sized buffers, e.g. 6.74 Gsps H2D at 32 MiB on the GB10 and 3.41 Gsps at 4 MiB on the RTX PRO 6000. Each wait then includes waking a sleeping thread, a cost paid on every `work()` call; smaller buffers mean more calls per second, so it weighs more.
 
 ## FFT throughput
 
-GPU benchmarks run entirely on-device (GPU null_source → FFT → GPU null_sink) to isolate compute from PCIe overhead.
+GPU benchmarks run entirely on-device (GPU null_source → FFT → GPU null_sink) to isolate compute from host/device transfers.
 Batch size is auto-scaled to ~64 MiB per `work()` call. All numbers at default settings (10s duration, 1s warmup).
 
 ### NVIDIA RTX PRO 6000 Blackwell — AMD EPYC 9335
