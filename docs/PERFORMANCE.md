@@ -5,7 +5,7 @@ Run the benchmarks on your own system with `benchmark_gr_cuda_transfer.py` and `
 
 ## Transfer throughput
 
-The GPU block in each chain is `multiply_const_cc(1)`, so a kernel reads and writes every sample. Buffer sizes are the ring size per edge; each `work()` call is a quarter of the ring. All numbers at default settings (`gpu_busy_wait = true`, 10s duration, 1s warmup), with `--buff-exp-min 20 --buff-exp-max 32` (rings from 1 MiB to 4 GiB).
+The GPU block in each chain is `multiply_const_cc(1)`, so a kernel reads and writes every sample. Buffer sizes are the ring size per edge; each `work()` call is a quarter of the ring. All numbers at default settings (`--passthru kernel`, `gpu_busy_wait = true`, 10s duration, 1s warmup), with `--buff-exp-min 20 --buff-exp-max 32` (rings from 1 MiB to 4 GiB).
 
 ### NVIDIA RTX PRO 6000 Blackwell — AMD EPYC 9335, PCIe 5.0 x16
 
@@ -27,12 +27,13 @@ The GPU block in each chain is `multiply_const_cc(1)`, so a kernel reads and wri
 
 - **RTX PRO 6000**: all directions are within about 10% of their peak from a 16 MiB buffer.
 - **GB10**: H2D and D2H edges are zero-copy on integrated GPUs, so no host/device copy takes place. These numbers measure the kernel working on shared memory and aren't comparable with the PCIe ones. All directions are within about 10% of their peak from a 16 MiB buffer.
-- **GB10 small buffers**: 4–8 MiB buffers measured higher than the table (up to 24.3 Gsps H2D at 8 MiB). That's more memory traffic than DRAM can deliver, so these buffers are likely served from on-chip cache, which flowgraphs with more edges won't fit in. The table lists peaks from 16 MiB up.
+- **GB10 CPU sources**: on zero-copy H2D edges the CPU waits for the GPU to finish reading before it writes again, so the two take turns. The benchmark's CPU source writes nothing; a source that writes its data will be slower.
+- **GB10 small buffers**: 4–8 MiB buffers measured higher than the table (up to 24.3 Gsps H2D at 8 MiB). With a read and a write per sample that's about 389 GB/s, more than the 273 GB/s DRAM peak, so these buffers are likely served from on-chip cache, which flowgraphs with more edges won't fit in. The table lists peaks from 16 MiB up.
 - **`gpu_busy_wait = false`** gave lower results at small and mid-sized buffers, e.g. 6.74 Gsps H2D at 32 MiB on the GB10 and 3.41 Gsps at 4 MiB on the RTX PRO 6000. Each wait then includes waking a sleeping thread, a cost paid on every `work()` call; smaller buffers mean more calls per second, so it weighs more.
 
 ## FFT throughput
 
-GPU benchmarks run entirely on-device (GPU null_source → FFT → GPU null_sink) to isolate compute from PCIe overhead.
+GPU benchmarks run entirely on-device (GPU null_source → FFT → GPU null_sink) to isolate compute from host/device transfers.
 Batch size is auto-scaled to ~64 MiB per `work()` call. All numbers at default settings (10s duration, 1s warmup).
 
 ### NVIDIA RTX PRO 6000 Blackwell — AMD EPYC 9335

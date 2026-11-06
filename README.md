@@ -139,9 +139,9 @@ Benchmarked on an **NVIDIA DGX Spark (GB10)** and an **NVIDIA RTX PRO 6000 Black
 
 | Benchmark | GB10 | RTX PRO 6000 |
 |-----------|-----:|-------------:|
-| H2D transfer\* | 116.0 GB/s | 56.8 GB/s |
-| D2H transfer\* | 108.8 GB/s | 54.0 GB/s |
-| Full round-trip\* | 82.3 GB/s | 40.5 GB/s |
+| H2D transfer\* | 116.0 GB/s (zero-copy) | 56.8 GB/s |
+| D2H transfer\* | 108.8 GB/s (zero-copy) | 54.0 GB/s |
+| Full round-trip\* | 82.3 GB/s (zero-copy) | 40.5 GB/s |
 | cuFFT C64→C64 (C++) | 13.9 Gsps | 92.8 Gsps |
 | CuPy FFT C64→C64 (Python) | 13.5 Gsps | 88.3 Gsps |
 | FFTW C64→C64 (CPU baseline) | 0.45 Gsps | 1.01 Gsps |
