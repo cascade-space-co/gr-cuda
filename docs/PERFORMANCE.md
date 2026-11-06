@@ -5,7 +5,7 @@ Run the benchmarks on your own system with `benchmark_gr_cuda_transfer.py` and `
 
 ## Transfer throughput
 
-The GPU block in each chain is `multiply_const_cc(1)`, so a kernel reads and writes every sample. Buffer sizes are the ring size per edge; each `work()` call is a quarter of the ring. All numbers at default settings (`--passthru kernel`, `gpu_busy_wait = true`, 10s duration, 1s warmup), with `--buff-exp-min 20 --buff-exp-max 32` (rings from 1 MiB to 4 GiB).
+The GPU block in each chain is `multiply_const_cc(1)`, so a kernel reads and writes every sample. Buffer sizes are the ring size per edge; each `work()` call is a quarter of the ring. All numbers at default settings (`--passthru kernel`, `gpu_busy_wait = true`, 10s duration, 1s warmup), with `--buff-exp-min 20 --buff-exp-max 32` (rings from 1 MiB to 4 GiB; `cuda_buffer` rounds rings below the GPU's 2 MiB allocation granularity up to 2 MiB).
 
 ### NVIDIA RTX PRO 6000 Blackwell — AMD EPYC 9335, PCIe 5.0 x16
 
