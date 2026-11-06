@@ -11,55 +11,85 @@ Measures Host-to-Device (H2D), Device-to-Host (D2H), and full round-trip
 transfer rates through the cuda_buffer pipeline for various buffer sizes
 and numbers of parallel chains.
 
+Buffer sizes are given in bytes, as powers of 2, and are the size of each
+edge's ring.  Every work() call is a quarter of the ring (RING_CALLS), so
+producer and consumer don't take turns on the same two halves.  cuda_buffer
+rounds rings up to the GPU's VMM granularity (2 MiB on GB10), so smaller
+rings are larger than their label.
+
+The GPU block in the middle of each chain is a multiply by 1, so a kernel
+reads and writes every sample, as a real GPU block would.  On integrated GPUs
+with zero-copy edges there is no host/device copy, and this kernel is the real
+cost.  On discrete GPUs it is far from VRAM bandwidth and overlaps the copies.
+``--passthru nop`` uses a block that never touches its data instead, which
+measures only the copies on discrete GPUs and nothing meaningful on zero-copy
+edges.
+
 Usage:
-    python benchmark_transfer.py                          # all modes, 1 chain
-    python benchmark_transfer.py --chains 3               # 3 parallel chains
-    python benchmark_transfer.py --mode h2d --chains 1    # H2D only
-    python benchmark_transfer.py --buff-exp-min 18 --buff-exp-max 22
+    benchmark_gr_cuda_transfer.py                          # all modes, 32 MiB-1 GiB
+    benchmark_gr_cuda_transfer.py --chains 3               # 3 parallel chains
+    benchmark_gr_cuda_transfer.py --mode h2d --chains 1    # H2D only
+    benchmark_gr_cuda_transfer.py --buff-exp-min 21 --buff-exp-max 25  # 2-32 MiB
+    benchmark_gr_cuda_transfer.py --passthru nop           # force the nop block
 """
 
 import argparse
+import os
 import time
 
 from gnuradio import blocks, cuda, gr
 
-# Buffer is BUFFER_MULTIPLE times the output_multiple.  Larger buffers reduce
-# compaction frequency in cuda_buffer (single-mapped), avoiding costly full
-# GPU pipeline drains in output_blocked_callback.
-BUFFER_MULTIPLE = 32
+# Let set_min_output_buffer() alone size the rings, instead of the user's
+# [cuda_buffer] min_buffer_bytes floor.  cuda_buffer reads it once, at its
+# first allocation, and the environment overrides config files.
+os.environ["GR_CONF_CUDA_BUFFER_MIN_BUFFER_BYTES"] = "1"
+
+# work() calls each ring holds.
+RING_CALLS = 4
+
+# GNU Radio counts buffer items in an int.
+MAX_RING_ITEMS = 2**31 - 1
 
 
-def make_chain(mode, buff_len):
+def make_passthru(passthru):
+    """GPU block in the middle of each chain."""
+    if passthru == "kernel":
+        return cuda.multiply_const_cc(1.0)
+    return cuda.nop(gr.sizeof_gr_complex)
+
+
+def make_chain(mode, ring_items, passthru_kind):
     """Build one transfer chain.
 
     Returns (blocks_list, connections, meter_block).
     meter_block is the block whose nitems_read(0) gives the item count.
     """
     if mode == "h2d":
-        # CPU -> GPU: null_source writes into cuda_buffer, nop forces the DMA,
-        # null_sink consumes on device.  Without the nop block the DMA event
-        # synchronisation is not enforced and the counter races ahead.
-        src = blocks.null_source(gr.sizeof_gr_complex)
-        passthru = cuda.nop(gr.sizeof_gr_complex)
+        # CPU -> GPU: host_null_source produces into the H2D cuda_buffer
+        # without writing to it, the GPU block reads it, null_sink consumes
+        # on device.  Without a GPU block in between the
+        # DMA event synchronisation is not enforced and the counter races ahead.
+        src = cuda.host_null_source(gr.sizeof_gr_complex, memset=False)
+        passthru = make_passthru(passthru_kind)
         sink = cuda.null_sink(gr.sizeof_gr_complex)
         blk_list = [src, passthru, sink]
         conns = [(src, 0, passthru, 0), (passthru, 0, sink, 0)]
         meter = sink
 
     elif mode == "d2h":
-        # GPU -> CPU: null_source produces on device, nop forces the DMA,
-        # CPU null_sink reads via cuda_buffer D2H path.
+        # GPU -> CPU: null_source produces on device, the GPU block writes the
+        # D2H buffer, CPU null_sink reads via cuda_buffer D2H path.
         src = cuda.null_source(gr.sizeof_gr_complex, memset=False)
-        passthru = cuda.nop(gr.sizeof_gr_complex)
+        passthru = make_passthru(passthru_kind)
         sink = blocks.null_sink(gr.sizeof_gr_complex)
         blk_list = [src, passthru, sink]
         conns = [(src, 0, passthru, 0), (passthru, 0, sink, 0)]
         meter = sink
 
     elif mode == "full":
-        # Full round-trip: CPU -> H2D -> GPU nop -> D2H -> CPU
-        src = blocks.null_source(gr.sizeof_gr_complex)
-        passthru = cuda.nop(gr.sizeof_gr_complex)
+        # Full round-trip: CPU -> H2D -> GPU block -> D2H -> CPU
+        src = cuda.host_null_source(gr.sizeof_gr_complex, memset=False)
+        passthru = make_passthru(passthru_kind)
         sink = blocks.null_sink(gr.sizeof_gr_complex)
         blk_list = [src, passthru, sink]
         conns = [(src, 0, passthru, 0), (passthru, 0, sink, 0)]
@@ -68,17 +98,18 @@ def make_chain(mode, buff_len):
     else:
         raise ValueError(f"Unknown mode: {mode}")
 
-    # Large output_multiple forces the scheduler to issue big work() calls,
-    # which translates to large DMA transfers -- critical for PCIe throughput.
+    # Fixed-size work() calls: large enough to amortise the scheduler's
+    # per-call overhead and, on PCIe, to make large DMA transfers.
+    call_items = ring_items // RING_CALLS
     for b in blk_list:
-        b.set_min_output_buffer(BUFFER_MULTIPLE * buff_len)
-        b.set_output_multiple(buff_len)
-        b.set_max_noutput_items(buff_len)
+        b.set_min_output_buffer(ring_items)
+        b.set_output_multiple(call_items)
+        b.set_max_noutput_items(call_items)
 
     return blk_list, conns, meter
 
 
-def run_benchmark(mode, num_chains, buff_len, duration, warmup=1.0):
+def run_benchmark(mode, num_chains, ring_items, duration, passthru, warmup=1.0):
     """Run a single benchmark configuration.
 
     Returns (total_items, elapsed_seconds).
@@ -88,7 +119,7 @@ def run_benchmark(mode, num_chains, buff_len, duration, warmup=1.0):
     all_blocks = []  # prevent garbage collection
 
     for _ in range(num_chains):
-        blk_list, conns, meter = make_chain(mode, buff_len)
+        blk_list, conns, meter = make_chain(mode, ring_items, passthru)
         all_blocks.extend(blk_list)
         meters.append(meter)
         for s, sp, d, dp in conns:
@@ -117,11 +148,33 @@ def run_benchmark(mode, num_chains, buff_len, duration, warmup=1.0):
 
 def format_bytes(n):
     """Format byte count as a human-readable string."""
+    if n >= 1024 * 1024 * 1024:
+        return f"{n / (1024 * 1024 * 1024):.0f} GiB"
     if n >= 1024 * 1024:
         return f"{n / (1024 * 1024):.0f} MiB"
     if n >= 1024:
         return f"{n / 1024:.0f} KiB"
     return f"{n} B"
+
+
+PASSTHRU_LABELS = {
+    "kernel": "multiply_const_cc(1), a kernel touches every sample",
+    "nop": "nop, data is never touched",
+}
+
+
+def zero_copy_status():
+    """cuda_buffer's zero-copy decision for the current device.
+
+    Returns (active, label).
+    """
+    try:
+        active = cuda.zero_copy_enabled()
+    except Exception as e:
+        return False, f"unknown ({e})"
+    if active:
+        return True, "yes (integrated GPU, H2D/D2H edges share host memory)"
+    return False, "no (H2D/D2H edges copy between host and device)"
 
 
 MODE_LABELS = {
@@ -163,53 +216,85 @@ def main():
     parser.add_argument(
         "--buff-exp-min",
         type=int,
-        default=16,
-        help="Min buffer size as power of 2 (default: 16 = 64K items)",
+        default=25,
+        help="Min ring size in bytes, as a power of 2 (default: 25 = 32 MiB, "
+        "cuda_buffer's default ring floor)",
     )
     parser.add_argument(
         "--buff-exp-max",
         type=int,
-        default=22,
-        help="Max buffer size as power of 2 (default: 22 = 4M items)",
+        default=30,
+        help="Max ring size in bytes, as a power of 2 (default: 30 = 1 GiB)",
+    )
+    parser.add_argument(
+        "--passthru",
+        choices=["kernel", "nop"],
+        default="kernel",
+        help="GPU block between source and sink: 'kernel' multiplies every "
+        "sample by 1, 'nop' never touches its data (default: kernel)",
     )
     args = parser.parse_args()
 
+    item_bytes = gr.sizeof_gr_complex
+    if args.buff_exp_min > args.buff_exp_max:
+        parser.error("--buff-exp-min must not exceed --buff-exp-max")
+    if 2**args.buff_exp_min < RING_CALLS * item_bytes:
+        parser.error(f"--buff-exp-min: the ring must hold at least {RING_CALLS} items")
+    if 2**args.buff_exp_max // item_bytes > MAX_RING_ITEMS:
+        parser.error(
+            f"--buff-exp-max: the ring must hold at most {MAX_RING_ITEMS:,} items"
+        )
+
+    passthru = args.passthru
+
     modes = ["h2d", "d2h", "full"] if args.mode == "all" else [args.mode]
     buff_exps = range(args.buff_exp_min, args.buff_exp_max + 1)
-    item_bytes = gr.sizeof_gr_complex
 
     print("CUDA buffer transfer benchmark")
     print(f"  Chains:       {args.chains}")
     print(f"  Duration:     {args.duration}s per measurement ({args.warmup}s warmup)")
     print(f"  Item size:    {item_bytes} bytes (gr_complex)")
-    print(f"  Buffer sizes: 2^{args.buff_exp_min} .. 2^{args.buff_exp_max} items")
+    print(
+        f"  Ring sizes:   {format_bytes(2**args.buff_exp_min)} .. "
+        f"{format_bytes(2**args.buff_exp_max)}, {RING_CALLS} work() calls each"
+    )
+    print(f"  GPU block:    {PASSTHRU_LABELS[passthru]}")
+    zero_copy, zero_copy_label = zero_copy_status()
+    print(f"  Zero-copy:    {zero_copy_label}")
     print()
+    if passthru == "nop" and zero_copy:
+        print(
+            "Warning: zero-copy edges copy nothing and the nop block touches "
+            "nothing, so these numbers don't measure any data movement.\n"
+        )
 
     for mode in modes:
         print(f"--- {MODE_LABELS[mode]} ---")
         print(
-            f"  {'buf_items':<12s}  {'buf_bytes':>10s}"
+            f"  {'ring_exp':<12s}  {'ring':>10s}  {'call':>10s}"
             f"  {'total_items':<18s}  {'Gsps':<8s}  {'GB/s':<8s}"
         )
-        print(f"  {'─' * 12}  {'─' * 10}  {'─' * 18}  {'─' * 8}  {'─' * 8}")
+        print(f"  {'─' * 12}  {'─' * 10}  {'─' * 10}  {'─' * 18}  {'─' * 8}  {'─' * 8}")
 
         for exp in buff_exps:
-            buff_len = 2**exp
-            buf_bytes_str = format_bytes(buff_len * item_bytes)
+            ring_bytes = 2**exp
+            ring_items = ring_bytes // item_bytes
+            call_bytes = (ring_items // RING_CALLS) * item_bytes
             total_items, elapsed = run_benchmark(
-                mode, args.chains, buff_len, args.duration, args.warmup
+                mode, args.chains, ring_items, args.duration, passthru, args.warmup
             )
             gsps = total_items / elapsed / 1e9
             gbps = gsps * item_bytes
             print(
-                f"  2^{exp:<9d} {buf_bytes_str:>10s}"
+                f"  2^{exp:<9d} {format_bytes(ring_bytes):>10s}"
+                f"  {format_bytes(call_bytes):>10s}"
                 f"  {total_items:>18,d}  {gsps:>8.2f}  {gbps:>8.2f}"
             )
         print()
 
     print("Note: NVIDIA profiling tools (nsys, ncu) may report higher raw DMA")
     print("transfer rates. This benchmark measures end-to-end throughput including")
-    print("GNU Radio scheduler overhead and PCIe round-trip latency.")
+    print("GNU Radio scheduler overhead and host/device transfer latency.")
 
 
 if __name__ == "__main__":
