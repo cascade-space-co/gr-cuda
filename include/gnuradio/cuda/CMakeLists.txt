@@ -18,6 +18,7 @@ install(
         cuda_buffer_reader.h
         copy.h
         fft.h
+        host_null_source.h
         keep_m_in_n.h
         keep_one_in_n.h
         multiply_const.h
