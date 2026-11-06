@@ -65,8 +65,9 @@ def make_chain(mode, ring_items, passthru_kind):
     meter_block is the block whose nitems_read(0) gives the item count.
     """
     if mode == "h2d":
-        # CPU -> GPU: null_source writes into cuda_buffer, the GPU block reads
-        # it, null_sink consumes on device.  Without a GPU block in between the
+        # CPU -> GPU: host_null_source produces into the H2D cuda_buffer
+        # without writing to it, the GPU block reads it, null_sink consumes
+        # on device.  Without a GPU block in between the
         # DMA event synchronisation is not enforced and the counter races ahead.
         src = cuda.host_null_source(gr.sizeof_gr_complex, memset=False)
         passthru = make_passthru(passthru_kind)
@@ -163,14 +164,17 @@ PASSTHRU_LABELS = {
 
 
 def zero_copy_status():
-    """cuda_buffer's zero-copy decision for the current device."""
+    """cuda_buffer's zero-copy decision for the current device.
+
+    Returns (active, label).
+    """
     try:
         active = cuda.zero_copy_enabled()
     except Exception as e:
-        return f"unknown ({e})"
+        return False, f"unknown ({e})"
     if active:
-        return "yes (integrated GPU, H2D/D2H edges share host memory)"
-    return "no (H2D/D2H edges copy between host and device)"
+        return True, "yes (integrated GPU, H2D/D2H edges share host memory)"
+    return False, "no (H2D/D2H edges copy between host and device)"
 
 
 MODE_LABELS = {
@@ -255,8 +259,14 @@ def main():
         f"{format_bytes(2**args.buff_exp_max)}, {RING_CALLS} work() calls each"
     )
     print(f"  GPU block:    {PASSTHRU_LABELS[passthru]}")
-    print(f"  Zero-copy:    {zero_copy_status()}")
+    zero_copy, zero_copy_label = zero_copy_status()
+    print(f"  Zero-copy:    {zero_copy_label}")
     print()
+    if passthru == "nop" and zero_copy:
+        print(
+            "Warning: zero-copy edges copy nothing and the nop block touches "
+            "nothing, so these numbers don't measure any data movement.\n"
+        )
 
     for mode in modes:
         print(f"--- {MODE_LABELS[mode]} ---")

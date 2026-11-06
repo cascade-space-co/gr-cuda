@@ -23,7 +23,7 @@ namespace cuda {
  *
  * Like blocks.null_source, but the memset is optional and its byte count
  * doesn't overflow for work() calls of 2 GiB or more.  Used by the transfer
- * benchmark; not installed or exposed in GRC.
+ * benchmark; there is no GRC block.
  */
 class CUDA_API host_null_source : virtual public gr::sync_block
 {
