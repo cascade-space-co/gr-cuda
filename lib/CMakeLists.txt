@@ -34,6 +34,8 @@ list(
     keep_one_in_n_impl.cc
     keep_m_in_n_impl.cc
     vector_select_impl.cc
+    type_converters_impl.cc
+    convert.cu
     fft_impl.cc
     fft.cu
     stream_to_vector_impl.cc

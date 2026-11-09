@@ -28,6 +28,7 @@ void bind_fft(py::module& m);
 void bind_keep_one_in_n(py::module& m);
 void bind_keep_m_in_n(py::module& m);
 void bind_vector_select(py::module& m);
+void bind_type_converters(py::module& m);
 void bind_stream_to_vector(py::module& m);
 void bind_vector_to_stream(py::module& m);
 void bind_streams_to_vector(py::module& m);
@@ -90,6 +91,7 @@ PYBIND11_MODULE(cuda_python, m)
     bind_keep_one_in_n(m);
     bind_keep_m_in_n(m);
     bind_vector_select(m);
+    bind_type_converters(m);
     bind_stream_to_vector(m);
     bind_vector_to_stream(m);
     bind_streams_to_vector(m);

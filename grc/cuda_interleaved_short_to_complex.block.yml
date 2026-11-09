@@ -1,0 +1,69 @@
+id: cuda_interleaved_short_to_complex
+label: IShort To Complex (CUDA)
+category: '[CUDA]/Type Converters'
+flags: [ python ]
+
+templates:
+    imports: from gnuradio import cuda
+    make: |-
+        cuda.interleaved_short_to_complex(${vector_input}, ${swap}, ${scale_factor})
+        % if output_multiple() != 1:
+        self.${id}.set_output_multiple(${output_multiple})
+        % endif
+    callbacks:
+    - set_scale_factor(${scale_factor})
+    - set_swap(${swap})
+
+parameters:
+-   id: scale_factor
+    label: Scale Factor
+    dtype: real
+    default: '1.0'
+-   id: vector_input
+    label: Vector Input
+    dtype: enum
+    default: 'False'
+    options: ['False', 'True']
+    option_labels: ['No', 'Yes']
+    option_attributes:
+        vlen: [1, 2]
+-   id: swap
+    label: Swap
+    dtype: enum
+    default: 'False'
+    options: ['False', 'True']
+    option_labels: ['No', 'Yes']
+    hide: part
+-   id: output_multiple
+    label: Output Multiple
+    dtype: int
+    default: '1'
+    category: Advanced
+    hide: part
+
+inputs:
+-   label: in
+    domain: cuda
+    dtype: short
+    vlen: ${ vector_input.vlen }
+
+outputs:
+-   label: out
+    domain: cuda
+    dtype: complex
+
+asserts:
+- ${ output_multiple > 0 }
+
+documentation: |-
+    Converts interleaved I/Q shorts to complex on the GPU:
+    out = (I + jQ) / Scale Factor. For full-scale input use 32767.
+
+    With Vector Input, each complex comes from one vector of two shorts. With
+    Swap, the first short of each pair is Q.
+
+    Output Multiple asks the scheduler for output batches in multiples of this
+    size, which can reduce per-call overhead. As with any GNU Radio block, the
+    end of a finite stream that does not fill a whole batch may be dropped.
+
+file_format: 1
