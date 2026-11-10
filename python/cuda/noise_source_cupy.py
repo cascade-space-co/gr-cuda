@@ -111,9 +111,10 @@ class noise_source_cupy(cuda.sync_block):
         # and skip a cast. complex64 has 4-byte components -> float32.
         comp_bytes = self._dtype.itemsize // (2 if self._is_complex else 1)
         self._gdtype = cp.float64 if comp_bytes > 4 else cp.float32
-        self._rng = cp.random.RandomState(_normalize_seed(seed))
         io_dtype = (self._dtype, self._vlen) if self._vlen > 1 else self._dtype
         cuda.sync_block.__init__(self, "noise_source_cupy", None, [io_dtype])
+        with self.stream:
+            self._rng = cp.random.RandomState(_normalize_seed(seed))
 
     def _variates(self, count, scale):
         """``count`` scaled variates at ``self._gdtype`` precision (no cast).
