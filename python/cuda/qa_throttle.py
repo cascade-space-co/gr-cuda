@@ -34,6 +34,7 @@ class test_throttle(gr_unittest.TestCase):
 
         src = cuda.null_source(gr.sizeof_float)
         throttle = cuda.throttle(gr.sizeof_float, sample_rate)
+        throttle.set_max_noutput_items(10_000)
         sink = cuda.null_sink(gr.sizeof_float)
 
         self.tb.connect(src, throttle)
@@ -66,6 +67,7 @@ class test_throttle(gr_unittest.TestCase):
 
         src = cuda.null_source(gr.sizeof_gr_complex)
         throttle = cuda.throttle(gr.sizeof_gr_complex, sample_rate)
+        throttle.set_max_noutput_items(50_000)
         probe = cuda.probe_rate(
             gr.sizeof_gr_complex, update_rate_ms, alpha, "throttle_test"
         )

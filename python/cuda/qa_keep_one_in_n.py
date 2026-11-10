@@ -33,10 +33,9 @@ def run_keep(block, data, vlen, dtype, tags=(), max_noutput_items=None):
     source = source_type(data, repeat=False, vlen=vlen, tags=tags)
     sink = sink_type(vlen=vlen)
     tb.connect(source, block, sink)
-    if max_noutput_items is None:
-        tb.run()
-    else:
-        tb.run(max_noutput_items=max_noutput_items)
+    if max_noutput_items is not None:
+        block.set_max_noutput_items(max_noutput_items)
+    tb.run()
     return np.asarray(sink.data(), dtype=dtype), sink.tags()
 
 
@@ -166,6 +165,7 @@ class qa_keep_one_in_n(gr_unittest.TestCase):
             np.arange(num_items, dtype=np.int32), repeat=False, tags=tags
         )
         throttle = blocks.throttle(gr.sizeof_int, 400_000)
+        throttle.set_max_noutput_items(4000)
         sink = blocks.vector_sink_i()
         tb.connect(source, throttle, block, sink)
         tb.start()

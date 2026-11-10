@@ -27,10 +27,9 @@ def run_tag_offsets(source, vlen, num_items, max_noutput_items):
     head = blocks.head(gr.sizeof_float * vlen, num_items)
     sink = blocks.vector_sink_f(vlen)
     tb.connect(source, head, sink)
-    if max_noutput_items is None:
-        tb.run()
-    else:
-        tb.run(max_noutput_items=max_noutput_items)
+    if max_noutput_items is not None:
+        source.set_max_noutput_items(max_noutput_items)
+    tb.run()
     return sorted(t.offset for t in sink.tags())
 
 
@@ -101,14 +100,16 @@ class qa_vector_source_cupy(gr_unittest.TestCase):
         np.testing.assert_allclose(result, expected, rtol=1e-6, atol=1e-6)
 
     def test_tags_repeat(self):
-        data = np.arange(8, dtype=np.float32)
+        data = np.arange(1000, dtype=np.float32)
         tag = make_tag(1)
-        n = 32  # items to run; 4 or 8 copies of the data vector
+        n = 4000  # items to run; spans several work calls
 
         # max_noutput_items that is not a multiple of the copy length makes
-        # calls start mid-copy, which tag placement must handle.
+        # calls start mid-copy, which tag placement must handle. The repeating
+        # source keeps running until its large CUDA buffer is full, so small
+        # limits or short data vectors make the test very slow.
         for vlen in (1, 2):
-            for max_noutput_items in (None, 5, 3):
+            for max_noutput_items in (None, 1003, 1001):
                 with self.subTest(vlen=vlen, max_noutput_items=max_noutput_items):
                     ref = blocks.vector_source_f(data, True, vlen, [tag])
                     dut = cuda.vector_source_cupy(
@@ -123,14 +124,14 @@ class qa_vector_source_cupy(gr_unittest.TestCase):
         dut = cuda.vector_source_cupy(
             np.arange(8), True, 1, [make_tag(2)], dtype=np.float32
         )
-        dut.set_data(np.arange(6), [make_tag(1)])
+        dut.set_data(np.arange(600), [make_tag(1)])
         # Tag placement does not depend on the output multiple, so set_data()
         # never changes the block's scheduling constraints.
         self.assertEqual(dut.output_multiple(), 1)
-        self.assertEqual(run_tag_offsets(dut, 1, 24, 5), [1, 7, 13, 19])
+        self.assertEqual(run_tag_offsets(dut, 1, 4000, 1003), list(range(1, 4000, 600)))
 
-        dut.set_data(np.arange(5))
-        self.assertEqual(run_tag_offsets(dut, 1, 10, 5), [])
+        dut.set_data(np.arange(500))
+        self.assertEqual(run_tag_offsets(dut, 1, 4000, 1003), [])
 
 
 if __name__ == "__main__":
