@@ -57,9 +57,10 @@ class random_uniform_source_cupy(cuda.sync_block):
         self._vlen = int(vlen)
         if self._vlen < 1:
             raise ValueError("vlen must be >= 1")
-        self._rng = cp.random.RandomState(_normalize_seed(seed))
         io_dtype = (self._dtype, self._vlen) if self._vlen > 1 else self._dtype
         cuda.sync_block.__init__(self, "random_uniform_source_cupy", None, [io_dtype])
+        with self.stream:
+            self._rng = cp.random.RandomState(_normalize_seed(seed))
 
     def work(self, input_items, output_items):
         out = output_items[0]
