@@ -44,7 +44,6 @@ list(
     vector_to_streams_impl.cc
     nop_impl.cc
     null_source_impl.cc
-    host_null_source_impl.cc
     null_sink_impl.cc
     probe_rate_impl.cc
     throttle_impl.cc

@@ -65,11 +65,13 @@ def make_chain(mode, ring_items, passthru_kind):
     meter_block is the block whose nitems_read(0) gives the item count.
     """
     if mode == "h2d":
-        # CPU -> GPU: host_null_source produces into the H2D cuda_buffer
-        # without writing to it, the GPU block reads it, null_sink consumes
-        # on device.  Without a GPU block in between the
-        # DMA event synchronisation is not enforced and the counter races ahead.
-        src = cuda.host_null_source(gr.sizeof_gr_complex, memset=False)
+        # CPU -> GPU: blocks.nop with no inputs is a source that produces
+        # into the H2D cuda_buffer without writing to it (unlike
+        # blocks.null_source, which memsets, and overflows its int byte count
+        # at 2 GiB per call).  The GPU block reads it, null_sink consumes on
+        # device.  Without a GPU block in between the DMA event
+        # synchronisation is not enforced and the counter races ahead.
+        src = blocks.nop(gr.sizeof_gr_complex)
         passthru = make_passthru(passthru_kind)
         sink = cuda.null_sink(gr.sizeof_gr_complex)
         blk_list = [src, passthru, sink]
@@ -88,7 +90,7 @@ def make_chain(mode, ring_items, passthru_kind):
 
     elif mode == "full":
         # Full round-trip: CPU -> H2D -> GPU block -> D2H -> CPU
-        src = cuda.host_null_source(gr.sizeof_gr_complex, memset=False)
+        src = blocks.nop(gr.sizeof_gr_complex)
         passthru = make_passthru(passthru_kind)
         sink = blocks.null_sink(gr.sizeof_gr_complex)
         blk_list = [src, passthru, sink]
