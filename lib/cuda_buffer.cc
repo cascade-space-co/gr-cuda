@@ -253,8 +253,10 @@ void cuda_buffer::on_transfer_type_set(const transfer_type& type)
  * transparently wraps to the beginning via the second-half alias;
  * no split copies or boundary checks are needed by the caller.
  *
- * - H2D: write into host (d_base), post_work will DMA to device.
- * - D2H / D2D: write directly into device memory (d_cuda_buf).
+ * - H2D: write into the host ring (d_base).  post_work() copies it to the
+ *   device ring; on zero-copy edges the GPU consumer reads it in place.
+ * - D2H / D2D: write into d_cuda_buf, the device ring.  On zero-copy D2H
+ *   edges that is the host ring itself (d_cuda_buf == d_base).
  */
 void* cuda_buffer::write_pointer()
 {
@@ -269,7 +271,9 @@ void* cuda_buffer::write_pointer()
         // soon as their kernels are queued, so the CPU must wait for those
         // reads to finish before overwriting it.
         if (d_zero_copy)
-            cudaEventSynchronize(d_read_done_evt);
+            check_cuda_errors(cudaEventSynchronize(d_read_done_evt),
+                              "cuda_buffer write_pointer: wait for zero-copy reads",
+                              d_logger);
         return &d_base[d_write_index * d_sizeof_item];
 
     case transfer_type::DEVICE_TO_HOST:
@@ -284,8 +288,10 @@ void* cuda_buffer::write_pointer()
 /*!
  * \brief Return where the downstream block should read its input.
  *
- * - H2D / D2D: read from device memory (d_cuda_buf).
- * - D2H: read from host (d_base), after ensuring the DMA has landed.
+ * - H2D / D2D: read from d_cuda_buf, the device ring.  On zero-copy H2D
+ *   edges that is the host ring itself (d_cuda_buf == d_base).
+ * - D2H: read from the host ring (d_base), after waiting for post_work()'s
+ *   copy to land, or on zero-copy edges for the GPU producer to finish.
  */
 const void* cuda_buffer::_read_pointer(unsigned int read_index)
 {
@@ -310,6 +316,9 @@ const void* cuda_buffer::_read_pointer(unsigned int read_index)
  * half of the 2N VA region, so every memcpy that would cross the d_bufsize
  * boundary is split into two copies that each stay within [0, N).
  * The device side uses VMM, which handles aliasing natively.
+ *
+ * On zero-copy edges both sides use the host ring, so nothing is copied;
+ * post_work() only records the events that order producer and consumer.
  */
 void cuda_buffer::post_work(int nitems)
 {

@@ -112,7 +112,7 @@ public:
 //   3. Return WORK_CALLED_PRODUCE.
 // ---------------------------------------------------------------------------
 
-/// 1×1 identity (D2D copy).
+/// 1×1 identity (copy).
 class gw_copy : public gr::block, public gr::cuda_block
 {
 public:
@@ -142,7 +142,7 @@ public:
         check_cuda_errors(
             cudaMemcpyAsync(
                 out, in, static_cast<size_t>(n) * F, cudaMemcpyDefault, d_stream),
-            "gw_copy: D2D");
+            "gw_copy: copy");
 
         consume_each(n);
         produce(0, n);
@@ -194,7 +194,7 @@ public:
                                             static_cast<size_t>(n_in),
                                             cudaMemcpyDefault,
                                             d_stream),
-                          "gw_interp: D2D 2D");
+                          "gw_interp: 2D copy");
 
         consume_each(n_in);
         produce(0, n_out);
@@ -240,7 +240,7 @@ public:
                                             static_cast<size_t>(n),
                                             cudaMemcpyDefault,
                                             d_stream),
-                          "gw_decim: D2D 2D");
+                          "gw_decim: 2D copy");
 
         consume_each(n * decim_);
         produce(0, n);
@@ -248,7 +248,7 @@ public:
     }
 };
 
-/// 2×1 combiner. Output is a D2D copy of input 0; input 1 is
+/// 2×1 combiner. Output is a copy of input 0; input 1 is
 /// consumed but not used — sufficient to exercise multi-input
 /// auto-sync wiring.
 class gw_combine_2to1 : public gr::block, public gr::cuda_block
@@ -281,7 +281,7 @@ public:
         check_cuda_errors(
             cudaMemcpyAsync(
                 out, in0, static_cast<size_t>(n) * F, cudaMemcpyDefault, d_stream),
-            "gw_combine_2to1: D2D");
+            "gw_combine_2to1: copy");
 
         consume(0, n);
         consume(1, n);
@@ -324,7 +324,7 @@ public:
         check_cuda_errors(
             cudaMemcpyAsync(
                 out, in1, static_cast<size_t>(n) * F, cudaMemcpyDefault, d_stream),
-            "gw_asym_combine_2to1: D2D");
+            "gw_asym_combine_2to1: copy");
 
         consume(0, n * 2);
         consume(1, n);
@@ -333,7 +333,7 @@ public:
     }
 };
 
-/// 1×2 splitter. Both outputs receive a D2D copy of the input.
+/// 1×2 splitter. Both outputs receive a copy of the input.
 class gw_split_1to2 : public gr::block, public gr::cuda_block
 {
 public:
@@ -364,11 +364,11 @@ public:
         check_cuda_errors(
             cudaMemcpyAsync(
                 out0, in, static_cast<size_t>(n) * F, cudaMemcpyDefault, d_stream),
-            "gw_split_1to2: D2D out0");
+            "gw_split_1to2: copy out0");
         check_cuda_errors(
             cudaMemcpyAsync(
                 out1, in, static_cast<size_t>(n) * F, cudaMemcpyDefault, d_stream),
-            "gw_split_1to2: D2D out1");
+            "gw_split_1to2: copy out1");
 
         consume_each(n);
         produce(0, n);
@@ -417,7 +417,7 @@ public:
         check_cuda_errors(
             cudaMemcpyAsync(
                 out0, in, static_cast<size_t>(n) * F, cudaMemcpyDefault, d_stream),
-            "gw_asym_split_1to2: D2D out0");
+            "gw_asym_split_1to2: copy out0");
         check_cuda_errors(cudaMemcpy2DAsync(out1,
                                             F,
                                             in,
@@ -426,7 +426,7 @@ public:
                                             static_cast<size_t>(n / 2),
                                             cudaMemcpyDefault,
                                             d_stream),
-                          "gw_asym_split_1to2: D2D 2D out1");
+                          "gw_asym_split_1to2: 2D copy out1");
 
         consume_each(n);
         produce(0, n);
