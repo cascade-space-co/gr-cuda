@@ -4,9 +4,7 @@ name: GPU QA
 on:
   push:
     branches: [cascade/main, cascade/main-gr-3.10.13]
-    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE']
   pull_request:
-    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE']
     # `opened` is required: naming types replaces the default set, so a
     # one-commit PR would otherwise never fire. The label events are here so
     # that labelling a fork's PR starts it and unlabelling stops it.
