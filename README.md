@@ -139,12 +139,14 @@ Benchmarked on an **NVIDIA DGX Spark (GB10)** and an **NVIDIA RTX PRO 6000 Black
 
 | Benchmark | GB10 | RTX PRO 6000 |
 |-----------|-----:|-------------:|
-| H2D transfer | 58.3 GB/s | 54.1 GB/s |
-| D2H transfer | 59.1 GB/s | 56.4 GB/s |
-| Full round-trip | 29.2 GB/s | 38.7 GB/s |
+| H2D transfer\* | 116.0 GB/s (zero-copy) | 56.8 GB/s |
+| D2H transfer\* | 108.8 GB/s (zero-copy) | 54.0 GB/s |
+| Full round-trip\* | 82.3 GB/s (zero-copy) | 40.5 GB/s |
 | cuFFT C64→C64 (C++) | 13.9 Gsps | 92.8 Gsps |
 | CuPy FFT C64→C64 (Python) | 13.5 Gsps | 88.3 Gsps |
 | FFTW C64→C64 (CPU baseline) | 0.45 Gsps | 1.01 Gsps |
+
+\* The GB10 is an integrated GPU, so its host/device edges are zero-copy and nothing is copied; its numbers measure a kernel touching every sample in shared memory. The RTX PRO 6000 numbers are end-to-end through PCIe, with the kernel in the path. Both saturate from the default 32 MiB ring.
 
 CuPy blocks track within 5% of C++ CUDA blocks -- write your GPU blocks in Python with no meaningful performance penalty.
 
