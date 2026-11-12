@@ -49,12 +49,12 @@ int tee_impl::work(int noutput_items,
         auto out1 = static_cast<uint8_t*>(output_items[1]);
 
         check_cuda_errors(
-            cudaMemcpyAsync(out0, in, nbytes, cudaMemcpyDeviceToDevice, d_stream),
-            "tee: D2D copy to port 0",
+            cudaMemcpyAsync(out0, in, nbytes, cudaMemcpyDefault, d_stream),
+            "tee: copy to port 0",
             d_logger);
         check_cuda_errors(
-            cudaMemcpyAsync(out1, in, nbytes, cudaMemcpyDeviceToDevice, d_stream),
-            "tee: D2D copy to port 1",
+            cudaMemcpyAsync(out1, in, nbytes, cudaMemcpyDefault, d_stream),
+            "tee: copy to port 1",
             d_logger);
 
     } else {
