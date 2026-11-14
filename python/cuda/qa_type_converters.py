@@ -368,6 +368,77 @@ class qa_type_converters(gr_unittest.TestCase):
                             maxulp=1,
                         )
 
+    def check_vlen(self, name, args, vlen, inputs, outputs, maxulp=0):
+        """Compare cuda.<name>(*args, vlen=vlen) against blocks.<name>(*args) on the
+        same samples; a vector of vlen items has the same layout as vlen
+        consecutive items.
+
+        inputs and outputs: lists of (array or dtype, vlen of the CUDA port,
+        vlen of the GNU Radio port).
+        """
+        expected = run(
+            getattr(blocks, name)(*args),
+            [(data, gr_vlen) for data, _, gr_vlen in inputs],
+            [(dtype, gr_vlen) for dtype, _, gr_vlen in outputs],
+        )
+        for max_noutput_items in (None, 7):
+            actual = run(
+                getattr(cuda, name)(*args, vlen=vlen),
+                [(data, cuda_vlen) for data, cuda_vlen, _ in inputs],
+                [(dtype, cuda_vlen) for dtype, cuda_vlen, _ in outputs],
+                max_noutput_items,
+            )
+            for exp, act in zip(expected, actual, strict=True):
+                self.assertEqual(len(act), len(exp))
+                if maxulp:
+                    np.testing.assert_array_max_ulp(
+                        act.view(np.float32), exp.view(np.float32), maxulp
+                    )
+                else:
+                    np.testing.assert_array_equal(act, exp)
+
+    def test_complex_to_interleaved_vlen(self):
+        z = (complexes() * 50).astype(np.complex64)
+        for kind, dtype in (("char", np.int8), ("short", np.int16)):
+            for vector in (False, True):
+                for vlen in (2, 3):
+                    with self.subTest(kind=kind, vector=vector, vlen=vlen):
+                        self.check_vlen(
+                            f"complex_to_interleaved_{kind}",
+                            (vector, 2.0),
+                            vlen,
+                            [(whole_vectors(z, vlen), vlen, 1)],
+                            [(dtype, 2 * vlen if vector else 1, 2 if vector else 1)],
+                        )
+
+    def test_interleaved_to_complex_vlen(self):
+        for vector in (False, True):
+            for vlen in (2, 3):
+                in_vlens = (2 * vlen, 2) if vector else (1, 1)
+                with self.subTest(kind="char", vector=vector, vlen=vlen):
+                    data = whole_vectors(ints(np.int8, 2 * N), 2 * vlen)
+                    self.check_vlen(
+                        "interleaved_char_to_complex",
+                        (vector, 127.0),
+                        vlen,
+                        [(data, *in_vlens)],
+                        [(np.complex64, vlen, 1)],
+                        maxulp=1,
+                    )
+                for swap in (False, True):
+                    with self.subTest(
+                        kind="short", vector=vector, vlen=vlen, swap=swap
+                    ):
+                        data = whole_vectors(ints(np.int16, 2 * N), 2 * vlen)
+                        self.check_vlen(
+                            "interleaved_short_to_complex",
+                            (vector, swap, 32767.0),
+                            vlen,
+                            [(data, *in_vlens)],
+                            [(np.complex64, vlen, 1)],
+                            maxulp=1,
+                        )
+
     def test_interleaved_char_swap(self):
         data = ints(np.int8, 2 * N)
         out = run(

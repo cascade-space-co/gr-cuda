@@ -294,69 +294,79 @@ CUDA_WORK(magphase_to_complex)
 // ---------------------------------------------------------------------------
 // Interleaved I/Q
 
-#define CUDA_TO_INTERLEAVED(name, out_t)                                          \
-    name::sptr name::make(bool vector, float scale_factor)                        \
-    {                                                                             \
-        return gnuradio::make_block_sptr<name##_impl>(vector, scale_factor);      \
-    }                                                                             \
-    name##_impl::name##_impl(bool vector, float scale_factor)                     \
-        : gr::sync_interpolator(#name,                                            \
-                                sig(1, sizeof(gr_complex)),                       \
-                                sig(1, (vector ? 2 : 1) * sizeof(out_t)),         \
-                                vector ? 1 : 2),                                  \
-          d_vector(vector),                                                       \
-          d_scale_factor(scale_factor)                                            \
-    {                                                                             \
-    }                                                                             \
-    CUDA_WORK(name)                                                               \
-    {                                                                             \
-        const size_t n = static_cast<size_t>(noutput_items) * (d_vector ? 2 : 1); \
-        exec_float_to_int(in_ptr<float>(input_items),                             \
-                          out_ptr<out_t>(output_items),                           \
-                          n,                                                      \
-                          d_scale_factor,                                         \
-                          0.0f,                                                   \
-                          d_stream);                                              \
-        return noutput_items;                                                     \
+// With vector set, each vector of vlen complex becomes one vector of 2 * vlen
+// integers; otherwise 2 * vlen scalar integers.
+#define CUDA_TO_INTERLEAVED(name, out_t)                                           \
+    name::sptr name::make(bool vector, float scale_factor, size_t vlen)            \
+    {                                                                              \
+        return gnuradio::make_block_sptr<name##_impl>(vector, scale_factor, vlen); \
+    }                                                                              \
+    name##_impl::name##_impl(bool vector, float scale_factor, size_t vlen)         \
+        : gr::sync_interpolator(#name,                                             \
+                                sig(1, vlen * sizeof(gr_complex)),                 \
+                                sig(1, (vector ? 2 * vlen : 1) * sizeof(out_t)),   \
+                                vector ? 1 : 2 * vlen),                            \
+          d_vector(vector),                                                        \
+          d_vlen(vlen),                                                            \
+          d_scale_factor(scale_factor)                                             \
+    {                                                                              \
+    }                                                                              \
+    CUDA_WORK(name)                                                                \
+    {                                                                              \
+        const size_t n =                                                           \
+            static_cast<size_t>(noutput_items) * (d_vector ? 2 * d_vlen : 1);      \
+        exec_float_to_int(in_ptr<float>(input_items),                              \
+                          out_ptr<out_t>(output_items),                            \
+                          n,                                                       \
+                          d_scale_factor,                                          \
+                          0.0f,                                                    \
+                          d_stream);                                               \
+        return noutput_items;                                                      \
     }
 
 CUDA_TO_INTERLEAVED(complex_to_interleaved_char, int8_t)
 CUDA_TO_INTERLEAVED(complex_to_interleaved_short, int16_t)
 
-#define CUDA_FROM_INTERLEAVED(name, in_t)                                      \
-    name##_impl::name##_impl(bool vector_input, float scale_factor, bool swap) \
-        : gr::sync_decimator(#name,                                            \
-                             sig(1, (vector_input ? 2 : 1) * sizeof(in_t)),    \
-                             sig(1, sizeof(gr_complex)),                       \
-                             vector_input ? 1 : 2),                            \
-          d_scale_factor(scale_factor),                                        \
-          d_swap(swap)                                                         \
-    {                                                                          \
-    }                                                                          \
-    CUDA_WORK(name)                                                            \
-    {                                                                          \
-        exec_interleaved_to_complex(in_ptr<in_t>(input_items),                 \
-                                    out_ptr<float2>(output_items),             \
-                                    noutput_items,                             \
-                                    d_scale_factor,                            \
-                                    d_swap,                                    \
-                                    d_stream);                                 \
-        return noutput_items;                                                  \
+// Each vector of vlen complex comes from one vector of 2 * vlen integers with
+// vector_input set, otherwise from 2 * vlen scalar integers.
+#define CUDA_FROM_INTERLEAVED(name, in_t)                                          \
+    name##_impl::name##_impl(                                                      \
+        bool vector_input, float scale_factor, bool swap, size_t vlen)             \
+        : gr::sync_decimator(#name,                                                \
+                             sig(1, (vector_input ? 2 * vlen : 1) * sizeof(in_t)), \
+                             sig(1, vlen * sizeof(gr_complex)),                    \
+                             vector_input ? 1 : 2 * vlen),                         \
+          d_vlen(vlen),                                                            \
+          d_scale_factor(scale_factor),                                            \
+          d_swap(swap)                                                             \
+    {                                                                              \
+    }                                                                              \
+    CUDA_WORK(name)                                                                \
+    {                                                                              \
+        exec_interleaved_to_complex(in_ptr<in_t>(input_items),                     \
+                                    out_ptr<float2>(output_items),                 \
+                                    noutput_items* d_vlen,                         \
+                                    d_scale_factor,                                \
+                                    d_swap,                                        \
+                                    d_stream);                                     \
+        return noutput_items;                                                      \
     }
 
-interleaved_char_to_complex::sptr
-interleaved_char_to_complex::make(bool vector_input, float scale_factor, bool swap)
+interleaved_char_to_complex::sptr interleaved_char_to_complex::make(bool vector_input,
+                                                                    float scale_factor,
+                                                                    bool swap,
+                                                                    size_t vlen)
 {
     return gnuradio::make_block_sptr<interleaved_char_to_complex_impl>(
-        vector_input, scale_factor, swap);
+        vector_input, scale_factor, swap, vlen);
 }
 CUDA_FROM_INTERLEAVED(interleaved_char_to_complex, int8_t)
 
-interleaved_short_to_complex::sptr
-interleaved_short_to_complex::make(bool vector_input, bool swap, float scale_factor)
+interleaved_short_to_complex::sptr interleaved_short_to_complex::make(
+    bool vector_input, bool swap, float scale_factor, size_t vlen)
 {
     return gnuradio::make_block_sptr<interleaved_short_to_complex_impl>(
-        vector_input, scale_factor, swap);
+        vector_input, scale_factor, swap, vlen);
 }
 CUDA_FROM_INTERLEAVED(interleaved_short_to_complex, int16_t)
 

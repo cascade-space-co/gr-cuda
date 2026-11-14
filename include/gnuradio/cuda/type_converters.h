@@ -275,13 +275,15 @@ public:
  * out = saturate(round(in * scale_factor))
  * \ingroup cuda
  *
- * Outputs two chars per complex, or one vector of two if \p vector is true.
+ * Reads vectors of \p vlen complex and outputs 2 * \p vlen chars per vector,
+ * or one vector of 2 * \p vlen if \p vector is true. Unlike gr::blocks,
+ * supports \p vlen.
  */
 class CUDA_API complex_to_interleaved_char : virtual public gr::sync_interpolator
 {
 public:
     typedef std::shared_ptr<complex_to_interleaved_char> sptr;
-    static sptr make(bool vector = false, float scale_factor = 1.0f);
+    static sptr make(bool vector = false, float scale_factor = 1.0f, size_t vlen = 1);
     virtual float scale_factor() const = 0;
     virtual void set_scale_factor(float scale_factor) = 0;
 };
@@ -291,13 +293,15 @@ public:
  * out = saturate(round(in * scale_factor))
  * \ingroup cuda
  *
- * Outputs two shorts per complex, or one vector of two if \p vector is true.
+ * Reads vectors of \p vlen complex and outputs 2 * \p vlen shorts per vector,
+ * or one vector of 2 * \p vlen if \p vector is true. Unlike gr::blocks,
+ * supports \p vlen.
  */
 class CUDA_API complex_to_interleaved_short : virtual public gr::sync_interpolator
 {
 public:
     typedef std::shared_ptr<complex_to_interleaved_short> sptr;
-    static sptr make(bool vector = false, float scale_factor = 1.0f);
+    static sptr make(bool vector = false, float scale_factor = 1.0f, size_t vlen = 1);
     virtual float scale_factor() const = 0;
     virtual void set_scale_factor(float scale_factor) = 0;
 };
@@ -307,16 +311,19 @@ public:
  * out = (I + jQ) / scale_factor
  * \ingroup cuda
  *
- * Reads two chars per complex, or one vector of two if \p vector_input is
- * true. If \p swap is true, the first char of each pair is Q. Unlike
- * gr::blocks, supports swap.
+ * Outputs vectors of \p vlen complex, each from 2 * \p vlen chars, or from one
+ * vector of 2 * \p vlen if \p vector_input is true. If \p swap is true, the
+ * first char of each pair is Q. Unlike gr::blocks, supports \p swap and
+ * \p vlen.
  */
 class CUDA_API interleaved_char_to_complex : virtual public gr::sync_decimator
 {
 public:
     typedef std::shared_ptr<interleaved_char_to_complex> sptr;
-    static sptr
-    make(bool vector_input = false, float scale_factor = 1.0f, bool swap = false);
+    static sptr make(bool vector_input = false,
+                     float scale_factor = 1.0f,
+                     bool swap = false,
+                     size_t vlen = 1);
     virtual float scale_factor() const = 0;
     virtual bool swap() const = 0;
     virtual void set_scale_factor(float scale_factor) = 0;
@@ -328,15 +335,18 @@ public:
  * out = (I + jQ) / scale_factor
  * \ingroup cuda
  *
- * Reads two shorts per complex, or one vector of two if \p vector_input is
- * true. If \p swap is true, the first short of each pair is Q.
+ * Outputs vectors of \p vlen complex, each from 2 * \p vlen shorts, or from
+ * one vector of 2 * \p vlen if \p vector_input is true. If \p swap is true,
+ * the first short of each pair is Q. Unlike gr::blocks, supports \p vlen.
  */
 class CUDA_API interleaved_short_to_complex : virtual public gr::sync_decimator
 {
 public:
     typedef std::shared_ptr<interleaved_short_to_complex> sptr;
-    static sptr
-    make(bool vector_input = false, bool swap = false, float scale_factor = 1.0f);
+    static sptr make(bool vector_input = false,
+                     bool swap = false,
+                     float scale_factor = 1.0f,
+                     size_t vlen = 1);
     virtual float scale_factor() const = 0;
     virtual bool swap() const = 0;
     virtual void set_scale_factor(float scale_factor) = 0;
