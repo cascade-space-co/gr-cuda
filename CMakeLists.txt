@@ -9,7 +9,15 @@
 ########################################################################
 # Project setup
 ########################################################################
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.24)
+
+# Without this, CMake builds for nvcc's default architecture rather than the
+# GPU in this machine. With no GPU visible, nvcc warns and falls back to its
+# default.
+if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES AND NOT DEFINED ENV{CUDAARCHS})
+    set(CMAKE_CUDA_ARCHITECTURES native CACHE STRING "CUDA architectures")
+endif()
+
 project(
     gr-cuda
     CXX
