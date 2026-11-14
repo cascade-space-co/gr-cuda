@@ -40,6 +40,7 @@ install(
         cuda_throttle.block.yml
         cuda_tee.block.yml
         cuda_tee_host.block.yml
+        cuda_tag_debug.block.yml
         cuda_char_to_float.block.yml
         cuda_uchar_to_float.block.yml
         cuda_short_to_float.block.yml

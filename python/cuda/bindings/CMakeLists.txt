@@ -48,6 +48,7 @@ list(
     tee_python.cc
     seq_stamp_python.cc
     seq_strip_python.cc
+    tag_debug_python.cc
     python_bindings.cc
 )
 

@@ -51,6 +51,7 @@ list(
     seq_stamp_impl.cc
     seq.cu
     seq_strip_impl.cc
+    tag_debug_impl.cc
 )
 
 if(ENABLE_IBV)
