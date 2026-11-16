@@ -10,7 +10,7 @@
 # Setup library
 ########################################################################
 include(GrPlatform) #define LIB_SUFFIX
-find_package(CUDAToolkit REQUIRED)
+find_package(CUDAToolkit 11.6 REQUIRED)
 
 ###############################################################################
 # CUDA Dependency is required - compile all sources directly into shared lib
