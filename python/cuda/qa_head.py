@@ -75,6 +75,10 @@ class qa_head(gr_unittest.TestCase):
 
         self.assertEqual(list(snk.data()), data[:500])
 
+    def test_006_zero_itemsize_rejected(self):
+        with self.assertRaises(ValueError):
+            head(0, 10)
+
     def test_005_zero_items(self):
         src = blocks.null_source(gr.sizeof_float)
         snk = blocks.vector_sink_f()

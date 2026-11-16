@@ -12,6 +12,7 @@
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/io_signature.h>
 #include <algorithm>
+#include <stdexcept>
 
 namespace gr {
 namespace cuda {
@@ -29,6 +30,9 @@ head_impl::head_impl(size_t sizeof_stream_item, uint64_t nitems)
       d_nitems(nitems),
       d_ncopied_items(0)
 {
+    if (sizeof_stream_item == 0) {
+        throw std::invalid_argument("head: sizeof_stream_item must be positive");
+    }
 }
 
 int head_impl::work(int noutput_items,
