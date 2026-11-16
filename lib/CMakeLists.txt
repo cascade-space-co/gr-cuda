@@ -22,6 +22,7 @@ list(
     cuda_buffer_reader.cc
     detail/device_vmm_ring.cc
     detail/host_mmap_ring.cc
+    detail/last_item_probe.cc
     copy_impl.cc
     multiply_const_impl.cc
     multiply_const.cu
@@ -54,6 +55,8 @@ list(
     tag_debug_impl.cc
     head_impl.cc
     skiphead_impl.cc
+    probe_signal_impl.cc
+    probe_signal_v_impl.cc
 )
 
 if(ENABLE_IBV)

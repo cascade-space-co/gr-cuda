@@ -43,6 +43,8 @@ install(
         cuda_tag_debug.block.yml
         cuda_head.block.yml
         cuda_skiphead.block.yml
+        cuda_probe_signal_x.block.yml
+        cuda_probe_signal_vx.block.yml
         cuda_char_to_float.block.yml
         cuda_uchar_to_float.block.yml
         cuda_short_to_float.block.yml

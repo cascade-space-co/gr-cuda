@@ -32,6 +32,8 @@ install(
         tag_debug.h
         head.h
         skiphead.h
+        probe_signal.h
+        probe_signal_v.h
         vector_select.h
         type_converters.h
     DESTINATION include/gnuradio/cuda

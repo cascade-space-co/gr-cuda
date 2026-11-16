@@ -48,6 +48,7 @@ void bind_seq_strip(py::module& m);
 void bind_tag_debug(py::module& m);
 void bind_head(py::module& m);
 void bind_skiphead(py::module& m);
+void bind_probe_signal(py::module& m);
 #ifdef ENABLE_IBV
 void bind_ibv_source(py::module& m);
 void bind_ibv_sink(py::module& m);
@@ -119,6 +120,7 @@ PYBIND11_MODULE(cuda_python, m)
     bind_tag_debug(m);
     bind_head(m);
     bind_skiphead(m);
+    bind_probe_signal(m);
 #ifdef ENABLE_IBV
     bind_ibv_source(m);
     bind_ibv_sink(m);
