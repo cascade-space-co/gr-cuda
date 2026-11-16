@@ -42,7 +42,11 @@ class qa_head(gr_unittest.TestCase):
         snk = blocks.vector_sink_f()
 
         self.tb.connect(
-            src, copy(gr.sizeof_float), head(gr.sizeof_float, n), copy(gr.sizeof_float), snk
+            src,
+            copy(gr.sizeof_float),
+            head(gr.sizeof_float, n),
+            copy(gr.sizeof_float),
+            snk,
         )
         self.tb.run()
 
