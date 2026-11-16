@@ -63,6 +63,8 @@ public:
     /*!
      * \brief Store all tags ever received (true) or only those from the last
      * work() call (false).
+     *
+     * Switching from true to false discards the tags stored so far.
      */
     virtual void set_save_all(bool s) = 0;
 
