@@ -27,7 +27,7 @@ void bind_probe_signal_template(py::module& m, const char* classname)
                gr::basic_block,
                std::shared_ptr<probe_signal>>(m, classname)
         .def(py::init(&probe_signal::make))
-        .def("level", &probe_signal::level);
+        .def("level", &probe_signal::level, py::call_guard<py::gil_scoped_release>());
 }
 
 template <typename T>
@@ -41,7 +41,7 @@ void bind_probe_signal_v_template(py::module& m, const char* classname)
                gr::basic_block,
                std::shared_ptr<probe_signal_v>>(m, classname)
         .def(py::init(&probe_signal_v::make), py::arg("size"))
-        .def("level", &probe_signal_v::level);
+        .def("level", &probe_signal_v::level, py::call_guard<py::gil_scoped_release>());
 }
 
 void bind_probe_signal(py::module& m)

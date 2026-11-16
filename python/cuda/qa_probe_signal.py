@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
+import threading
 import time
 
 from gnuradio import blocks, cuda, gr, gr_unittest
@@ -68,6 +69,42 @@ class qa_probe_signal(gr_unittest.TestCase):
 
         self.assertTrue(values <= {float(x) for x in range(1000)})
         self.assertGreater(len(values), 1)
+
+    def test_005_vectors_not_torn_with_concurrent_readers(self):
+        # Every vector is [k, k, k, k], so a vector read while a newer one is
+        # being copied in would show mixed values.
+        vlen = 4
+        stream = [float(k) for k in range(1000) for _ in range(vlen)]
+        src = blocks.vector_source_f(stream, True, vlen)
+        probe = cuda.probe_signal_vf(vlen)
+        self.tb.connect(src, cuda.copy(gr.sizeof_float * vlen), probe)
+
+        torn = []
+        values = set()
+
+        def poll():
+            deadline = time.monotonic() + 0.5
+            while time.monotonic() < deadline:
+                v = list(probe.level())
+                if len(set(v)) != 1:
+                    torn.append(v)
+                values.add(v[0])
+
+        self.tb.start()
+        readers = [threading.Thread(target=poll) for _ in range(2)]
+        for r in readers:
+            r.start()
+        for r in readers:
+            r.join()
+        self.tb.stop()
+        self.tb.wait()
+
+        self.assertEqual(torn, [])
+        self.assertGreater(len(values), 1)
+
+    def test_006_zero_size_rejected(self):
+        with self.assertRaises(ValueError):
+            cuda.probe_signal_vf(0)
 
 
 if __name__ == "__main__":

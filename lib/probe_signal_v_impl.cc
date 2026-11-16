@@ -11,6 +11,7 @@
 #include "probe_signal_v_impl.h"
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/io_signature.h>
+#include <stdexcept>
 
 namespace gr {
 namespace cuda {
@@ -29,6 +30,9 @@ probe_signal_v_impl<T>::probe_signal_v_impl(size_t size)
       d_size(size),
       d_probe(size * sizeof(T), this->d_logger)
 {
+    if (size == 0) {
+        throw std::invalid_argument("probe_signal_v: size must be positive");
+    }
 }
 
 template <class T>
