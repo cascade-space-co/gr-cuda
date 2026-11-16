@@ -12,8 +12,10 @@
 #define INCLUDED_CUDA_PROBE_SIGNAL_V_H
 
 #include <gnuradio/cuda/api.h>
+#include <gnuradio/gr_complex.h>
 #include <gnuradio/sync_block.h>
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 namespace gr {

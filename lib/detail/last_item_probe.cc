@@ -19,22 +19,33 @@ last_item_probe::last_item_probe(size_t item_bytes,
                                  const std::shared_ptr<gr::logger>& logger)
     : d_item_bytes(item_bytes), d_logger(logger)
 {
-    check_cuda_errors(cudaMallocHost(&d_staging, d_item_bytes),
-                      "last_item_probe: cudaMallocHost",
-                      d_logger);
-    std::memset(d_staging, 0, d_item_bytes);
-    check_cuda_errors(cudaEventCreateWithFlags(&d_copied, cudaEventDisableTiming),
-                      "last_item_probe: cudaEventCreateWithFlags",
-                      d_logger);
+    try {
+        check_cuda_errors(cudaMallocHost(&d_staging, d_item_bytes),
+                          "last_item_probe: cudaMallocHost",
+                          d_logger);
+        std::memset(d_staging, 0, d_item_bytes);
+        check_cuda_errors(cudaEventCreateWithFlags(&d_copied, cudaEventDisableTiming),
+                          "last_item_probe: cudaEventCreateWithFlags",
+                          d_logger);
+    } catch (...) {
+        release();
+        throw;
+    }
 }
 
-last_item_probe::~last_item_probe()
+last_item_probe::~last_item_probe() { release(); }
+
+void last_item_probe::release()
 {
     if (d_copied) {
+        // A copy into d_staging may still be queued.
+        cudaEventSynchronize(d_copied);
         cudaEventDestroy(d_copied);
+        d_copied = nullptr;
     }
     if (d_staging) {
         cudaFreeHost(d_staging);
+        d_staging = nullptr;
     }
 }
 

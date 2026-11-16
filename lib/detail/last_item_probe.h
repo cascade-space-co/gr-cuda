@@ -14,6 +14,8 @@
 #include <gnuradio/logger.h>
 #include <gnuradio/thread/thread.h>
 #include <cuda_runtime_api.h>
+#include <cstddef>
+#include <memory>
 
 namespace gr {
 namespace detail {
@@ -23,9 +25,15 @@ namespace detail {
  *
  * capture() runs in work(): it queues a copy of one item from GPU memory into
  * a pinned host buffer on the block's stream and records an event, without
- * waiting.  read() runs on the caller's thread: it waits for the latest copy
- * to land and copies the item out.  Until the first capture() the item reads
- * as zeros.
+ * waiting.  On zero-copy edges the item is already in host memory, and CUDA
+ * does that host-to-host copy synchronously; it is a single item.
+ *
+ * read() runs on the caller's thread: it waits for the latest copy to land
+ * and copies the item out.  Until the first capture() the item reads as
+ * zeros.  While read() waits, capture() can't queue the next copy, so the
+ * probe's work() falls behind briefly; upstream blocks keep queuing GPU work
+ * meanwhile, and polling level() even in a tight loop didn't change the data
+ * rate.
  */
 class last_item_probe
 {
@@ -40,6 +48,8 @@ public:
     void read(void* dst) const;
 
 private:
+    void release();
+
     const size_t d_item_bytes;
     std::shared_ptr<gr::logger> d_logger;
     void* d_staging = nullptr;
