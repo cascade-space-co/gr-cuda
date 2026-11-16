@@ -12,6 +12,7 @@
 #include <gnuradio/cuda/cuda_buffer.h>
 #include <gnuradio/io_signature.h>
 #include <algorithm>
+#include <stdexcept>
 
 namespace gr {
 namespace cuda {
@@ -29,6 +30,9 @@ skiphead_impl::skiphead_impl(size_t itemsize, uint64_t nitems_to_skip)
       d_nitems_to_skip(nitems_to_skip),
       d_nskipped(0)
 {
+    if (itemsize == 0) {
+        throw std::invalid_argument("skiphead: itemsize must be positive");
+    }
     // Output offsets are input offsets minus the skip, so tags are moved in
     // general_work.
     set_tag_propagation_policy(TPP_DONT);
@@ -39,13 +43,12 @@ int skiphead_impl::general_work(int noutput_items,
                                 gr_vector_const_void_star& input_items,
                                 gr_vector_void_star& output_items)
 {
-    // Of this call's input, the first `skip` items are dropped and the rest
-    // are copied.  The skipped part of the call is still capped by the output
-    // space, as in blocks.skiphead.
-    const int ninput = std::min(ninput_items[0], noutput_items);
-    const int skip = static_cast<int>(
-        std::min(d_nitems_to_skip - d_nskipped, static_cast<uint64_t>(ninput)));
-    const int ncopy = ninput - skip;
+    // Of this call's input, the first `skip` items are dropped and up to
+    // noutput_items after them are copied.  Only the copy needs output space,
+    // so the skip can consume all the available input.
+    const int skip = static_cast<int>(std::min(d_nitems_to_skip - d_nskipped,
+                                               static_cast<uint64_t>(ninput_items[0])));
+    const int ncopy = std::min(ninput_items[0] - skip, noutput_items);
 
     if (ncopy > 0) {
         const auto in = static_cast<const char*>(input_items[0]);
@@ -67,7 +70,7 @@ int skiphead_impl::general_work(int noutput_items,
     }
 
     d_nskipped += skip;
-    consume_each(ninput);
+    consume_each(skip + ncopy);
     return ncopy;
 }
 

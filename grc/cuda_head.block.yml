@@ -51,6 +51,7 @@ outputs:
 
 asserts:
 - ${ vlen > 0 }
+- ${ num_items >= 0 }
 - ${ output_multiple > 0 }
 
 documentation: |-

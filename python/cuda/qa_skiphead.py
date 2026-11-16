@@ -65,6 +65,21 @@ class qa_skiphead(gr_unittest.TestCase):
         expected = [(o - nskip, o) for o in offsets if o >= nskip]
         self.assertEqual(result, expected)
 
+    def test_006_skip_longer_than_output_space(self):
+        # The skip consumes all available input, not just one output's worth.
+        data = [float(x) for x in range(100_000)]
+        src = blocks.vector_source_f(data, False)
+        sk = skiphead(gr.sizeof_float, 50_000)
+        sk.set_max_noutput_items(256)
+        snk = blocks.vector_sink_f()
+        self.tb.connect(src, copy(gr.sizeof_float), sk, copy(gr.sizeof_float), snk)
+        self.tb.run()
+        self.assertEqual(list(snk.data()), data[50_000:])
+
+    def test_007_zero_itemsize_rejected(self):
+        with self.assertRaises(ValueError):
+            skiphead(0, 10)
+
     def test_005_host_edges(self):
         data = [float(x) for x in range(10_000)]
         src = blocks.vector_source_f(data, False)
