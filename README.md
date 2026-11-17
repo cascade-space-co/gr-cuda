@@ -17,9 +17,9 @@ GPU-accelerated signal processing blocks for [GNU Radio](https://www.gnuradio.or
 ### Prerequisites
 
 - NVIDIA GPU with CUDA support
-- [CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit) >= 10.2
+- [CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit) >= 11.6
 - GNU Radio >= 3.10 (>3.10.12 recommended; older versions have a [fan-out deadlock bug](https://github.com/gnuradio/gnuradio/pull/8029))
-- CMake >= 3.18, Ninja (recommended)
+- CMake >= 3.24, Ninja (recommended)
 - [CuPy](https://cupy.dev/) (for Python GPU blocks)
 
 ### Build and install
@@ -32,7 +32,7 @@ ninja && ninja install && ninja test
 
 For conda environments, add `-DCMAKE_INSTALL_PREFIX="$CONDA_PREFIX" -DCMAKE_PREFIX_PATH="$CONDA_PREFIX"`.
 
-> The build auto-detects your GPU architecture. To override: `-DCMAKE_CUDA_ARCHITECTURES=86`.
+> The build targets the GPU in the build machine. To override: `-DCMAKE_CUDA_ARCHITECTURES=120` or set `CUDAARCHS`.
 
 ## Writing GPU blocks
 

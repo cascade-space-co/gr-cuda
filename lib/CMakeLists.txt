@@ -10,7 +10,7 @@
 # Setup library
 ########################################################################
 include(GrPlatform) #define LIB_SUFFIX
-find_package(CUDAToolkit REQUIRED)
+find_package(CUDAToolkit 11.6 REQUIRED)
 
 ###############################################################################
 # CUDA Dependency is required - compile all sources directly into shared lib
@@ -108,19 +108,6 @@ if(APPLE)
                 "${CMAKE_INSTALL_PREFIX}/lib"
     )
 endif(APPLE)
-
-# Configure CUDA architectures
-if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES OR CMAKE_CUDA_ARCHITECTURES STREQUAL "")
-    # If no architecture specified, let CMake detect from the build machine
-    # Users can override with -DCMAKE_CUDA_ARCHITECTURES="native" or specific values
-    set(CMAKE_CUDA_ARCHITECTURES "native")
-endif()
-set_target_properties(
-    gnuradio-cuda
-    PROPERTIES
-        CUDA_ARCHITECTURES
-            "${CMAKE_CUDA_ARCHITECTURES}"
-)
 
 ########################################################################
 # Install built library files
