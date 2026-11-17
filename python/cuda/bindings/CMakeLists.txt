@@ -51,6 +51,7 @@ list(
     tag_debug_python.cc
     head_python.cc
     skiphead_python.cc
+    probe_signal_python.cc
     python_bindings.cc
 )
 
