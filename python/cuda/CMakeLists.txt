@@ -222,3 +222,8 @@ GR_ADD_TEST(
     ${PYTHON_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/qa_zero_copy_wrap.py
 )
+GR_ADD_TEST(
+    qa_tag_debug
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_tag_debug.py
+)

@@ -45,6 +45,7 @@ void bind_throttle(py::module& m);
 void bind_tee(py::module& m);
 void bind_seq_stamp(py::module& m);
 void bind_seq_strip(py::module& m);
+void bind_tag_debug(py::module& m);
 #ifdef ENABLE_IBV
 void bind_ibv_source(py::module& m);
 void bind_ibv_sink(py::module& m);
@@ -113,6 +114,7 @@ PYBIND11_MODULE(cuda_python, m)
     bind_tee(m);
     bind_seq_stamp(m);
     bind_seq_strip(m);
+    bind_tag_debug(m);
 #ifdef ENABLE_IBV
     bind_ibv_source(m);
     bind_ibv_sink(m);
