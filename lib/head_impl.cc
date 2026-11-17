@@ -35,10 +35,23 @@ head_impl::head_impl(size_t sizeof_stream_item, uint64_t nitems)
     }
 }
 
+void head_impl::reset()
+{
+    gr::thread::scoped_lock guard(d_setlock);
+    d_ncopied_items = 0;
+}
+
+void head_impl::set_length(uint64_t nitems)
+{
+    gr::thread::scoped_lock guard(d_setlock);
+    d_nitems = nitems;
+}
+
 int head_impl::work(int noutput_items,
                     gr_vector_const_void_star& input_items,
                     gr_vector_void_star& output_items)
 {
+    gr::thread::scoped_lock guard(d_setlock);
     // Done is reported on the call after the last item passes, so the items
     // produced by the previous call are published normally first.
     if (d_ncopied_items >= d_nitems) {

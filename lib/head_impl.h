@@ -28,8 +28,8 @@ public:
     head_impl(size_t sizeof_stream_item, uint64_t nitems);
     ~head_impl() override = default;
 
-    void reset() override { d_ncopied_items = 0; }
-    void set_length(uint64_t nitems) override { d_nitems = nitems; }
+    void reset() override;
+    void set_length(uint64_t nitems) override;
 
     int work(int noutput_items,
              gr_vector_const_void_star& input_items,
