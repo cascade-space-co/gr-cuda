@@ -227,3 +227,13 @@ GR_ADD_TEST(
     ${PYTHON_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/qa_tag_debug.py
 )
+GR_ADD_TEST(
+    qa_head
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_head.py
+)
+GR_ADD_TEST(
+    qa_skiphead
+    ${PYTHON_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/qa_skiphead.py
+)
