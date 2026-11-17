@@ -19,6 +19,9 @@ namespace cuda {
 template <class T>
 typename probe_signal_v<T>::sptr probe_signal_v<T>::make(size_t size)
 {
+    if (size == 0) {
+        throw std::invalid_argument("probe_signal_v: size must be positive");
+    }
     return gnuradio::make_block_sptr<probe_signal_v_impl<T>>(size);
 }
 
@@ -30,9 +33,6 @@ probe_signal_v_impl<T>::probe_signal_v_impl(size_t size)
       d_size(size),
       d_probe(size * sizeof(T), this->d_logger)
 {
-    if (size == 0) {
-        throw std::invalid_argument("probe_signal_v: size must be positive");
-    }
 }
 
 template <class T>
