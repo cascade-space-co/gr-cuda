@@ -440,14 +440,16 @@ class qa_type_converters(gr_unittest.TestCase):
                         )
 
     def test_interleaved_char_swap(self):
-        data = ints(np.int8, 2 * N)
-        out = run(
-            cuda.interleaved_char_to_complex(False, 2.0, True),
-            [(data, 1)],
-            [(np.complex64, 1)],
-        )[0]
-        pairs = data.astype(np.float32).reshape(-1, 2) / 2
-        np.testing.assert_array_equal(out, pairs[:, 1] + 1j * pairs[:, 0])
+        for vlen in (1, 2, 3):
+            with self.subTest(vlen=vlen):
+                data = whole_vectors(ints(np.int8, 2 * N), 2 * vlen)
+                out = run(
+                    cuda.interleaved_char_to_complex(False, 2.0, True, vlen),
+                    [(data, 1)],
+                    [(np.complex64, vlen)],
+                )[0]
+                pairs = data.astype(np.float32).reshape(-1, 2) / 2
+                np.testing.assert_array_equal(out, pairs[:, 1] + 1j * pairs[:, 0])
 
     def test_setters(self):
         block = cuda.float_to_uchar(1, 1.0, 0.0)
