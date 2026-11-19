@@ -11,7 +11,7 @@
 /* BINDTOOL_GEN_AUTOMATIC(0)                                                       */
 /* BINDTOOL_USE_PYGCCXML(0)                                                        */
 /* BINDTOOL_HEADER_FILE(type_converters.h)                                         */
-/* BINDTOOL_HEADER_FILE_HASH(ead813b45548276c74714d5c5e36422f) */
+/* BINDTOOL_HEADER_FILE_HASH(e4f401346eb14bdc0c2b73654d781ef1) */
 /***********************************************************************************/
 
 #include <pybind11/complex.h>
@@ -54,7 +54,8 @@ void bind_to_interleaved(py::module& m, const char* name)
                std::shared_ptr<B>>(m, name)
         .def(py::init(&B::make),
              py::arg("vector") = false,
-             py::arg("scale_factor") = 1.0f)
+             py::arg("scale_factor") = 1.0f,
+             py::arg("vlen") = 1)
         .def("scale_factor", &B::scale_factor)
         .def("set_scale_factor", &B::set_scale_factor, py::arg("scale_factor"));
 }
@@ -120,13 +121,15 @@ void bind_type_converters(py::module& m)
     ichar.def(py::init(&interleaved_char_to_complex::make),
               py::arg("vector_input") = false,
               py::arg("scale_factor") = 1.0f,
-              py::arg("swap") = false);
+              py::arg("swap") = false,
+              py::arg("vlen") = 1);
     add_interleaved_accessors(ichar);
 
     decim_class<interleaved_short_to_complex> ishort(m, "interleaved_short_to_complex");
     ishort.def(py::init(&interleaved_short_to_complex::make),
                py::arg("vector_input") = false,
                py::arg("swap") = false,
-               py::arg("scale_factor") = 1.0f);
+               py::arg("scale_factor") = 1.0f,
+               py::arg("vlen") = 1);
     add_interleaved_accessors(ishort);
 }

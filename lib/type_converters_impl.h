@@ -85,10 +85,11 @@ public:
     class name##_impl : public name, public cuda_block                 \
     {                                                                  \
         const bool d_vector;                                           \
+        const size_t d_vlen;                                           \
         std::atomic<float> d_scale_factor;                             \
                                                                        \
     public:                                                            \
-        name##_impl(bool vector, float scale_factor);                  \
+        name##_impl(bool vector, float scale_factor, size_t vlen);     \
         float scale_factor() const override { return d_scale_factor; } \
         void set_scale_factor(float scale_factor) override             \
         {                                                              \
@@ -100,22 +101,23 @@ public:
 CUDA_TO_INTERLEAVED_IMPL(complex_to_interleaved_char);
 CUDA_TO_INTERLEAVED_IMPL(complex_to_interleaved_short);
 
-#define CUDA_FROM_INTERLEAVED_IMPL(name)                               \
-    class name##_impl : public name, public cuda_block                 \
-    {                                                                  \
-        std::atomic<float> d_scale_factor;                             \
-        std::atomic<bool> d_swap;                                      \
-                                                                       \
-    public:                                                            \
-        name##_impl(bool vector_input, float scale_factor, bool swap); \
-        float scale_factor() const override { return d_scale_factor; } \
-        bool swap() const override { return d_swap; }                  \
-        void set_scale_factor(float scale_factor) override             \
-        {                                                              \
-            d_scale_factor = scale_factor;                             \
-        }                                                              \
-        void set_swap(bool swap) override { d_swap = swap; }           \
-        CUDA_CONVERTER_WORK;                                           \
+#define CUDA_FROM_INTERLEAVED_IMPL(name)                                            \
+    class name##_impl : public name, public cuda_block                              \
+    {                                                                               \
+        const size_t d_vlen;                                                        \
+        std::atomic<float> d_scale_factor;                                          \
+        std::atomic<bool> d_swap;                                                   \
+                                                                                    \
+    public:                                                                         \
+        name##_impl(bool vector_input, float scale_factor, bool swap, size_t vlen); \
+        float scale_factor() const override { return d_scale_factor; }              \
+        bool swap() const override { return d_swap; }                               \
+        void set_scale_factor(float scale_factor) override                          \
+        {                                                                           \
+            d_scale_factor = scale_factor;                                          \
+        }                                                                           \
+        void set_swap(bool swap) override { d_swap = swap; }                        \
+        CUDA_CONVERTER_WORK;                                                        \
     }
 
 CUDA_FROM_INTERLEAVED_IMPL(interleaved_char_to_complex);
