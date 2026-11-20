@@ -169,8 +169,11 @@ ibv_transport::~ibv_transport()
 
 // ibv_gpu_buffer
 
-ibv_gpu_buffer::ibv_gpu_buffer(size_t size, struct ibv_pd* pd) : d_size(size)
+ibv_gpu_buffer::ibv_gpu_buffer(size_t size, struct ibv_pd* pd)
+    // DMA-BUF export needs a page-aligned size; 2 MiB covers the GPU page size.
+    : d_size((size + GPU_PAGE_SIZE - 1) / GPU_PAGE_SIZE * GPU_PAGE_SIZE)
 {
+    size = d_size;
     int device;
     check_cuda_errors(cudaGetDevice(&device), "ibv_gpu_buffer: cudaGetDevice");
     CUdevice cu_dev;

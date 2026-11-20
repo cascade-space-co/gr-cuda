@@ -155,7 +155,11 @@ list(
 )
 # The CUDA kernel tests need the IBV .cu entry points (only built with IBV).
 if(ENABLE_IBV)
-    list(APPEND test_cuda_sources qa_ibv_kernels.cc)
+    list(
+        APPEND test_cuda_sources
+        qa_ibv_kernels.cc
+        qa_ibv_gpu_buffer.cc
+    )
 endif()
 # Anything we need to link to for the unit tests go here
 list(APPEND GR_TEST_TARGET_DEPS gnuradio-cuda)
@@ -168,3 +172,13 @@ endif(NOT test_cuda_sources)
 foreach(qa_file ${test_cuda_sources})
     GR_ADD_CPP_TEST("cuda_${qa_file}" ${CMAKE_CURRENT_SOURCE_DIR}/${qa_file})
 endforeach(qa_file)
+
+# ibv_gpu_buffer is internal to the module, so the shared library does not
+# export it and the test covering it has to compile it in.
+if(ENABLE_IBV)
+    target_sources(
+        cuda_qa_ibv_gpu_buffer.cc
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/network/ibv_common.cc
+    )
+endif()

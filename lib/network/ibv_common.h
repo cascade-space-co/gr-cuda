@@ -88,6 +88,9 @@ private:
 class ibv_gpu_buffer
 {
 public:
+    static constexpr size_t GPU_PAGE_SIZE = 2UL * 1024 * 1024;
+
+    //! Allocates at least size bytes, rounded up to GPU_PAGE_SIZE.
     ibv_gpu_buffer(size_t size, struct ibv_pd* pd);
     ~ibv_gpu_buffer();
 
