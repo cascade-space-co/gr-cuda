@@ -14,9 +14,11 @@ parameters:
 - id: type
   label: Type
   dtype: enum
-  options: [complex, float, int, short, byte]
+  options: [complex, float, int, short, byte, sc16, sc8]
+  option_labels: [complex, float, int, short, byte, complex int16, complex int8]
   option_attributes:
-    size: [gr.sizeof_gr_complex, gr.sizeof_float, gr.sizeof_int, gr.sizeof_short, gr.sizeof_char]
+    size: [gr.sizeof_gr_complex, gr.sizeof_float, gr.sizeof_int, gr.sizeof_short, gr.sizeof_char,
+      2*gr.sizeof_short, 2*gr.sizeof_char]
   hide: part
 - id: vlen
   label: Vector Length
