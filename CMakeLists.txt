@@ -26,6 +26,15 @@ project(
 )
 enable_testing()
 
+# Run the tests with fixed cuda_buffer settings instead of the user's GNU Radio
+# prefs: the smallest ring (the 2 MiB allocation granularity), so data-checking
+# tests wrap it, and the default busy-wait. Set either variable to override.
+# Keep in sync with python/cuda/conftest.py.
+set(GR_TEST_ENVIRONS
+    "GR_CONF_CUDA_BUFFER_MIN_BUFFER_BYTES=\${GR_CONF_CUDA_BUFFER_MIN_BUFFER_BYTES:-2097152}"
+    "GR_CONF_CUDA_BUFFER_GPU_BUSY_WAIT=\${GR_CONF_CUDA_BUFFER_GPU_BUSY_WAIT:-True}"
+)
+
 # Install to PyBOMBS target prefix if defined
 if(DEFINED ENV{PYBOMBS_PREFIX})
     set(CMAKE_INSTALL_PREFIX $ENV{PYBOMBS_PREFIX})
