@@ -5,11 +5,16 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-import time
-
 import numpy as np
 import pmt
 from gnuradio import blocks, cuda, gr, gr_unittest
+
+try:
+    from .call_at_item import call_at_item
+except ImportError:
+    from call_at_item import call_at_item
+
+SWITCH_GROUP = 4_000
 
 BLOCKS_BY_DTYPE = {
     np.dtype(np.complex64): (blocks.vector_source_c, blocks.vector_sink_c),
@@ -192,20 +197,20 @@ class qa_keep_m_in_n(gr_unittest.TestCase):
         self.assertEqual(block.output_multiple(), 65536)
 
     def run_while_changing(self, m, n, offset, change):
-        """Run an int32 ramp through the block, call change(block) mid-run,
-        and return the kept positions of each input block, in order."""
-        num_items = n * 80_000
+        """Run an int32 ramp through the block, call change(block) before
+        input block SWITCH_GROUP, and return the kept positions of each input
+        block, in order."""
+        num_items = n * 2 * SWITCH_GROUP
         block = cuda.keep_m_in_n(gr.sizeof_int, m, n, offset)
         tb = gr.top_block()
         source = blocks.vector_source_i(np.arange(num_items, dtype=np.int32))
-        throttle = blocks.throttle(gr.sizeof_int, 400_000)
-        throttle.set_max_noutput_items(4000)
+        trigger = call_at_item(
+            gr.sizeof_int, n * SWITCH_GROUP, lambda: change(block), block
+        )
         sink = blocks.vector_sink_i()
-        tb.connect(source, throttle, block, sink)
-        tb.start()
-        time.sleep(0.3)
-        change(block)
-        tb.wait()
+        tb.connect(source, trigger, block, sink)
+        tb.run()
+        self.assertFalse(trigger.timed_out)
 
         out = np.asarray(sink.data())
         # The input is a ramp, so out // n is the input block and out % n the
@@ -215,21 +220,16 @@ class qa_keep_m_in_n(gr_unittest.TestCase):
         np.testing.assert_array_equal(ids, np.arange(num_items // n))
         return [tuple(p) for p in np.split(out % n, starts[1:])]
 
-    def assert_switches_once(self, patterns, old, new):
-        is_new = [p == new for p in patterns]
-        self.assertTrue(any(is_new), "the change took effect after the stream ended")
-        switch = is_new.index(True)
-        self.assertGreater(switch, 0, "the change took effect before the run")
-        self.assertEqual(set(patterns[:switch]), {old})
-        self.assertEqual(set(patterns[switch:]), {new})
+    def assert_switches_at_group(self, patterns, old, new):
+        self.assertEqual(patterns, [old] * SWITCH_GROUP + [new] * SWITCH_GROUP)
 
     def test_008_set_offset_while_running(self):
         patterns = self.run_while_changing(2, 5, 0, lambda b: b.set_offset(3))
-        self.assert_switches_once(patterns, (0, 1), (3, 4))
+        self.assert_switches_at_group(patterns, (0, 1), (3, 4))
 
     def test_009_set_m_while_running(self):
         patterns = self.run_while_changing(2, 5, 0, lambda b: b.set_m(3))
-        self.assert_switches_once(patterns, (0, 1), (0, 1, 2))
+        self.assert_switches_at_group(patterns, (0, 1), (0, 1, 2))
 
 
 if __name__ == "__main__":
