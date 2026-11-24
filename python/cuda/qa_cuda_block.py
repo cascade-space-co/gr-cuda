@@ -189,44 +189,26 @@ class _const_source_f32(cuda.sync_block):
         return n
 
 
-_slow_fill = cp.RawKernel(
-    r"""
-extern "C" __global__ void slow_fill(float* out, int n, float v, long long cycles)
-{
-    long long start = clock64();
-    while (clock64() - start < cycles) {
-    }
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < n)
-        out[i] = v;
-}
-""",
-    "slow_fill",
-)
-
-
 class _stream_init_source_f32(cuda.sync_block):
-    """Source whose __init__ fills device state with a slow kernel on self.stream.
+    """Source whose __init__ fills device state on self.stream.
 
     Block streams are non-blocking, so device work in __init__ is only ordered
-    before work() if both run on the same stream. This checks that self.stream
-    is that stream, which is what docs/WRITING_BLOCKS.md tells users to rely on.
-    The slow kernel makes a broken ordering read zeros instead of passing by luck.
+    before work() if both run on the same stream, which is what
+    docs/WRITING_BLOCKS.md tells users to rely on. Starting the flowgraph lets
+    __init__'s device work finish before work() runs anyway, so timing can't
+    show a wrong stream; work() records the stream it runs on instead.
     """
 
     def __init__(self, value: float, count: int):
         self._count = count
         self._produced = 0
+        self.work_streams = set()
         cuda.sync_block.__init__(self, "stream_init_source_f32", None, [np.float32])
         with self.stream:
-            self._data = cp.zeros(count, dtype=np.float32)
-            _slow_fill(
-                ((count + 255) // 256,),
-                (256,),
-                (self._data, np.int32(count), np.float32(value), np.int64(10**9)),
-            )
+            self._data = cp.full(count, value, dtype=np.float32)
 
     def work(self, input_items, output_items):
+        self.work_streams.add(cp.cuda.get_current_stream().ptr)
         remaining = self._count - self._produced
         if remaining <= 0:
             return -1
@@ -425,6 +407,7 @@ class qa_cuda_block(gr_unittest.TestCase):
         snk = blocks.vector_sink_f()
         self.tb.connect(src, snk)
         self.tb.run()
+        self.assertEqual(src.work_streams, {src.stream.ptr})
         result = np.array(snk.data(), dtype=np.float32)
         np.testing.assert_array_equal(result, np.full(N, value, dtype=np.float32))
 

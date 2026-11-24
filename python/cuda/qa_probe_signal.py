@@ -8,6 +8,7 @@
 import threading
 import time
 
+import numpy as np
 from gnuradio import blocks, cuda, gr, gr_unittest
 
 TYPES = [
@@ -61,8 +62,8 @@ class qa_probe_signal(gr_unittest.TestCase):
         self.tb.connect(src, cuda.copy(gr.sizeof_float), probe)
         self.tb.start()
         values = set()
-        deadline = time.monotonic() + 0.5
-        while time.monotonic() < deadline:
+        deadline = time.monotonic() + 5
+        while len(values) < 100 and time.monotonic() < deadline:
             values.add(probe.level())
         self.tb.stop()
         self.tb.wait()
@@ -71,10 +72,12 @@ class qa_probe_signal(gr_unittest.TestCase):
         self.assertGreater(len(values), 1)
 
     def test_005_vectors_not_torn_with_concurrent_readers(self):
-        # Every vector is [k, k, k, k], so a vector read while a newer one is
-        # being copied in would show mixed values.
-        vlen = 4
-        stream = [float(k) for k in range(1000) for _ in range(vlen)]
+        # Every vector is [k, k, ..., k], so a vector read while a newer one is
+        # being copied in would show mixed values. The vectors are large so
+        # that a copy takes many DMA writes; a small one lands in a single
+        # write and can't be seen half-copied.
+        vlen = 16384
+        stream = np.repeat(np.arange(64, dtype=np.float32), vlen)
         src = blocks.vector_source_f(stream, True, vlen)
         probe = cuda.probe_signal_vf(vlen)
         self.tb.connect(src, cuda.copy(gr.sizeof_float * vlen), probe)
@@ -83,7 +86,7 @@ class qa_probe_signal(gr_unittest.TestCase):
         values = set()
 
         def poll():
-            deadline = time.monotonic() + 0.5
+            deadline = time.monotonic() + 0.2
             while time.monotonic() < deadline:
                 v = list(probe.level())
                 if len(set(v)) != 1:
