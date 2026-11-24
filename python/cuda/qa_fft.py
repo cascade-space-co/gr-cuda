@@ -86,7 +86,11 @@ def _run_cupy_fft(data, fft_size, forward, window, shift, real_input):
 class qa_fft(gr_unittest.TestCase):
     def setUp(self):
         self.rng = np.random.default_rng(0)
-        self.fft_sizes = [256, 2048, 16384, 131072, 1048576]
+        self.fft_sizes = [256, 2048, 16384, 131072]
+        # 8 MiB items, so rings are sized by the items rather than the 2 MiB
+        # floor the suite runs with.  The inverse takes the same buffer path,
+        # so only the forward tests use it.
+        self.forward_fft_sizes = self.fft_sizes + [1048576]
 
     def _make_input(self, fft_size, real_input):
         # Feed multiple FFT vectors so buffers wrap.
@@ -107,7 +111,7 @@ class qa_fft(gr_unittest.TestCase):
         np.testing.assert_allclose(actual, expected, rtol=1e-3, atol=1e-3)
 
     def test_cuda_fft_sizes_forward(self):
-        for fft_size in self.fft_sizes:
+        for fft_size in self.forward_fft_sizes:
             for real_input in (False, True):
                 with self.subTest(fft_size=fft_size, real_input=real_input):
                     self._compare_fft(
@@ -140,7 +144,7 @@ class qa_fft(gr_unittest.TestCase):
                 self._compare_fft(_run_cuda_fft, fft_size, False, [], True, real_input)
 
     def test_cupy_fft_sizes_forward(self):
-        for fft_size in self.fft_sizes:
+        for fft_size in self.forward_fft_sizes:
             for real_input in (False, True):
                 with self.subTest(fft_size=fft_size, real_input=real_input):
                     self._compare_fft(
