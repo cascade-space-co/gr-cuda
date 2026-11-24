@@ -47,6 +47,7 @@ CALL_ITEMS = 100_003
 OTHER_CALL_ITEMS = 65_537
 TOTAL_ITEMS = 4 * RING_ITEMS + PATTERN_LEN
 TIMEOUT_S = 60
+STOP_TIMEOUT_S = 10
 
 _pattern = None
 
@@ -160,13 +161,15 @@ class qa_buffer_wrap(gr_unittest.TestCase):
 
     def run_tb(self):
         # A failed CUDA call kills only one block's thread, which can leave
-        # tb.run() waiting forever.
-        runner = threading.Thread(target=self.tb.run)
+        # tb.run() waiting forever. That is a gr-cuda bug, so fail this test
+        # rather than leave it to the runner's timeout, which ends the whole
+        # run. The thread is a daemon in case stop() can't free it either.
+        runner = threading.Thread(target=self.tb.run, daemon=True)
         runner.start()
         runner.join(TIMEOUT_S)
         if runner.is_alive():
             self.tb.stop()
-            runner.join()
+            runner.join(STOP_TIMEOUT_S)
             self.fail(f"flowgraph did not finish within {TIMEOUT_S} s")
 
     def assertChecked(self, sink, expected_count=TOTAL_ITEMS):
