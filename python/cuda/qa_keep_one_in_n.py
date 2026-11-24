@@ -5,11 +5,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-import time
-
 import numpy as np
 import pmt
 from gnuradio import blocks, cuda, gr, gr_unittest
+
+try:
+    from .call_at_item import call_at_item
+except ImportError:
+    from call_at_item import call_at_item
 
 BLOCKS_BY_DTYPE = {
     np.dtype(np.complex64): (blocks.vector_source_c, blocks.vector_sink_c),
@@ -152,7 +155,7 @@ class qa_keep_one_in_n(gr_unittest.TestCase):
         # The input is a ramp, so each output value is the index of the input
         # item it came from. Tags carry their own input offset as the value.
         n_old, n_new = 3, 5
-        num_items = 400_000
+        num_items, switch_at = 60_000, 30_000
         tags = [
             gr.tag_utils.python_to_tag(
                 (offset, pmt.intern("marker"), pmt.from_long(offset), pmt.PMT_NIL)
@@ -164,26 +167,25 @@ class qa_keep_one_in_n(gr_unittest.TestCase):
         source = blocks.vector_source_i(
             np.arange(num_items, dtype=np.int32), repeat=False, tags=tags
         )
-        throttle = blocks.throttle(gr.sizeof_int, 400_000)
-        throttle.set_max_noutput_items(4000)
+        trigger = call_at_item(
+            gr.sizeof_int, switch_at, lambda: block.set_n(n_new), block
+        )
         sink = blocks.vector_sink_i()
-        tb.connect(source, throttle, block, sink)
-        tb.start()
-        time.sleep(0.3)
-        block.set_n(n_new)
-        tb.wait()
+        tb.connect(source, trigger, block, sink)
+        tb.run()
+        self.assertFalse(trigger.timed_out)
 
+        # switch_at ends a whole old group, and set_n() starts a new one.
         out = np.asarray(sink.data())
-        self.assertEqual(out[0], n_old - 1)
-        gaps = np.diff(out)
-        changed = np.flatnonzero(gaps != n_old)
-        self.assertTrue(changed.size, "set_n() took effect after the stream ended")
-        switch = changed[0]
-        # One transition gap: what was left of the old group, then n_new.
-        self.assertGreaterEqual(gaps[switch], n_new)
-        self.assertLess(gaps[switch], n_old + n_new)
-        np.testing.assert_array_equal(gaps[switch + 1 :], n_new)
-        self.assertGreater(len(gaps) - switch, 1000)
+        np.testing.assert_array_equal(
+            out,
+            np.concatenate(
+                [
+                    np.arange(n_old - 1, switch_at, n_old),
+                    np.arange(switch_at + n_new - 1, num_items, n_new),
+                ]
+            ),
+        )
 
         # Every tag lands on or just before the output kept for its input
         # item, never on output written before that item arrived.

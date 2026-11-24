@@ -5,11 +5,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-import time
-
 import numpy as np
 import pmt
 from gnuradio import blocks, cuda, gr, gr_unittest
+
+try:
+    from .call_at_item import call_at_item
+except ImportError:
+    from call_at_item import call_at_item
 
 BLOCKS_BY_DTYPE = {
     np.dtype(np.complex64): (blocks.vector_source_c, blocks.vector_sink_c),
@@ -90,28 +93,26 @@ class qa_vector_select(gr_unittest.TestCase):
         np.testing.assert_array_equal(result, expected_select(values, 6, [5, 2]))
 
     def test_004_set_indices_while_running(self):
-        vlen = 8
+        vlen, num_vectors, switch_at = 8, 20_000, 10_000
         block = cuda.vector_select(gr.sizeof_float, vlen, [1, 2])
         tb = gr.top_block()
         source = blocks.vector_source_f(
-            np.arange(vlen, dtype=np.float32), repeat=True, vlen=vlen
+            np.tile(np.arange(vlen, dtype=np.float32), num_vectors), vlen=vlen
         )
-        throttle = blocks.throttle(gr.sizeof_float * vlen, 100_000)
-        throttle.set_max_noutput_items(1000)
+        trigger = call_at_item(
+            gr.sizeof_float * vlen,
+            switch_at,
+            lambda: block.set_indices([6, 4]),
+            block,
+        )
         sink = blocks.vector_sink_f(vlen=2)
-        tb.connect(source, throttle, block, sink)
-        tb.start()
-        try:
-            time.sleep(0.1)
-            block.set_indices([6, 4])
-            time.sleep(0.2)
-        finally:
-            tb.stop()
-            tb.wait()
+        tb.connect(source, trigger, block, sink)
+        tb.run()
+        self.assertFalse(trigger.timed_out)
         pairs = np.asarray(sink.data(), dtype=np.float32).reshape(-1, 2)
-        valid = (pairs == [1, 2]).all(axis=1) | (pairs == [6, 4]).all(axis=1)
-        self.assertTrue(valid.all())
-        np.testing.assert_array_equal(pairs[-1], [6, 4])
+        np.testing.assert_array_equal(
+            pairs, [[1, 2]] * switch_at + [[6, 4]] * (num_vectors - switch_at)
+        )
 
     def test_004b_output_multiple(self):
         # As with any GNU Radio block, the end of a finite stream that does not
