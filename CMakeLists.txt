@@ -163,6 +163,34 @@ if(APPLE)
     endif(NOT CMAKE_BUILD_WITH_INSTALL_RPATH)
 endif(APPLE)
 
+# conda's compiler activation puts -Wl,-rpath,<env>/lib in LDFLAGS, which
+# lands ahead of the build tree in the RPATH, so an env that already contains
+# gr-cuda would supply the library to the build tree's tests and bindings.
+# Drop that flag and keep the directory for installs. The build tree then
+# comes first: the conda gcc spec appends -rpath <env>/lib at the end of every
+# link, and CMake leaves that directory out of the build RPATH because it is
+# one of the compiler's implicit link directories. That trailing entry is what
+# still resolves libgnuradio-runtime, libcudart and libcufft.
+if(DEFINED ENV{CONDA_BUILD} AND DEFINED ENV{PREFIX})
+    set(conda_env "$ENV{PREFIX}")
+elseif(DEFINED ENV{CONDA_PREFIX})
+    set(conda_env "$ENV{CONDA_PREFIX}")
+endif()
+if(conda_env)
+    foreach(kind EXE SHARED MODULE)
+        # Padded so only the whole flag matches, not e.g. a .../lib64 one.
+        set(flags " ${CMAKE_${kind}_LINKER_FLAGS} ")
+        string(REPLACE " -Wl,-rpath,${conda_env}/lib " " " stripped "${flags}")
+        if(NOT stripped STREQUAL flags)
+            string(STRIP "${stripped}" CMAKE_${kind}_LINKER_FLAGS)
+            list(APPEND CMAKE_INSTALL_RPATH "${conda_env}/lib")
+        endif()
+    endforeach()
+    if(CMAKE_INSTALL_RPATH)
+        list(REMOVE_DUPLICATES CMAKE_INSTALL_RPATH)
+    endif()
+endif()
+
 ########################################################################
 # Find gnuradio build dependencies
 ########################################################################
