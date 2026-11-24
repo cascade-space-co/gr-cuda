@@ -30,16 +30,14 @@ except ImportError:
     sys.path.append(os.path.join(dirname, "bindings"))
     from gnuradio import cuda
 
-# Fix the ring size so the test wraps it regardless of the user's prefs.
-# cuda_buffer reads this once per process, at its first allocation, and the
-# environment overrides config files.
-RING_BYTES = 8 << 20
-os.environ["GR_CONF_CUDA_BUFFER_MIN_BUFFER_BYTES"] = str(RING_BYTES)
-RING_ITEMS = RING_BYTES // gr.sizeof_gr_complex
+RING_ITEMS = (
+    gr.prefs().get_long("cuda_buffer", "min_buffer_bytes", 32 << 20)
+    // gr.sizeof_gr_complex
+)
 
 # Primes, so neither the pattern nor the GPU block's calls line up with the ring.
 PATTERN_LEN = 1_000_003
-CALL_ITEMS = 300_007
+CALL_ITEMS = 100_003
 TOTAL_ITEMS = 4 * RING_ITEMS + PATTERN_LEN
 TIMEOUT_S = 60
 
